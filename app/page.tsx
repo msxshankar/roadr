@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Map from '@/components/Map';
 import RouteControls from '@/components/RouteControls';
@@ -15,7 +15,6 @@ import {
   DEFAULT_UK_MPG,
   DEFAULT_UK_PETROL_PRICE_PENCE,
   computeTelemetry,
-  interpolateRoutePosition,
 } from '@/lib/mapbox';
 import { AlertCircle, Sliders, ChevronUp, ChevronDown } from 'lucide-react';
 
@@ -41,12 +40,10 @@ export default function Home() {
 
   // 3D Driving Preview State
   const [isPreviewActive, setIsPreviewActive] = useState<boolean>(false);
-  const [previewProgress, setPreviewProgress] = useState<number>(0); // 0 to 1
+  const [previewProgress, setPreviewProgress] = useState<number>(0);
   const [isPlayingPreview, setIsPlayingPreview] = useState<boolean>(false);
-  const [speedMultiplier, setSpeedMultiplier] = useState<number>(2); // 1x, 2x, 4x, 8x
+  const [speedMultiplier, setSpeedMultiplier] = useState<number>(2);
   const [currentBearing, setCurrentBearing] = useState<number>(0);
-
-  const animFrameRef = useRef<number | null>(null);
 
   // Fetch Live Fuel Price dynamically from FuelMap API route on mount
   useEffect(() => {
@@ -97,54 +94,19 @@ export default function Home() {
     }
   };
 
-  // 3D Drive Animation Loop
-  useEffect(() => {
-    if (!isPlayingPreview || !isPreviewActive || !routeData || !routeData.geometry) {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      return;
+  const handleProgressTick = (progress: number, bearing: number) => {
+    setPreviewProgress(progress);
+    setCurrentBearing(bearing);
+    if (progress >= 1 && isPlayingPreview) {
+      setIsPlayingPreview(false);
     }
-
-    let lastTime = performance.now();
-
-    const animateDrive = (now: number) => {
-      const deltaMs = now - lastTime;
-      lastTime = now;
-
-      // Advance progress smoothly based on time delta and speed multiplier
-      const step = (deltaMs / 1000) * 0.015 * speedMultiplier;
-      setPreviewProgress((prev) => {
-        const nextProgress = prev + step;
-        if (nextProgress >= 1) {
-          setIsPlayingPreview(false);
-          return 1;
-        }
-        return nextProgress;
-      });
-
-      animFrameRef.current = requestAnimationFrame(animateDrive);
-    };
-
-    animFrameRef.current = requestAnimationFrame(animateDrive);
-
-    return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
-  }, [isPlayingPreview, isPreviewActive, speedMultiplier, routeData]);
-
-  // Update current bearing whenever preview progress updates
-  useEffect(() => {
-    if (isPreviewActive && routeData && routeData.geometry && routeData.geometry.coordinates) {
-      const coords = routeData.geometry.coordinates as [number, number][];
-      const { bearing } = interpolateRoutePosition(coords, previewProgress);
-      setCurrentBearing(bearing);
-    }
-  }, [previewProgress, isPreviewActive, routeData]);
+  };
 
   const handleStartPreview = () => {
     setIsPreviewActive(true);
     setIsPlayingPreview(true);
     setPreviewProgress(0);
-    setIsMobilePanelOpen(false); // Hide panel for immersive 3D preview view
+    setIsMobilePanelOpen(false);
   };
 
   const handleExitPreview = () => {
@@ -254,7 +216,7 @@ export default function Home() {
         provider={routeData?.provider}
       />
 
-      {/* Mapbox Map Canvas */}
+      {/* Mapbox Map Canvas with High-Performance 60 FPS Direct Loop */}
       <Map
         token={token}
         origin={origin}
@@ -262,7 +224,10 @@ export default function Home() {
         routeData={routeData}
         activeClickMode={activeClickMode}
         isPreviewActive={isPreviewActive}
+        isPlayingPreview={isPlayingPreview}
         previewProgress={previewProgress}
+        speedMultiplier={speedMultiplier}
+        onProgressTick={handleProgressTick}
         onMapClick={handleMapClick}
         onOpenTokenModal={() => setIsTokenModalOpen(true)}
       />

@@ -13,7 +13,10 @@ interface MapProps {
   routeData: RouteData | null;
   activeClickMode: 'origin' | 'destination';
   isPreviewActive?: boolean;
+  isPlayingPreview?: boolean;
   previewProgress?: number;
+  speedMultiplier?: number;
+  onProgressTick?: (progress: number, bearing: number) => void;
   onMapClick: (point: LocationPoint, mode: 'origin' | 'destination') => void;
   onOpenTokenModal: () => void;
 }
@@ -78,7 +81,10 @@ export default function Map({
   routeData,
   activeClickMode,
   isPreviewActive = false,
+  isPlayingPreview = false,
   previewProgress = 0,
+  speedMultiplier = 2,
+  onProgressTick,
   onMapClick,
   onOpenTokenModal,
 }: MapProps) {
@@ -88,8 +94,17 @@ export default function Map({
   const destinationMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const vehicleMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
+  const animFrameRef = useRef<number | null>(null);
+  const progressRef = useRef<number>(previewProgress);
+  const lastTickTimeRef = useRef<number>(0);
+
   const [selectedStyleId, setSelectedStyleId] = useState<string>('dark');
   const [isUsingMapboxKey, setIsUsingMapboxKey] = useState<boolean>(false);
+
+  // Sync external seek changes to ref
+  useEffect(() => {
+    progressRef.current = previewProgress;
+  }, [previewProgress]);
 
   // Initialize Mapbox Map
   useEffect(() => {
@@ -119,7 +134,7 @@ export default function Map({
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
       map.on('click', (e) => {
-        if (isPreviewActive) return; // Ignore map clicks during 3D drive preview
+        if (isPreviewActive) return;
         const { lng, lat } = e.lngLat;
         const name = `${lat.toFixed(3)}°N, ${lng.toFixed(3)}°W`;
         onMapClick({ name, lng, lat }, activeClickMode);
@@ -245,7 +260,6 @@ export default function Map({
         },
       });
 
-      // Auto Fit Camera Bounds if NOT in 3D Preview Mode
       if (!isPreviewActive) {
         const coordinates = routeData.geometry.coordinates;
         if (coordinates && coordinates.length > 0) {
@@ -272,7 +286,7 @@ export default function Map({
     }
   }, [routeData, selectedStyleId, token, isPreviewActive]);
 
-  // 3D Third-Person Driving Camera & Vehicle Avatar Animation Loop
+  // HIGH-PERFORMANCE 60 FPS DIRECT ANIMATION LOOP
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !routeData || !routeData.geometry || !routeData.geometry.coordinates) return;
@@ -280,41 +294,76 @@ export default function Map({
     const coords = routeData.geometry.coordinates as [number, number][];
     if (coords.length < 2) return;
 
-    if (isPreviewActive) {
-      const { position, bearing } = interpolateRoutePosition(coords, previewProgress);
+    if (!isPreviewActive) {
+      if (vehicleMarkerRef.current) {
+        vehicleMarkerRef.current.remove();
+        vehicleMarkerRef.current = null;
+      }
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      return;
+    }
 
-      // 1. Create or Update 3D Glowing Vehicle Avatar Marker
-      if (!vehicleMarkerRef.current) {
-        const vehicleEl = document.createElement('div');
-        vehicleEl.className = 'marker-vehicle-container';
-        vehicleEl.innerHTML = `
-          <div class="w-10 h-10 rounded-full bg-cyan-500/30 border-2 border-cyan-400 flex items-center justify-center shadow-lg shadow-cyan-500/50 animate-pulse">
-            <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[14px] border-b-cyan-300 drop-shadow-[0_0_8px_#00f0ff]" style="transform: rotate(0deg)"></div>
-          </div>
-        `;
-        vehicleMarkerRef.current = new mapboxgl.Marker({ element: vehicleEl, rotationAlignment: 'map' })
-          .setLngLat(position)
-          .addTo(map);
-      } else {
+    // Initialize 3D Vehicle Avatar Marker if missing
+    if (!vehicleMarkerRef.current) {
+      const vehicleEl = document.createElement('div');
+      vehicleEl.className = 'marker-vehicle-container';
+      vehicleEl.innerHTML = `
+        <div class="w-10 h-10 rounded-full bg-cyan-500/30 border-2 border-cyan-400 flex items-center justify-center shadow-lg shadow-cyan-500/50">
+          <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[14px] border-b-cyan-300 drop-shadow-[0_0_8px_#00f0ff]"></div>
+        </div>
+      `;
+      const initialInterpolation = interpolateRoutePosition(coords, progressRef.current);
+      vehicleMarkerRef.current = new mapboxgl.Marker({ element: vehicleEl, rotationAlignment: 'map' })
+        .setLngLat(initialInterpolation.position)
+        .addTo(map);
+    }
+
+    let lastTime = performance.now();
+
+    const loop = (now: number) => {
+      const deltaMs = now - lastTime;
+      lastTime = now;
+
+      if (isPlayingPreview) {
+        // Advance progress smoothly based on time delta and speed multiplier
+        const step = (deltaMs / 1000) * 0.015 * speedMultiplier;
+        progressRef.current = Math.min(progressRef.current + step, 1);
+      }
+
+      // Compute exact position and bearing angle
+      const { position, bearing } = interpolateRoutePosition(coords, progressRef.current);
+
+      // Direct zero-overhead Mapbox updates
+      if (vehicleMarkerRef.current) {
         vehicleMarkerRef.current.setLngLat(position);
         vehicleMarkerRef.current.setRotation(bearing);
       }
 
-      // 2. Set 3D Third-Person Camera View (Pitch: 65°, Zoom: 16.5, Facing Bearing)
+      // 60 FPS Direct Camera jump (no React render bottleneck)
       map.jumpTo({
         center: position,
         zoom: 16.5,
         pitch: 65,
         bearing: bearing,
       });
-    } else {
-      // Exit Preview Mode: Remove Vehicle Avatar Marker
-      if (vehicleMarkerRef.current) {
-        vehicleMarkerRef.current.remove();
-        vehicleMarkerRef.current = null;
+
+      // Throttle React state notification (~10fps for HUD slider updates) to prevent React lag
+      if (onProgressTick && now - lastTickTimeRef.current > 100) {
+        lastTickTimeRef.current = now;
+        onProgressTick(progressRef.current, bearing);
       }
-    }
-  }, [isPreviewActive, previewProgress, routeData]);
+
+      if (progressRef.current < 1 || isPlayingPreview) {
+        animFrameRef.current = requestAnimationFrame(loop);
+      }
+    };
+
+    animFrameRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [isPreviewActive, isPlayingPreview, speedMultiplier, routeData]);
 
   return (
     <div className="relative w-full h-full min-h-screen bg-[#090a0f]">
