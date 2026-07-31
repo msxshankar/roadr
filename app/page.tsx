@@ -243,14 +243,16 @@ export default function Home() {
 
   return (
     <main className="relative w-full h-screen overflow-hidden bg-[#090a0f] text-gray-100">
-      {/* Top Header Navbar */}
-      <Header
-        token={token}
-        onOpenTokenModal={() => setIsTokenModalOpen(true)}
-        onSelectPreset={handleSelectPresetRoute}
-        onRecenterUK={handleRecenterUK}
-        provider={routeData?.provider}
-      />
+      {/* Top Header Navbar - Hidden during 3D Drive Follow-Along Mode for full 16:10 immersion */}
+      {!isPreviewActive && (
+        <Header
+          token={token}
+          onOpenTokenModal={() => setIsTokenModalOpen(true)}
+          onSelectPreset={handleSelectPresetRoute}
+          onRecenterUK={handleRecenterUK}
+          provider={routeData?.provider}
+        />
+      )}
 
       {/* Mapbox Map Canvas */}
       <Map
@@ -284,10 +286,10 @@ export default function Home() {
         </div>
       )}
 
-      {/* Left Sidebar Controls Panel */}
+      {/* Left Sidebar Controls Panel (Optimized for 16:10 Laptop Displays) */}
       {!isPreviewActive && (
         <div
-          className={`fixed md:absolute top-16 md:top-20 left-2 right-2 md:right-auto md:left-4 z-30 flex flex-col space-y-3.5 max-h-[75vh] md:max-h-[calc(100vh-100px)] overflow-y-auto pr-1 pb-16 md:pb-6 max-w-md w-auto md:w-full transition-all duration-300 ${
+          className={`fixed md:absolute top-16 md:top-20 left-2 right-2 md:right-auto md:left-4 z-30 flex flex-col space-y-3.5 max-h-[75vh] md:max-h-[calc(100vh-90px)] overflow-y-auto pr-1 pb-16 md:pb-6 max-w-md w-auto md:w-full transition-all duration-300 ${
             isMobilePanelOpen
               ? 'opacity-100 translate-y-0'
               : 'opacity-0 pointer-events-none translate-y-8 md:opacity-100 md:pointer-events-auto md:translate-y-0'

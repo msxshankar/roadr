@@ -132,3 +132,12 @@ body {
 .mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
   border-left-color: rgba(18, 20, 29, 0.9) !important;
 }
+
+/* 16:10 Laptop Screen Specific Optimizations */
+@media (min-aspect-ratio: 16/10) and (min-width: 1024px) {
+  /* Compact vertical spacing for 16:10 aspect ratio laptop screens */
+  .mapboxgl-ctrl-bottom-right {
+    bottom: 24px !important;
+    right: 20px !important;
+  }
+}
