@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Play, Pause, X, Navigation2, Gauge } from 'lucide-react';
+import { Play, Pause, X, Navigation2, Gauge, Eye, ZoomIn } from 'lucide-react';
 import { LocationPoint, RouteTelemetry } from '@/types';
 
 interface RoutePreviewHUDProps {
@@ -12,8 +12,10 @@ interface RoutePreviewHUDProps {
   isPlaying: boolean;
   speedMultiplier: number;
   bearing: number;
+  cameraZoom?: number; // 14.0 (High Aerial) to 18.5 (Close Ground)
   selectedStyleId?: string;
   onStyleChange?: (styleId: string) => void;
+  onChangeCameraZoom?: (zoom: number) => void;
   onTogglePlay: () => void;
   onSeek: (newProgress: number) => void;
   onChangeSpeedMultiplier: (speed: number) => void;
@@ -29,6 +31,12 @@ const PREVIEW_MAP_STYLES = [
 
 const SPEED_OPTIONS = [0.5, 1, 2, 4, 8];
 
+const HEIGHT_PRESETS = [
+  { label: '🔍 Ground', zoom: 18.2 },
+  { label: '🏎️ Balanced', zoom: 16.5 },
+  { label: '🦅 High Aerial', zoom: 14.5 },
+];
+
 export default function RoutePreviewHUD({
   origin,
   destination,
@@ -37,8 +45,10 @@ export default function RoutePreviewHUD({
   isPlaying,
   speedMultiplier,
   bearing,
+  cameraZoom = 16.2,
   selectedStyleId = 'satellite',
   onStyleChange,
+  onChangeCameraZoom,
   onTogglePlay,
   onSeek,
   onChangeSpeedMultiplier,
@@ -50,10 +60,17 @@ export default function RoutePreviewHUD({
   // Simulated speed calculation based on speed multiplier
   const simulatedSpeed = Math.round(55 * speedMultiplier);
 
+  // Friendly camera height label
+  const getAltitudeLabel = (zoom: number) => {
+    if (zoom >= 17.8) return 'Ground Level View';
+    if (zoom >= 16.0) return '3D Follow-Along';
+    return 'High Aerial View';
+  };
+
   return (
-    <div className="fixed inset-x-0 bottom-6 z-50 px-3 sm:px-4 flex flex-col items-center pointer-events-none">
+    <div className="fixed inset-x-0 bottom-4 z-50 px-3 sm:px-4 flex flex-col items-center pointer-events-none">
       {/* 3D Drive HUD Main Glass Card */}
-      <div className="w-full max-w-2xl bg-black/85 backdrop-blur-2xl border border-cyan-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl shadow-cyan-500/20 text-gray-100 pointer-events-auto space-y-4">
+      <div className="w-full max-w-2xl bg-black/85 backdrop-blur-2xl border border-cyan-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl shadow-cyan-500/20 text-gray-100 pointer-events-auto space-y-3.5">
         {/* Top Status Bar: Title, Map Style Selector & Speedometer */}
         <div className="flex items-center justify-between border-b border-white/10 pb-3 gap-2 flex-wrap sm:flex-nowrap">
           {/* Drive Route Title */}
@@ -115,6 +132,50 @@ export default function RoutePreviewHUD({
           </div>
         </div>
 
+        {/* Camera Height & Follow Altitude Slider */}
+        <div className="bg-white/5 border border-white/10 p-2.5 rounded-2xl space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center space-x-1.5 text-cyan-300 font-medium">
+              <Eye className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Camera Altitude & Zoom</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-[11px] font-mono text-cyan-400 font-semibold">
+                {getAltitudeLabel(cameraZoom)} ({cameraZoom.toFixed(1)}x)
+              </span>
+              <div className="hidden sm:flex items-center space-x-1">
+                {HEIGHT_PRESETS.map((preset) => (
+                  <button
+                    key={preset.label}
+                    onClick={() => onChangeCameraZoom && onChangeCameraZoom(preset.zoom)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+                      Math.abs(cameraZoom - preset.zoom) < 0.3
+                        ? 'bg-cyan-500 text-black font-bold'
+                        : 'bg-white/10 hover:bg-white/20 text-gray-300'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <span className="text-[10px] text-gray-400 font-mono shrink-0">High Aerial (14.0x)</span>
+            <input
+              type="range"
+              min={14.0}
+              max={18.5}
+              step={0.1}
+              value={cameraZoom}
+              onChange={(e) => onChangeCameraZoom && onChangeCameraZoom(parseFloat(e.target.value))}
+              className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-300 transition-all"
+            />
+            <span className="text-[10px] text-gray-400 font-mono shrink-0">Close Ground (18.5x)</span>
+          </div>
+        </div>
+
         {/* Interactive Progress Scrubber Slider */}
         <div className="space-y-1.5">
           <div className="flex justify-between text-[11px] font-mono text-gray-400">
@@ -135,7 +196,7 @@ export default function RoutePreviewHUD({
         </div>
 
         {/* Bottom Playback & Speed Controls */}
-        <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center justify-between pt-0.5">
           {/* Speed Multipliers */}
           <div className="flex items-center space-x-1">
             <span className="text-[11px] font-mono text-gray-400 hidden sm:inline mr-1">

@@ -53,6 +53,7 @@ export default function Home() {
   const [previewProgress, setPreviewProgress] = useState<number>(0);
   const [isPlayingPreview, setIsPlayingPreview] = useState<boolean>(false);
   const [speedMultiplier, setSpeedMultiplier] = useState<number>(2);
+  const [cameraZoom, setCameraZoom] = useState<number>(16.2); // 14.0 (High Aerial) to 18.5 (Close Ground)
   const [currentBearing, setCurrentBearing] = useState<number>(0);
 
   useEffect(() => {
@@ -267,6 +268,7 @@ export default function Home() {
         isPlayingPreview={isPlayingPreview}
         previewProgress={previewProgress}
         speedMultiplier={speedMultiplier}
+        cameraZoom={cameraZoom}
         onProgressTick={handleProgressTick}
         onMapClick={handleMapClick}
         onOpenTokenModal={() => setIsTokenModalOpen(true)}
@@ -348,7 +350,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* 3D Third-Person Drive HUD Control Overlay */}
+      {/* 3D Third-Person Drive HUD Control Overlay with Camera Height Control */}
       {isPreviewActive && origin && destination && routeData && (
         <RoutePreviewHUD
           origin={origin}
@@ -358,8 +360,10 @@ export default function Home() {
           isPlaying={isPlayingPreview}
           speedMultiplier={speedMultiplier}
           bearing={currentBearing}
+          cameraZoom={cameraZoom}
           selectedStyleId={selectedStyleId}
           onStyleChange={setSelectedStyleId}
+          onChangeCameraZoom={setCameraZoom}
           onTogglePlay={handleTogglePlayPreview}
           onSeek={handleSeekPreview}
           onChangeSpeedMultiplier={setSpeedMultiplier}

@@ -18,6 +18,7 @@ interface MapProps {
   isPlayingPreview?: boolean;
   previewProgress?: number;
   speedMultiplier?: number;
+  cameraZoom?: number;
   onProgressTick?: (progress: number, bearing: number) => void;
   onMapClick: (point: LocationPoint, mode: 'origin' | 'destination') => void;
   onOpenTokenModal: () => void;
@@ -90,6 +91,7 @@ export default function Map({
   isPlayingPreview = false,
   previewProgress = 0,
   speedMultiplier = 2,
+  cameraZoom = 16.2,
   onProgressTick,
   onMapClick,
   onOpenTokenModal,
@@ -310,7 +312,7 @@ export default function Map({
     }
   }, [routeData, selectedStyleId, token, isPreviewActive]);
 
-  // ULTRA-SMOOTH DUAL-DAMPED GIMBAL CAMERA ENGINE (60 FPS)
+  // ULTRA-SMOOTH DUAL-DAMPED GIMBAL CAMERA ENGINE (60 FPS) WITH DYNAMIC ALTITUDE & PITCH
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !routeData || !routeData.geometry || !routeData.geometry.coordinates) return;
@@ -368,18 +370,18 @@ export default function Map({
       );
 
       // DUAL GIMBAL DAMPING FILTER:
-      // 1. Position Damping (smoothly interpolates camera center to eliminate micro-jumps)
+      // 1. Position Damping (smoothly interpolates camera center)
       if (!currentPositionRef.current) {
         currentPositionRef.current = targetPos;
       } else {
-        const posAlpha = 0.15; // Smooth 15% position damping per frame
+        const posAlpha = 0.15;
         currentPositionRef.current = [
           currentPositionRef.current[0] + (targetPos[0] - currentPositionRef.current[0]) * posAlpha,
           currentPositionRef.current[1] + (targetPos[1] - currentPositionRef.current[1]) * posAlpha,
         ];
       }
 
-      // 2. Ultra-smooth Bearing Damping (gentle 3.5% rotation damping per frame)
+      // 2. Ultra-smooth Bearing Damping (3.5% rotation damping per frame)
       currentBearingRef.current = lerpAngle(currentBearingRef.current, targetBearing, 0.035);
 
       // Update Vehicle Avatar Marker
@@ -388,11 +390,15 @@ export default function Map({
         vehicleMarkerRef.current.setRotation(currentBearingRef.current);
       }
 
-      // 60 FPS Camera Update with 48° pitch for a cinematic, non-distorted horizon
+      // Calculate Dynamic Camera Pitch based on Altitude / Zoom Slider:
+      // High Aerial (14.0x) -> 30° pitch | Ground Level (18.5x) -> 65° pitch
+      const dynamicPitch = 30 + Math.min(Math.max((cameraZoom - 14.0) * 7.8, 0), 38);
+
+      // 60 FPS Camera Update
       map.jumpTo({
         center: currentPositionRef.current,
-        zoom: 16.2,
-        pitch: 48,
+        zoom: cameraZoom,
+        pitch: dynamicPitch,
         bearing: currentBearingRef.current,
       });
 
@@ -411,7 +417,7 @@ export default function Map({
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [isPreviewActive, isPlayingPreview, speedMultiplier, routeData]);
+  }, [isPreviewActive, isPlayingPreview, speedMultiplier, cameraZoom, routeData]);
 
   return (
     <div className="relative w-full h-full min-h-screen bg-[#090a0f]">
