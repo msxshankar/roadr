@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowUpDown, Bookmark, GripVertical, Navigation, Plus, Route as RouteIcon, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, GripVertical, Navigation, Plus, Route as RouteIcon, Trash2, X } from 'lucide-react';
 import { LocationPoint } from '@/types';
 import LocationSearchInput from './LocationSearchInput';
 
@@ -50,7 +50,7 @@ export default function RouteControls({
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
 
   return (
-    <div className="theme-panel liquid-glass w-full max-w-md space-y-3 rounded-2xl border border-white/10 p-4 shadow-2xl">
+    <div className="theme-scope theme-panel liquid-glass w-full max-w-md space-y-3 rounded-2xl border border-white/10 p-4 shadow-2xl">
       <div className="flex items-center justify-between">
         <div>
           <p className="font-display text-sm font-bold text-white">Plan a journey</p>
@@ -60,7 +60,7 @@ export default function RouteControls({
       </div>
 
       <LocationSearchInput
-        label="Point A (Origin)"
+        label="Origin"
         badgeColor="cyan"
         value={origin}
         placeholder="Search a town, landmark, postcode or business..."
@@ -70,11 +70,11 @@ export default function RouteControls({
         onClear={onClearOrigin}
       />
 
-      <div className="rounded-xl border border-white/10 bg-black/20 p-2.5">
+      <div className="theme-section rounded-xl border border-white/10 bg-black/20 p-2.5">
         <div className="flex items-center justify-between gap-2">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-300">Journey stops</p>
-            <p className="text-[10px] text-gray-500">Drag stops to reorder them between A and B.</p>
+            <p className="text-[10px] text-gray-500">Drag stops to reorder them between origin and destination.</p>
           </div>
           {!isAddingStop && (
             <button type="button" onClick={() => setIsAddingStop(true)} className="inline-flex items-center gap-1 rounded-lg border border-teal-400/30 bg-teal-400/10 px-2 py-1 text-[10px] font-semibold text-teal-200 hover:bg-teal-400/20">
@@ -97,12 +97,21 @@ export default function RouteControls({
                   setDraggedStopIndex(null);
                 }}
                 onDragEnd={() => setDraggedStopIndex(null)}
-                className={`flex cursor-grab items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors active:cursor-grabbing ${draggedStopIndex === index ? 'border-teal-300/50 bg-teal-400/15 opacity-60' : 'border-white/5 bg-white/5 hover:border-teal-400/30'}`}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowUp' && index > 0) { event.preventDefault(); onReorderStops(index, index - 1); }
+                  if (event.key === 'ArrowDown' && index < stops.length - 1) { event.preventDefault(); onReorderStops(index, index + 1); }
+                }}
+                tabIndex={0}
+                className={`flex cursor-grab items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-teal-400 ${draggedStopIndex === index ? 'border-teal-300/50 bg-teal-400/15 opacity-60' : 'border-white/5 bg-white/5 hover:border-teal-400/30'}`}
                 aria-label={`Stop ${index + 1}: ${stop.name}. Drag to reorder.`}
               >
                 <GripVertical className="h-4 w-4 shrink-0 text-gray-500" />
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-400/40 bg-amber-500/20 text-[10px] font-mono text-amber-300">{index + 1}</span>
                 <span className="min-w-0 flex-1 truncate text-xs text-gray-200">{stop.name}</span>
+                <div className="flex shrink-0 items-center">
+                  <button type="button" disabled={index === 0} onClick={() => onReorderStops(index, index - 1)} className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-teal-200 disabled:opacity-25" title="Move stop earlier" aria-label={`Move ${stop.name} earlier`}><ArrowUp className="h-3 w-3" /></button>
+                  <button type="button" disabled={index === stops.length - 1} onClick={() => onReorderStops(index, index + 1)} className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-teal-200 disabled:opacity-25" title="Move stop later" aria-label={`Move ${stop.name} later`}><ArrowDown className="h-3 w-3" /></button>
+                </div>
                 <button type="button" onClick={() => onRemoveStop(index)} className="rounded-md p-1 text-gray-500 hover:bg-red-500/10 hover:text-red-300" title={`Remove stop ${index + 1}`} aria-label={`Remove stop ${index + 1}`}>
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -129,7 +138,7 @@ export default function RouteControls({
       </div>
 
       <LocationSearchInput
-        label="Point B (Destination)"
+        label="Destination"
         badgeColor="amber"
         value={destination}
         placeholder="Search Tesco, a town, landmark or postcode..."
@@ -140,12 +149,12 @@ export default function RouteControls({
       />
 
       <div className="flex justify-center">
-        <button onClick={onSwapLocations} disabled={!origin || !destination} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-[#12141d] px-3 py-1.5 text-[10px] text-gray-400 shadow-md transition-all hover:border-teal-300/50 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30" title="Swap Point A and Point B">
-          <ArrowUpDown className="h-3.5 w-3.5" /> Swap A / B
+        <button type="button" onClick={onSwapLocations} disabled={!origin || !destination} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-[#12141d] px-3 py-1.5 text-[10px] text-gray-400 shadow-md transition-all hover:border-teal-300/50 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30" title="Swap origin and destination">
+          <ArrowUpDown className="h-3.5 w-3.5" /> Swap route
         </button>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-black/20 p-2.5">
+      <div className="theme-section rounded-xl border border-white/10 bg-black/20 p-2.5">
         <div className="flex items-center justify-between gap-2">
           <button type="button" onClick={() => setIsSavedPlacesExpanded((expanded) => !expanded)} className="flex min-w-0 items-center gap-1.5 text-left">
             <Bookmark className="h-3.5 w-3.5 shrink-0 text-violet-300" />
@@ -153,8 +162,8 @@ export default function RouteControls({
             <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-mono text-gray-400">{savedPlaces.length}</span>
           </button>
           <div className="flex items-center gap-1 rounded-lg bg-white/5 p-0.5">
-            <button type="button" onClick={() => setSavedTarget('origin')} className={`rounded-md px-1.5 py-0.5 text-[10px] ${savedTarget === 'origin' ? 'bg-teal-400 font-bold text-black' : 'text-gray-400 hover:text-white'}`}>Set A</button>
-            <button type="button" onClick={() => setSavedTarget('destination')} className={`rounded-md px-1.5 py-0.5 text-[10px] ${savedTarget === 'destination' ? 'bg-rose-400 font-bold text-black' : 'text-gray-400 hover:text-white'}`}>Set B</button>
+            <button type="button" onClick={() => setSavedTarget('origin')} className={`rounded-md px-1.5 py-0.5 text-[10px] ${savedTarget === 'origin' ? 'bg-teal-400 font-bold text-black' : 'text-gray-400 hover:text-white'}`}>Origin</button>
+            <button type="button" onClick={() => setSavedTarget('destination')} className={`rounded-md px-1.5 py-0.5 text-[10px] ${savedTarget === 'destination' ? 'bg-rose-400 font-bold text-black' : 'text-gray-400 hover:text-white'}`}>Destination</button>
           </div>
         </div>
         {isSavedPlacesExpanded && (savedPlaces.length === 0 ? (
@@ -173,10 +182,10 @@ export default function RouteControls({
       </div>
 
       <div className="flex items-center space-x-2 pt-0.5">
-        <button onClick={onCalculateRoute} disabled={!origin || !destination || isLoadingRoute} className="flex flex-1 items-center justify-center space-x-2 rounded-xl bg-gradient-to-r from-violet-400 via-teal-300 to-rose-300 px-4 py-2.5 text-xs font-extrabold text-black shadow-lg shadow-teal-500/20 transition-all hover:brightness-110 active:scale-95 disabled:pointer-events-none disabled:opacity-40">
+        <button type="button" onClick={onCalculateRoute} disabled={!origin || !destination || isLoadingRoute} className="theme-primary-button flex flex-1 items-center justify-center space-x-2 rounded-xl px-4 py-2.5 text-xs font-extrabold transition-all hover:brightness-110 active:scale-95 disabled:pointer-events-none disabled:opacity-40">
           {isLoadingRoute ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" /><span>Calculating route...</span></> : <><Navigation className="h-4 w-4 fill-current" /><span>Calculate route</span></>}
         </button>
-        <button onClick={onClearRoute} disabled={!origin && !destination && stops.length === 0} className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-gray-400 transition-all hover:border-red-500/30 hover:bg-red-500/20 hover:text-red-400 disabled:pointer-events-none disabled:opacity-30" title="Clear journey"><Trash2 className="h-4 w-4" /></button>
+        <button type="button" onClick={onClearRoute} disabled={!origin && !destination && stops.length === 0} className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-gray-400 transition-all hover:border-red-500/30 hover:bg-red-500/20 hover:text-red-400 disabled:pointer-events-none disabled:opacity-30" title="Clear journey"><Trash2 className="h-4 w-4" /></button>
       </div>
     </div>
   );

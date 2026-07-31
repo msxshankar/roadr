@@ -27,17 +27,17 @@ export default function Header({
   onOpenGarage,
 }: HeaderProps) {
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 liquid-glass-header px-3 sm:px-4 py-2.5 sm:py-3 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+    <header className="theme-scope fixed left-0 right-0 top-0 z-40 flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3 liquid-glass-header">
       {/* Brand Logo & Title */}
       <div className="flex items-center space-x-2.5">
-        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-violet-500 via-teal-400 to-rose-400 p-[1px] shadow-lg shadow-teal-500/20 shrink-0">
+        <div className="theme-primary-button flex h-8 w-8 shrink-0 items-center justify-center rounded-xl p-[1px] shadow-lg sm:h-9 sm:w-9">
           <div className="w-full h-full theme-brand-surface rounded-[11px] flex items-center justify-center">
             <Compass className="w-4 h-4 sm:w-5 sm:h-5 text-teal-300 animate-spin-slow" />
           </div>
         </div>
         <div>
           <div className="flex items-center space-x-1.5 sm:space-x-2">
-            <h1 className="font-display font-extrabold text-sm sm:text-base tracking-widest bg-gradient-to-r from-violet-300 via-teal-200 to-rose-300 bg-clip-text text-transparent">
+            <h1 className="font-display text-sm font-extrabold tracking-widest text-teal-300 sm:text-base">
               ROADR
             </h1>
             <span className="text-[9px] sm:text-[10px] font-mono px-1.5 sm:px-2 py-0.5 rounded-full bg-violet-950/60 text-violet-300 border border-violet-400/30">
@@ -45,7 +45,7 @@ export default function Header({
             </span>
           </div>
           <p className="text-[10px] sm:text-xs text-gray-400 hidden md:block">
-            Liquid Glass Mapbox Prototype & Scenic Drive Telemetry
+            Route planning & drive telemetry
           </p>
         </div>
       </div>
@@ -54,6 +54,7 @@ export default function Header({
       <div className="flex items-center space-x-1.5 sm:space-x-3">
         {/* Recenter UK Button */}
         <button
+          type="button"
           onClick={onRecenterUK}
           className="flex items-center space-x-1 text-[11px] sm:text-xs bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border border-white/10 transition-all active:scale-95 shrink-0"
           title="Reset map view to UK overview"
@@ -64,6 +65,7 @@ export default function Header({
 
         {/* Token Status & Key Modal Trigger */}
         <button
+          type="button"
           onClick={onOpenTokenModal}
           className={`flex items-center space-x-1.5 text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border transition-all active:scale-95 shrink-0 ${
             token
@@ -83,6 +85,7 @@ export default function Header({
         </button>
 
         <button
+          type="button"
           onClick={onOpenGarage}
           className={`flex items-center space-x-1.5 text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border transition-all active:scale-95 shrink-0 ${
             vehicle

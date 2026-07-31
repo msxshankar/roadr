@@ -86,7 +86,6 @@ const FREE_SATELLITE: mapboxgl.Style = {
 
 export const MAPBOX_STYLES = [
   { id: 'satellite', name: '3D Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12', fallback: FREE_SATELLITE },
-  { id: 'satellite-pure', name: 'Pure Satellite', url: 'mapbox://styles/mapbox/satellite-v9', fallback: FREE_SATELLITE },
   { id: 'streets', name: 'Streets Nav', url: 'mapbox://styles/mapbox/navigation-dark-v1', fallback: FREE_OSM_STREETS },
   { id: 'outdoors', name: 'Outdoors Topo', url: 'mapbox://styles/mapbox/outdoors-v12', fallback: FREE_OSM_STREETS },
 ];
@@ -141,7 +140,7 @@ const MiniMap = React.memo(forwardRef<MiniMapHandle, { routeData: RouteData; tok
       if (miniMap.getSource('mini-route-source')) return;
       miniMap.addSource('mini-route-source', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: routeData.geometry } });
       miniMap.addLayer({ id: 'mini-route-glow', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#0f172a', 'line-width': 7, 'line-opacity': 0.8 } });
-      miniMap.addLayer({ id: 'mini-route-line', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#5eead4', 'line-width': 3, 'line-opacity': 0.95 } });
+      miniMap.addLayer({ id: 'mini-route-line', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#75b8ae', 'line-width': 3, 'line-opacity': 0.95 } });
       const bounds = new mapboxgl.LngLatBounds(geometry[0], geometry[0]);
       geometry.forEach((coordinate) => bounds.extend(coordinate));
       miniMap.fitBounds(bounds, { padding: 24, maxZoom: 13, duration: 0 });
@@ -161,12 +160,12 @@ const MiniMap = React.memo(forwardRef<MiniMapHandle, { routeData: RouteData; tok
   }, [routeData.geometry, selectedStyleId, token]);
 
   return (
-    <div className="pointer-events-none absolute right-4 top-4 z-30 w-60 rounded-2xl border border-white/20 bg-[#08111b]/95 p-2.5 shadow-2xl shadow-black/50">
+    <div className="pointer-events-none absolute right-2 top-2 z-30 w-[calc(50vw-1.25rem)] max-w-[240px] rounded-2xl border border-white/20 bg-[#08111b]/95 p-2 shadow-2xl shadow-black/50 sm:right-4 sm:top-4 sm:w-60 sm:p-2.5">
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-teal-200">Route close-up</span>
         <span ref={progressRef} className="text-[9px] font-mono text-gray-400">0%</span>
       </div>
-      <div ref={containerRef} className="h-36 w-full overflow-hidden rounded-xl border border-white/15 bg-[#071421]" aria-label="Satellite route close-up mini-map" />
+      <div ref={containerRef} className="h-28 w-full overflow-hidden rounded-xl border border-white/15 bg-[#071421] sm:h-36" role="img" aria-label="Satellite route close-up mini-map" />
       <div className="mt-1.5 flex items-center justify-between text-[9px] font-mono text-gray-500"><span>Actual route</span><span>{token.trim().startsWith('pk.') ? 'Mapbox satellite' : 'Satellite fallback'}</span></div>
     </div>
   );
@@ -208,8 +207,8 @@ const GradientGraph = React.memo(forwardRef<GradientGraphHandle, { details: Rout
       {profile.length > 1 && details.hasElevationData ? (
         <svg viewBox={`0 0 ${width} ${height}`} className="h-14 w-full" role="img" aria-label="Gradient graph for the complete route">
           <line x1={padding} y1={zeroY} x2={width - padding} y2={zeroY} stroke="#94a3b8" strokeOpacity="0.28" strokeDasharray="3 3" />
-          <polyline points={points} fill="none" stroke="#fda4af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          <circle ref={markerRef} cx={padding} cy={padding} r="3.5" fill="#6ee7d8" stroke="#ecfeff" strokeWidth="1" />
+          <polyline points={points} fill="none" stroke="var(--app-warm)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <circle ref={markerRef} cx={padding} cy={padding} r="3.5" fill="var(--app-accent)" stroke="var(--app-strong)" strokeWidth="1" />
         </svg>
       ) : (
         <div className="flex h-14 items-center justify-center text-[10px] text-gray-500">Waiting for elevation samples…</div>
@@ -433,7 +432,7 @@ export default function Map({
       } else {
         originMarkerRef.current.setLngLat([origin.lng, origin.lat]);
       }
-      originMarkerRef.current.setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(`<strong>Point A</strong><br/>${origin.name}`));
+      originMarkerRef.current.setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(`<strong>Origin</strong><br/>${origin.name}`));
     } else if (originMarkerRef.current) {
       originMarkerRef.current.remove();
       originMarkerRef.current = null;
@@ -451,7 +450,7 @@ export default function Map({
       } else {
         destinationMarkerRef.current.setLngLat([destination.lng, destination.lat]);
       }
-      destinationMarkerRef.current.setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(`<strong>Point B</strong><br/>${destination.name}`));
+      destinationMarkerRef.current.setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(`<strong>Destination</strong><br/>${destination.name}`));
     } else if (destinationMarkerRef.current) {
       destinationMarkerRef.current.remove();
       destinationMarkerRef.current = null;
@@ -508,14 +507,14 @@ export default function Map({
         type: 'line',
         source: sourceId,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#00f0ff', 'line-width': 10, 'line-opacity': 0.42, 'line-blur': 3 },
+        paint: { 'line-color': '#326e6a', 'line-width': 9, 'line-opacity': 0.34, 'line-blur': 2 },
       });
       map.addLayer({
         id: lineId,
         type: 'line',
         source: sourceId,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#f8fafc', 'line-width': 3.5, 'line-opacity': 0.94 },
+        paint: { 'line-color': '#dce9e7', 'line-width': 3.5, 'line-opacity': 0.92 },
       });
 
       if (!isPreviewActive && routeGeometry.coordinates.length > 0) {
@@ -723,15 +722,17 @@ export default function Map({
   }, [isPreviewActive, routeGeometry]);
 
   return (
-    <div className="relative h-full min-h-screen w-full bg-[#090a0f]">
-      <div ref={mapContainerRef} className="h-full min-h-screen w-full" />
+    <div className="relative h-full min-h-[100dvh] w-full bg-[#090a0f]">
+      <div ref={mapContainerRef} className="h-full min-h-[100dvh] w-full" />
 
       {!isPreviewActive && (
-        <div className="liquid-glass absolute right-4 top-20 z-30 flex max-w-full items-center space-x-1 overflow-x-auto rounded-xl border border-white/10 p-1.5 shadow-xl">
+        <div className="theme-scope liquid-glass absolute left-2 right-2 top-20 z-30 flex max-w-full items-center justify-center space-x-1 overflow-x-auto rounded-xl border border-white/10 p-1.5 shadow-xl sm:left-auto sm:right-4">
           {MAPBOX_STYLES.map((style) => (
             <button
               key={style.id}
               onClick={() => onStyleChange?.(style.id)}
+              type="button"
+              aria-pressed={selectedStyleId === style.id}
               className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${selectedStyleId === style.id ? 'bg-cyan-500 font-semibold text-black shadow-md shadow-cyan-500/20' : 'text-gray-300 hover:bg-white/10 hover:text-white'}`}
             >
               {style.name}
@@ -742,7 +743,7 @@ export default function Map({
 
       {isPreviewActive && routeData && (
         <>
-          <div className="pointer-events-none absolute left-4 top-4 z-30 w-[232px] rounded-2xl border border-amber-300/35 bg-[#090d14]/95 px-3 py-2 shadow-xl shadow-black/30">
+          <div className="pointer-events-none absolute left-2 top-2 z-30 w-[calc(50vw-1.25rem)] max-w-[232px] rounded-2xl border border-amber-300/35 bg-[#090d14]/95 px-2 py-2 shadow-xl shadow-black/30 sm:left-4 sm:top-4 sm:w-[232px] sm:px-3">
             <div className="flex items-center justify-between gap-3">
               <span className="text-[9px] font-mono uppercase tracking-[0.15em] text-amber-200">Speed limit</span>
               <span ref={speedLimitValueRef} className="text-lg font-black leading-none text-amber-300">—</span>
@@ -752,7 +753,7 @@ export default function Map({
           </div>
           <MiniMap ref={miniMapRef} routeData={routeData} token={token} selectedStyleId={selectedStyleId} />
           {orientationMode === 'manual' && (
-            <div className="pointer-events-none absolute left-4 top-[14.2rem] z-30 flex max-w-[232px] items-center gap-2 rounded-xl border border-cyan-400/40 bg-[#090d14]/95 px-3 py-2 text-[10px] text-cyan-200 shadow-xl">
+            <div className="pointer-events-none absolute left-2 top-[10rem] z-30 flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-xl border border-cyan-400/40 bg-[#090d14]/95 px-3 py-2 text-[10px] text-cyan-200 shadow-xl sm:left-4 sm:top-[14.2rem] sm:max-w-[232px]">
               <MousePointer2 className="h-3.5 w-3.5 shrink-0 text-cyan-400" /> Drag to turn / tilt · wheel or pinch to zoom
             </div>
           )}
@@ -760,10 +761,10 @@ export default function Map({
       )}
 
       {!isUsingMapboxKey && !isPreviewActive && (
-        <div className="liquid-glass absolute bottom-6 right-6 z-30 flex items-center space-x-3 rounded-xl border border-cyan-500/30 px-4 py-2.5 text-xs text-gray-200 shadow-2xl">
-          <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-emerald-400" />
-          <span>Map Rendering: <strong className="font-medium text-cyan-400">Free Dark Basemap Active</strong></span>
-          <button onClick={onOpenTokenModal} className="flex items-center space-x-1 rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-2.5 py-1 text-[11px] font-mono text-cyan-300 transition-all hover:bg-cyan-500/30">
+        <div className="theme-scope liquid-glass absolute bottom-20 left-2 right-2 z-30 flex items-center justify-between gap-2 rounded-xl border border-cyan-500/30 px-3 py-2.5 text-xs text-gray-200 shadow-2xl sm:bottom-6 sm:left-auto sm:right-6 sm:justify-start sm:space-x-3 sm:px-4">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" />
+          <span>Map rendering: <strong className="font-medium text-cyan-400">Free basemap active</strong></span>
+          <button type="button" onClick={onOpenTokenModal} className="flex items-center space-x-1 rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-2.5 py-1 text-[11px] font-mono text-cyan-300 transition-all hover:bg-cyan-500/30">
             <Key className="h-3 w-3" /><span>Add Mapbox Key</span>
           </button>
         </div>

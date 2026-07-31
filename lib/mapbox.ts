@@ -470,7 +470,7 @@ export function mergeRouteDetails(base: RouteDetails, enrichment: RouteDetails):
       : original.speedLimitMph;
     const roadName = segment.roadName === 'Unnamed road' ? original.roadName : segment.roadName;
     const surface = segment.surface === 'Paved' && original.surface !== 'Paved' ? original.surface : segment.surface;
-    return {
+    const mergedSegment = {
       ...segment,
       roadName,
       surface,
@@ -484,10 +484,46 @@ export function mergeRouteDetails(base: RouteDetails, enrichment: RouteDetails):
           }
         : {}),
     };
+
+    return base.hasElevationData && !enrichment.hasElevationData
+      ? {
+          ...mergedSegment,
+          elevationStartM: original.elevationStartM,
+          elevationEndM: original.elevationEndM,
+          gradientPercent: original.gradientPercent,
+        }
+      : mergedSegment;
   });
+
+  const terrainDetails = enrichment.hasElevationData ? enrichment : base;
+  const averageRoadWidthMeters = segments.reduce((total, segment) => total + segment.widthMeters, 0) / Math.max(segments.length, 1);
+  const narrowRoadSharePercent = (segments.filter((segment) => segment.widthLabel === 'Narrow').length / Math.max(segments.length, 1)) * 100;
+  const surfaceQuality = mostCommon(segments.map((segment) => segment.surfaceQuality), 'Good') as RouteDetails['surfaceQuality'];
+  const surface = mostCommon(segments.map((segment) => segment.surface), 'Paved');
+  const camber = mostCommon(segments.map((segment) => segment.camber), 'Typical road crown');
+  const source = Array.from(new Set(
+    `${base.source} + ${enrichment.source}`
+      .split(' + ')
+      .map((part) => part.trim())
+      .filter((part) => part && part !== 'Route geometry estimate')
+  )).join(' + ') || 'Route geometry estimate';
 
   return {
     ...enrichment,
+    elevationProfile: terrainDetails.elevationProfile,
+    totalElevationGainM: terrainDetails.totalElevationGainM,
+    minimumElevationM: terrainDetails.minimumElevationM,
+    maximumElevationM: terrainDetails.maximumElevationM,
+    maxGradientPercent: terrainDetails.maxGradientPercent,
+    averageGradientPercent: terrainDetails.averageGradientPercent,
+    averageRoadWidthMeters: Number(averageRoadWidthMeters.toFixed(1)),
+    narrowRoadSharePercent: Number(narrowRoadSharePercent.toFixed(0)),
+    surfaceQuality,
+    surface,
+    camber,
+    tightTurnCount: segments.filter((segment) => segment.turnRating <= 2).length,
+    hasElevationData: base.hasElevationData || enrichment.hasElevationData,
+    source,
     segments,
     speedLimitCoveragePercent: Number(
       ((segments.filter((segment) => Number.isFinite(segment.speedLimitMph)).length / Math.max(segments.length, 1)) * 100).toFixed(0)
@@ -496,6 +532,11 @@ export function mergeRouteDetails(base: RouteDetails, enrichment: RouteDetails):
 }
 
 function parseSpeedLimit(value: unknown): number | undefined {
+  if (value && typeof value === 'object') {
+    const speed = (value as { speed?: unknown; value?: unknown }).speed ?? (value as { value?: unknown }).value;
+    const unit = String((value as { unit?: unknown }).unit || '');
+    if (speed !== undefined) return parseSpeedLimit(`${speed} ${unit}`);
+  }
   if (typeof value === 'number' && Number.isFinite(value)) return value > 100 ? value * 0.621371 : value;
   if (typeof value !== 'string') return undefined;
   if (/national/i.test(value)) return undefined;
@@ -509,8 +550,39 @@ function parseSpeedLimit(value: unknown): number | undefined {
 function extractStepSpeed(step: any): number | undefined {
   const direct = parseSpeedLimit(step?.maxspeed);
   if (direct) return direct;
+  const annotation = parseSpeedLimit(step?.annotation?.maxspeed);
+  if (annotation) return annotation;
   const intersection = step?.intersections?.find((item: any) => item?.maxspeed);
   return parseSpeedLimit(intersection?.maxspeed);
+}
+
+function extractAnnotationSpeed(
+  leg: any,
+  stepStartMeters: number,
+  stepEndMeters: number,
+  legDistanceMeters: number
+): number | undefined {
+  const annotation = leg?.annotation;
+  const speeds = annotation?.maxspeed;
+  if (!Array.isArray(speeds) || speeds.length === 0) return undefined;
+  const distances = Array.isArray(annotation.distance) ? annotation.distance : [];
+  if (distances.length === speeds.length) {
+    let distance = 0;
+    for (let index = 0; index < speeds.length; index += 1) {
+      const segmentDistance = Math.max(Number(distances[index]) || 0, 0);
+      const overlapsStep = distance <= stepEndMeters && distance + segmentDistance >= stepStartMeters;
+      if (overlapsStep) {
+        const speed = parseSpeedLimit(speeds[index]);
+        if (speed) return speed;
+      }
+      distance += segmentDistance;
+    }
+    return undefined;
+  }
+
+  const midpointRatio = (stepStartMeters + stepEndMeters) / 2 / Math.max(legDistanceMeters, 1);
+  const index = Math.min(Math.floor(midpointRatio * speeds.length), speeds.length - 1);
+  return parseSpeedLimit(speeds[index]);
 }
 
 /** Convert Mapbox/OSRM step metadata into distance-addressable hints. */
@@ -518,9 +590,14 @@ export function extractRouteStepHints(route: any): RouteStepHint[] {
   const hints: RouteStepHint[] = [];
   let cumulative = 0;
   for (const leg of route?.legs || []) {
+    const legDistance = (leg.steps || []).reduce(
+      (total: number, step: any) => total + Math.max(Number(step.distance) || 0, 0),
+      0
+    );
+    let legCumulative = 0;
     for (const step of leg.steps || []) {
       const distance = Math.max(Number(step.distance) || 0, 0);
-      const speedLimit = extractStepSpeed(step);
+      const speedLimit = extractStepSpeed(step) || extractAnnotationSpeed(leg, legCumulative, legCumulative + distance, legDistance);
       const roadName = [step.name, step.ref].filter(Boolean).join(' · ');
       hints.push({
         startDistanceMeters: cumulative,
@@ -530,6 +607,7 @@ export function extractRouteStepHints(route: any): RouteStepHint[] {
         speedLimitSource: speedLimit ? 'route data' : undefined,
       });
       cumulative += distance;
+      legCumulative += distance;
     }
   }
   return hints;
@@ -574,7 +652,7 @@ export async function fetchRoute(
 
   if (hasValidToken) {
     try {
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinateString}?overview=full&geometries=geojson&steps=true&language=en-GB&access_token=${token?.trim()}`;
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinateString}?overview=full&geometries=geojson&steps=true&annotations=maxspeed&language=en-GB&access_token=${token?.trim()}`;
       const data = await readJson(await fetch(url));
       if (data.routes?.length > 0) {
         const route = data.routes[0];
@@ -615,11 +693,13 @@ export async function fetchRoute(
 
 /** Enrich the fast geometry estimate with terrain and road tags from the app API route. */
 export async function fetchRouteDetails(
-  coordinates: [number, number][]
+  coordinates: [number, number][],
+  signal?: AbortSignal
 ): Promise<RouteDetails> {
   const response = await fetch('/api/route-details', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal,
     body: JSON.stringify({ coordinates, mode: 'terrain' }),
   });
   return readJson(response);
@@ -627,11 +707,13 @@ export async function fetchRouteDetails(
 
 /** Fetch road tags separately so speed limits can update before terrain returns. */
 export async function fetchRouteRoadDetails(
-  coordinates: [number, number][]
+  coordinates: [number, number][],
+  signal?: AbortSignal
 ): Promise<RouteDetails> {
   const response = await fetch('/api/route-details', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal,
     body: JSON.stringify({ coordinates, mode: 'road' }),
   });
   return readJson(response);

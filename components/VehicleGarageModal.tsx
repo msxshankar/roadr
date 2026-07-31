@@ -49,19 +49,19 @@ export default function VehicleGarageModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 sm:p-6">
-      <div className="theme-modal w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-3xl border border-cyan-500/30 bg-[#11151f] shadow-2xl shadow-black/60">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 sm:p-6" role="presentation">
+      <div className="theme-scope theme-modal max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-cyan-500/30 bg-[#11151f] shadow-2xl shadow-black/60" role="dialog" aria-modal="true" aria-labelledby="garage-title">
         <div className="flex items-start justify-between border-b border-white/10 px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-500/15">
               <CarFront className="h-5 w-5 text-cyan-300" />
             </div>
             <div>
-              <p className="font-display text-lg font-bold text-white">Car mode</p>
+              <p id="garage-title" className="font-display text-lg font-bold text-white">Car mode</p>
               <p className="text-xs text-gray-400">Your car profile powers every fuel calculation.</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-white/10 hover:text-white" title="Close car mode">
+          <button type="button" onClick={onClose} aria-label="Close car mode" className="rounded-xl p-2 text-gray-400 hover:bg-white/10 hover:text-white" title="Close car mode">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -112,7 +112,7 @@ export default function VehicleGarageModal({
               <p className="mt-0.5 text-[10px] text-gray-400">Roadr will use {Number(form.mpg) || 0} MPG for route estimates and recorded drives.</p>
               <p className="mt-1 text-[10px] text-teal-200">Estimated full-tank range: {calculateVehicleRangeMiles(form) ?? '—'} mi</p>
             </div>
-            <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-emerald-400 px-4 py-2.5 text-xs font-extrabold text-black shadow-lg shadow-cyan-500/20 hover:brightness-110">
+            <button type="submit" className="theme-primary-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-extrabold hover:brightness-110">
               <Save className="h-4 w-4" /> Save car profile
             </button>
           </div>

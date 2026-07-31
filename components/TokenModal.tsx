@@ -27,11 +27,13 @@ export default function TokenModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
-      <div className="theme-modal relative w-full max-w-md liquid-glass rounded-2xl p-6 shadow-2xl border border-white/15">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 animate-fade-in" role="presentation">
+      <div className="theme-scope theme-modal relative w-full max-w-md rounded-2xl border border-white/15 p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="mapbox-token-title">
         {/* Close Button */}
         <button
+          type="button"
           onClick={onClose}
+          aria-label="Close Mapbox token dialog"
           className="absolute top-4 right-4 text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
         >
           <X className="w-5 h-5" />
@@ -43,7 +45,7 @@ export default function TokenModal({
             <Key className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-display text-lg font-bold text-white">Mapbox Public Access Token</h2>
+            <h2 id="mapbox-token-title" className="font-display text-lg font-bold text-white">Mapbox Public Access Token</h2>
             <p className="text-xs text-gray-400">Configure Mapbox GL JS map tiles & routing</p>
           </div>
         </div>
@@ -97,7 +99,7 @@ export default function TokenModal({
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black shadow-lg shadow-cyan-500/25 flex items-center space-x-1.5 transition-all active:scale-95"
+                className="theme-primary-button flex items-center space-x-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition-all active:scale-95"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Save Key</span>

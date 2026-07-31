@@ -14,6 +14,7 @@ interface OSMWay {
 }
 
 const roadWaysCache = new Map<string, { expiresAt: number; ways: OSMWay[] }>();
+const elevationCache = new Map<string, { expiresAt: number; samples: ElevationRouteSample[] }>();
 
 function parseNumber(value: string | undefined): number | undefined {
   if (!value) return undefined;
@@ -34,7 +35,7 @@ function buildOverpassQuery(samples: Array<{ coordinate: [number, number] }>): s
   const clauses = samples
     .map(({ coordinate: [lng, lat] }) => `way(around:50,${lat},${lng})["highway"];`)
     .join('');
-  return `[out:json][timeout:10];(${clauses});out tags center;`;
+  return `[out:json][timeout:8];(${clauses});out tags center;`;
 }
 
 function nearestWay(
@@ -56,23 +57,31 @@ function nearestWay(
 
 async function fetchElevation(
   samples: Array<{ coordinate: [number, number]; distanceMeters: number }>
-) {
+): Promise<ElevationRouteSample[]> {
   if (samples.length === 0) return [];
+  const cacheKey = samples
+    .map(({ coordinate: [lng, lat] }) => `${lng.toFixed(4)},${lat.toFixed(4)}`)
+    .join('|');
+  const cached = elevationCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.samples;
   const locations = samples
     .map(({ coordinate: [lng, lat] }) => `${lat},${lng}`)
     .join('|');
   const response = await fetch(
     `https://api.open-elevation.com/api/v1/lookup?locations=${encodeURIComponent(locations)}`,
-    { signal: AbortSignal.timeout(9000) }
+    { signal: AbortSignal.timeout(6000) }
   );
   if (!response.ok) throw new Error(`Elevation service returned ${response.status}`);
   const data = await response.json();
-  return (data.results || [])
+  const elevations = (data.results || [])
     .map((item: { elevation?: number }, index: number) => ({
       distanceMeters: samples[index]?.distanceMeters || 0,
       elevationM: Number(item.elevation),
     }))
     .filter((item: { elevationM: number }) => Number.isFinite(item.elevationM));
+  elevationCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, samples: elevations });
+  while (elevationCache.size > 8) elevationCache.delete(elevationCache.keys().next().value as string);
+  return elevations;
 }
 
 async function fetchRoadWays(samples: Array<{ coordinate: [number, number] }>) {
@@ -88,7 +97,7 @@ async function fetchRoadWays(samples: Array<{ coordinate: [number, number] }>) {
     const ways = await Promise.any(endpoints.map(async (endpoint) => {
       const response = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, {
         headers: { Accept: 'application/json', 'User-Agent': 'Roadr UK route planner' },
-        signal: AbortSignal.timeout(9000),
+        signal: AbortSignal.timeout(7000),
       });
       if (!response.ok) throw new Error(`Overpass returned ${response.status}`);
       const data = await response.json();
@@ -119,8 +128,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'A route geometry is required.' }, { status: 400 });
     }
 
-    const elevationSamples = mode === 'road' ? [] : sampleRouteCoordinates(coordinates, 40);
-    const roadSamples = mode === 'terrain' ? [] : sampleRouteCoordinates(coordinates, mode === 'road' ? 28 : 18);
+    // Keep the two enrichment paths small and independent: road tags should paint
+    // quickly, while terrain needs enough points to make the graph useful without
+    // making a long trip wait on a public elevation service.
+    const elevationSamples = mode === 'road' ? [] : sampleRouteCoordinates(coordinates, 24);
+    const roadSamples = mode === 'terrain' ? [] : sampleRouteCoordinates(coordinates, mode === 'road' ? 16 : 12);
     const [elevationResult, waysResult] = await Promise.allSettled([
       mode === 'road' ? Promise.resolve([] as ElevationRouteSample[]) : fetchElevation(elevationSamples),
       mode === 'terrain' ? Promise.resolve([] as OSMWay[]) : fetchRoadWays(roadSamples),

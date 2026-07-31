@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import { Bookmark, Search, MapPin, X, Loader2 } from 'lucide-react';
 import { LocationPoint } from '@/types';
 import { searchLocations, GeocodeResult } from '@/lib/geocoding';
@@ -26,6 +26,8 @@ export default function LocationSearchInput({
   onSelectLocation,
   onClear,
 }: LocationSearchInputProps) {
+  const inputId = useId();
+  const suggestionsId = `${inputId}-suggestions`;
   const [query, setQuery] = useState<string>('');
   const [suggestions, setSuggestions] = useState<GeocodeResult[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -118,7 +120,7 @@ export default function LocationSearchInput({
     <div className="relative space-y-1.5" ref={dropdownRef}>
       {/* Input Label Header */}
       <div className="flex items-center justify-between text-xs">
-        <label className={`flex items-center space-x-1.5 ${badgeColor === 'cyan' ? 'text-cyan-400' : 'text-amber-400'}`}>
+          <label htmlFor={inputId} className={`flex items-center space-x-1.5 ${badgeColor === 'cyan' ? 'text-cyan-400' : 'text-amber-400'}`}>
           <span className={`w-2.5 h-2.5 rounded-full ${dotStyles} shadow-sm`} />
           <span className="font-extrabold uppercase tracking-wide">{label}</span>
         </label>
@@ -140,6 +142,8 @@ export default function LocationSearchInput({
         </div>
 
         <input
+          id={inputId}
+          role="combobox"
           type="text"
           value={query}
           onChange={(e) => {
@@ -159,7 +163,10 @@ export default function LocationSearchInput({
             if (savedSuggestions.length > 0 || suggestions.length > 0) setIsOpen(true);
           }}
           placeholder={placeholder}
-          className={`w-full bg-black/60 border rounded-xl pl-9 pr-8 py-2.5 text-xs text-gray-100 placeholder:text-gray-500 focus:outline-none transition-all font-medium ${
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
+          aria-controls={suggestionsId}
+          className={`theme-field w-full rounded-xl border pl-9 pr-8 py-2.5 text-xs placeholder:text-gray-500 transition-all font-medium ${
             badgeColor === 'cyan'
               ? 'border-white/10 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400'
               : 'border-white/10 focus:border-amber-400 focus:ring-1 focus:ring-amber-400'
@@ -172,6 +179,7 @@ export default function LocationSearchInput({
             onClick={handleClear}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-0.5 rounded-full hover:bg-white/10 transition-colors"
             title="Clear search"
+            aria-label={`Clear ${label.toLowerCase()}`}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -180,7 +188,7 @@ export default function LocationSearchInput({
 
       {/* Autocomplete Dropdown List */}
       {isOpen && (savedSuggestions.length > 0 || suggestions.length > 0) && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 liquid-glass rounded-xl border border-white/15 shadow-2xl overflow-hidden max-h-60 overflow-y-auto animate-fade-in">
+        <div id={suggestionsId} role="listbox" aria-label={`${label} suggestions`} className="theme-scope absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto overflow-hidden rounded-xl border border-white/15 liquid-glass shadow-2xl animate-fade-in">
           {savedSuggestions.length > 0 && (
             <>
               <div className="px-3.5 py-2 flex items-center space-x-1.5 bg-black/20 border-b border-white/10">
@@ -193,6 +201,8 @@ export default function LocationSearchInput({
                 <button
                   key={`saved-${item.lng}-${item.lat}`}
                   type="button"
+                  role="option"
+                  aria-selected="false"
                   onClick={() => handleSelectSavedPlace(item)}
                   className="w-full text-left px-3.5 py-2.5 hover:bg-white/10 transition-colors border-b border-white/5 last:border-none flex items-start space-x-2.5 group"
                 >
@@ -224,6 +234,8 @@ export default function LocationSearchInput({
                 <button
                   key={`${item.lng}-${item.lat}-${index}`}
                   type="button"
+                  role="option"
+                  aria-selected="false"
                   onClick={() => handleSelect(item)}
                   className="w-full text-left px-3.5 py-2.5 hover:bg-white/10 transition-colors border-b border-white/5 last:border-none flex items-start space-x-2.5 group"
                 >

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Header from '@/components/Header';
-import Map from '@/components/Map';
 import RouteControls from '@/components/RouteControls';
 import TelemetryCard from '@/components/TelemetryCard';
 import TokenModal from '@/components/TokenModal';
@@ -29,6 +29,11 @@ import {
   VEHICLE_STORAGE_KEY,
 } from '@/lib/vehicle';
 import { AlertCircle, ChevronDown, ChevronUp, Sliders } from 'lucide-react';
+
+const Map = dynamic(() => import('@/components/Map'), {
+  ssr: false,
+  loading: () => <div className="h-full min-h-[100dvh] w-full bg-[#0f1b2b]" aria-label="Loading map" />,
+});
 
 export default function Home() {
   const [token, setToken] = useState(DEFAULT_MAPBOX_TOKEN);
@@ -332,13 +337,15 @@ export default function Home() {
     const geometry = routeData?.geometry;
     if (!geometry || roadGeometryRef.current === geometry) return;
     roadGeometryRef.current = geometry;
-    fetchRouteRoadDetails(geometry.coordinates as [number, number][]).then((details) => {
+    const controller = new AbortController();
+    fetchRouteRoadDetails(geometry.coordinates as [number, number][], controller.signal).then((details) => {
       setRouteData((current) => current && current.geometry === geometry
         ? { ...current, details: mergeRouteDetails(current.details, details) }
         : current);
     }).catch((error) => {
-      console.warn('Road-tag enrichment unavailable; keeping route hints.', error);
+      if (!controller.signal.aborted) console.warn('Road-tag enrichment unavailable; keeping route hints.', error);
     });
+    return () => controller.abort();
   }, [routeData?.geometry]);
 
   // Terrain enrichment runs after the fast route response and never blocks route interaction.
@@ -346,17 +353,19 @@ export default function Home() {
     const geometry = routeData?.geometry;
     if (!geometry || routeData.details.hasElevationData || terrainGeometryRef.current === geometry) return;
     terrainGeometryRef.current = geometry;
-    fetchRouteDetails(geometry.coordinates as [number, number][]).then((details) => {
+    const controller = new AbortController();
+    fetchRouteDetails(geometry.coordinates as [number, number][], controller.signal).then((details) => {
       setRouteData((current) => current && current.geometry === geometry
         ? { ...current, details: mergeRouteDetails(current.details, details) }
         : current);
     }).catch((error) => {
-      console.warn('Terrain enrichment unavailable; keeping geometry estimate.', error);
+      if (!controller.signal.aborted) console.warn('Terrain enrichment unavailable; keeping geometry estimate.', error);
     });
+    return () => controller.abort();
   }, [routeData?.geometry, routeData?.details.hasElevationData]);
 
   return (
-    <main className="app-shell relative h-screen w-full overflow-hidden bg-[#090a0f] text-gray-100">
+    <main className="app-shell relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[#090a0f] text-gray-100">
       {!isPreviewActive && <Header token={token} onOpenTokenModal={() => setIsTokenModalOpen(true)} onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} onOpenGarage={() => setIsGarageOpen(true)} />}
 
       <Map
@@ -380,10 +389,10 @@ export default function Home() {
         onOpenTokenModal={() => setIsTokenModalOpen(true)}
       />
 
-      {!isPreviewActive && <div className="fixed bottom-4 left-4 right-4 z-40 flex items-center justify-between rounded-2xl border border-white/15 bg-black/80 p-2 shadow-2xl backdrop-blur-xl md:hidden"><button onClick={() => setIsMobilePanelOpen((open) => !open)} className="flex flex-1 items-center justify-center space-x-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/20 px-3 py-2 text-xs font-semibold text-cyan-300 transition-all active:scale-95"><Sliders className="h-4 w-4 text-cyan-400" /><span>{isMobilePanelOpen ? 'Hide controls' : 'Route & telemetry'}</span>{isMobilePanelOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}</button></div>}
+      {!isPreviewActive && <div className="theme-scope theme-section fixed bottom-2 left-2 right-2 z-40 flex items-center justify-between rounded-2xl border border-white/15 p-2 shadow-2xl md:hidden"><button type="button" onClick={() => setIsMobilePanelOpen((open) => !open)} aria-expanded={isMobilePanelOpen} aria-controls="mobile-route-panel" className="theme-primary-button flex min-h-11 flex-1 items-center justify-center space-x-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all active:scale-95"><Sliders className="h-4 w-4" /><span>{isMobilePanelOpen ? 'Hide controls' : 'Route & telemetry'}</span>{isMobilePanelOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}</button></div>}
 
-      {!isPreviewActive && <div className={`fixed left-2 right-2 top-16 z-30 flex max-h-[75vh] w-auto max-w-md flex-col space-y-3.5 overflow-y-auto pb-16 pr-1 transition-all duration-300 md:absolute md:left-4 md:right-auto md:top-20 md:max-h-[calc(100vh-90px)] md:w-full md:pb-6 ${isMobilePanelOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-8 opacity-0 md:pointer-events-auto md:translate-y-0 md:opacity-100'}`}>
-        {errorMsg && <div className="flex items-start space-x-2 rounded-2xl border border-red-500/30 bg-red-950/80 p-3 text-xs text-red-200 shadow-xl backdrop-blur-md"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" /><div><strong className="block font-semibold">Route error</strong><span>{errorMsg}</span></div></div>}
+      {!isPreviewActive && <div id="mobile-route-panel" className={`theme-scope fixed inset-x-2 bottom-16 top-16 z-30 flex max-h-[calc(100dvh-8rem)] w-auto max-w-none flex-col space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1 transition-all duration-300 md:absolute md:bottom-auto md:left-4 md:right-auto md:top-20 md:max-h-[calc(100dvh-6rem)] md:w-full md:max-w-md md:pb-6 ${isMobilePanelOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0 md:pointer-events-auto md:translate-y-0 md:opacity-100'}`}>
+        {errorMsg && <div className="theme-section flex items-start space-x-2 rounded-2xl border border-red-500/30 bg-red-950/80 p-3 text-xs text-red-200 shadow-xl"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" /><div><strong className="block font-semibold">Route error</strong><span>{errorMsg}</span></div></div>}
         <RouteControls origin={origin} destination={destination} token={token} savedPlaces={savedPlaces} stops={stops} onSelectOrigin={handleSelectOrigin} onSelectDestination={handleSelectDestination} onAddStop={handleAddStop} onRemoveStop={handleRemoveStop} onReorderStops={handleReorderStops} onRemoveSavedPlace={(place) => setSavedPlaces((current) => current.filter((item) => item.lng !== place.lng || item.lat !== place.lat))} onClearOrigin={() => { setOrigin(null); setRouteData(null); }} onClearDestination={() => { setDestination(null); setRouteData(null); }} onSwapLocations={handleSwapLocations} onClearRoute={handleClearRoute} onCalculateRoute={() => void handleCalculateRoute()} isLoadingRoute={isLoadingRoute} />
         {routeData && origin && destination && <TelemetryCard telemetry={routeData.telemetry} details={routeData.details} origin={origin} destination={destination} provider={routeData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={() => setIsRecordModalOpen(true)} />}
       </div>}
