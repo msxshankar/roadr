@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Play, Pause, X, Navigation2, Gauge, Eye, ZoomIn } from 'lucide-react';
+import { Play, Pause, X, Navigation2, Gauge, Eye } from 'lucide-react';
 import { LocationPoint, RouteTelemetry } from '@/types';
 
 interface RoutePreviewHUDProps {
@@ -12,7 +12,7 @@ interface RoutePreviewHUDProps {
   isPlaying: boolean;
   speedMultiplier: number;
   bearing: number;
-  cameraZoom?: number; // 14.0 (High Aerial) to 18.5 (Close Ground)
+  cameraZoom?: number; // 14.0 (High Aerial) to 17.8 (Close Ground Crisp)
   selectedStyleId?: string;
   onStyleChange?: (styleId: string) => void;
   onChangeCameraZoom?: (zoom: number) => void;
@@ -32,8 +32,8 @@ const PREVIEW_MAP_STYLES = [
 const SPEED_OPTIONS = [0.5, 1, 2, 4, 8];
 
 const HEIGHT_PRESETS = [
-  { label: '🔍 Ground', zoom: 18.2 },
-  { label: '🏎️ Balanced', zoom: 16.5 },
+  { label: '🔍 Ground', zoom: 17.8 },
+  { label: '🏎️ Balanced', zoom: 16.2 },
   { label: '🦅 High Aerial', zoom: 14.5 },
 ];
 
@@ -62,8 +62,8 @@ export default function RoutePreviewHUD({
 
   // Friendly camera height label
   const getAltitudeLabel = (zoom: number) => {
-    if (zoom >= 17.8) return 'Ground Level View';
-    if (zoom >= 16.0) return '3D Follow-Along';
+    if (zoom >= 17.2) return 'Crisp Ground View';
+    if (zoom >= 15.8) return '3D Follow-Along';
     return 'High Aerial View';
   };
 
@@ -166,13 +166,13 @@ export default function RoutePreviewHUD({
             <input
               type="range"
               min={14.0}
-              max={18.5}
+              max={17.8}
               step={0.1}
               value={cameraZoom}
               onChange={(e) => onChangeCameraZoom && onChangeCameraZoom(parseFloat(e.target.value))}
               className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-300 transition-all"
             />
-            <span className="text-[10px] text-gray-400 font-mono shrink-0">Close Ground (18.5x)</span>
+            <span className="text-[10px] text-gray-400 font-mono shrink-0">Crisp Ground (17.8x)</span>
           </div>
         </div>
 

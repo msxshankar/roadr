@@ -153,8 +153,15 @@ export default function Map({
         attributionControl: false,
       });
 
+      // HIGH RESOLUTION & BLANK-TILE ELIMINATION ENGINES:
+      // 1. Expand tile RAM cache to 300 tiles to keep satellite imagery loaded
       if (typeof (map as any).setTileCacheSize === 'function') {
-        (map as any).setTileCacheSize(150);
+        (map as any).setTileCacheSize(300);
+      }
+
+      // 2. Enable parent tile prefetching delta = 2 (eliminates blank tiles by rendering parent tiles as fallbacks)
+      if (typeof (map as any).setPrefetchZoomDelta === 'function') {
+        (map as any).setPrefetchZoomDelta(2);
       }
 
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
@@ -358,7 +365,9 @@ export default function Map({
       lastTime = now;
 
       if (isPlayingPreview) {
-        const step = (deltaMs / 1000) * 0.012 * speedMultiplier;
+        // Cap ground speed slightly at close zoom levels to ensure satellite tiles download effortlessly
+        const zoomSpeedFactor = cameraZoom > 17.2 ? 0.75 : 1.0;
+        const step = (deltaMs / 1000) * 0.012 * speedMultiplier * zoomSpeedFactor;
         progressRef.current = Math.min(progressRef.current + step, 1);
       }
 
@@ -390,14 +399,14 @@ export default function Map({
         vehicleMarkerRef.current.setRotation(currentBearingRef.current);
       }
 
-      // Calculate Dynamic Camera Pitch based on Altitude / Zoom Slider:
-      // High Aerial (14.0x) -> 30° pitch | Ground Level (18.5x) -> 65° pitch
-      const dynamicPitch = 30 + Math.min(Math.max((cameraZoom - 14.0) * 7.8, 0), 38);
+      // Cap maximum ground zoom to 17.8 for crisp 1:1 pixel satellite resolution without stretching
+      const effectiveZoom = Math.min(cameraZoom, 17.8);
+      const dynamicPitch = 30 + Math.min(Math.max((effectiveZoom - 14.0) * 8.5, 0), 40);
 
       // 60 FPS Camera Update
       map.jumpTo({
         center: currentPositionRef.current,
-        zoom: cameraZoom,
+        zoom: effectiveZoom,
         pitch: dynamicPitch,
         bearing: currentBearingRef.current,
       });
