@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { LocationPoint, RouteData } from '@/types';
-import { interpolateRoutePosition } from '@/lib/mapbox';
+import { interpolateRoutePosition, lerpAngle } from '@/lib/mapbox';
 import { Key } from 'lucide-react';
 
 interface MapProps {
@@ -102,6 +102,7 @@ export default function Map({
 
   const animFrameRef = useRef<number | null>(null);
   const progressRef = useRef<number>(previewProgress);
+  const currentBearingRef = useRef<number>(0);
   const lastTickTimeRef = useRef<number>(0);
 
   const [isUsingMapboxKey, setIsUsingMapboxKey] = useState<boolean>(false);
@@ -135,6 +136,11 @@ export default function Map({
         bearing: 0,
         attributionControl: false,
       });
+
+      // Increase tile cache size to 150 tiles to prevent tile pop-in during satellite preview
+      if (typeof map.setTileCacheSize === 'function') {
+        map.setTileCacheSize(150);
+      }
 
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
@@ -291,7 +297,7 @@ export default function Map({
     }
   }, [routeData, selectedStyleId, token, isPreviewActive]);
 
-  // HIGH-PERFORMANCE 60 FPS DIRECT ANIMATION LOOP
+  // HIGH-PERFORMANCE 60 FPS DIRECT ANIMATION LOOP WITH GIMBAL CAMERA DAMPING & TILE PREFETCH
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !routeData || !routeData.geometry || !routeData.geometry.coordinates) return;
@@ -308,6 +314,10 @@ export default function Map({
       return;
     }
 
+    // Initialize 3D Vehicle Avatar Marker if missing
+    const initialInterpolation = interpolateRoutePosition(coords, progressRef.current);
+    currentBearingRef.current = initialInterpolation.bearing;
+
     if (!vehicleMarkerRef.current) {
       const vehicleEl = document.createElement('div');
       vehicleEl.className = 'marker-vehicle-container';
@@ -316,7 +326,6 @@ export default function Map({
           <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[14px] border-b-cyan-300 drop-shadow-[0_0_8px_#00f0ff]"></div>
         </div>
       `;
-      const initialInterpolation = interpolateRoutePosition(coords, progressRef.current);
       vehicleMarkerRef.current = new mapboxgl.Marker({ element: vehicleEl, rotationAlignment: 'map' })
         .setLngLat(initialInterpolation.position)
         .addTo(map);
@@ -329,27 +338,35 @@ export default function Map({
       lastTime = now;
 
       if (isPlayingPreview) {
-        const step = (deltaMs / 1000) * 0.015 * speedMultiplier;
+        // Step progress based on speed multiplier (supports 0.5x, 1x, 2x, 4x, 8x)
+        const step = (deltaMs / 1000) * 0.012 * speedMultiplier;
         progressRef.current = Math.min(progressRef.current + step, 1);
       }
 
-      const { position, bearing } = interpolateRoutePosition(coords, progressRef.current);
+      // Compute exact position and raw target bearing
+      const { position, bearing: rawBearing } = interpolateRoutePosition(coords, progressRef.current);
+
+      // SILKY SMOOTH CAMERA GIMBAL DAMPING (lerpAngle shortest-path smoothing)
+      // Dampens camera rotation to 6% per frame to eliminate jerky camera snaps on turns
+      currentBearingRef.current = lerpAngle(currentBearingRef.current, rawBearing, 0.06);
 
       if (vehicleMarkerRef.current) {
         vehicleMarkerRef.current.setLngLat(position);
-        vehicleMarkerRef.current.setRotation(bearing);
+        vehicleMarkerRef.current.setRotation(currentBearingRef.current);
       }
 
+      // 60 FPS Camera Position Update with 55° pitch for stable horizon
       map.jumpTo({
         center: position,
-        zoom: 16.5,
-        pitch: 65,
-        bearing: bearing,
+        zoom: 16.2,
+        pitch: 55,
+        bearing: currentBearingRef.current,
       });
 
+      // Throttle React state notification (~10fps for HUD slider updates) to prevent React lag
       if (onProgressTick && now - lastTickTimeRef.current > 100) {
         lastTickTimeRef.current = now;
-        onProgressTick(progressRef.current, bearing);
+        onProgressTick(progressRef.current, currentBearingRef.current);
       }
 
       if (progressRef.current < 1 || isPlayingPreview) {

@@ -70,6 +70,15 @@ export function calculateBearing(
 }
 
 /**
+ * Shortest-path exponential angle interpolation (dampened lerp)
+ * Prevents camera spin when crossing 0° / 360° boundary and smooths out sharp turn jerks
+ */
+export function lerpAngle(currentAngle: number, targetAngle: number, alpha: number): number {
+  const delta = ((targetAngle - currentAngle + 540) % 360) - 180;
+  return (currentAngle + delta * Math.min(Math.max(alpha, 0), 1) + 360) % 360;
+}
+
+/**
  * Interpolate coordinate and bearing along route coordinates array based on progress ratio (0 to 1)
  */
 export function interpolateRoutePosition(
@@ -96,7 +105,8 @@ export function interpolateRoutePosition(
   const lng = startCoord[0] + (endCoord[0] - startCoord[0]) * segmentRatio;
   const lat = startCoord[1] + (endCoord[1] - startCoord[1]) * segmentRatio;
 
-  const lookAheadIndex = Math.min(startIndex + 2, totalPoints - 1);
+  // Look ahead 3 points to smooth out micro-jitter in raw GPS coordinates
+  const lookAheadIndex = Math.min(startIndex + 3, totalPoints - 1);
   const targetCoord = coordinates[lookAheadIndex] || endCoord;
   const bearing = calculateBearing(startCoord, targetCoord);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Play, Pause, X, Navigation2, Gauge, Layers } from 'lucide-react';
+import { Play, Pause, X, Navigation2, Gauge } from 'lucide-react';
 import { LocationPoint, RouteTelemetry } from '@/types';
 
 interface RoutePreviewHUDProps {
@@ -26,6 +26,8 @@ const PREVIEW_MAP_STYLES = [
   { id: 'satellite-pure', name: '📷 Pure Satellite' },
   { id: 'streets', name: '🗺️ Streets Nav' },
 ];
+
+const SPEED_OPTIONS = [0.5, 1, 2, 4, 8];
 
 export default function RoutePreviewHUD({
   origin,
@@ -135,15 +137,15 @@ export default function RoutePreviewHUD({
         {/* Bottom Playback & Speed Controls */}
         <div className="flex items-center justify-between pt-1">
           {/* Speed Multipliers */}
-          <div className="flex items-center space-x-1.5">
+          <div className="flex items-center space-x-1">
             <span className="text-[11px] font-mono text-gray-400 hidden sm:inline mr-1">
               Sim Speed:
             </span>
-            {[1, 2, 4, 8].map((s) => (
+            {SPEED_OPTIONS.map((s) => (
               <button
                 key={s}
                 onClick={() => onChangeSpeedMultiplier(s)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all ${
+                className={`px-2 py-1 rounded-lg text-xs font-mono transition-all ${
                   speedMultiplier === s
                     ? 'bg-cyan-500 text-black font-bold shadow-md shadow-cyan-500/20'
                     : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10'
