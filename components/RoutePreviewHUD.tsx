@@ -29,7 +29,7 @@ const PREVIEW_MAP_STYLES = [
   { id: 'outdoors', name: '🏔️ Outdoors Topo' },
 ];
 
-const SPEED_OPTIONS = [0.5, 1, 2, 4, 8];
+const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4, 8];
 
 const HEIGHT_PRESETS = [
   { label: '🔍 Ground', zoom: 17.8 },
@@ -198,15 +198,15 @@ export default function RoutePreviewHUD({
         {/* Bottom Playback & Speed Controls */}
         <div className="flex items-center justify-between pt-0.5">
           {/* Speed Multipliers */}
-          <div className="flex items-center space-x-1">
-            <span className="text-[11px] font-mono text-gray-400 hidden sm:inline mr-1">
+          <div className="flex items-center space-x-1 overflow-x-auto">
+            <span className="text-[11px] font-mono text-gray-400 hidden sm:inline mr-1 shrink-0">
               Sim Speed:
             </span>
             {SPEED_OPTIONS.map((s) => (
               <button
                 key={s}
                 onClick={() => onChangeSpeedMultiplier(s)}
-                className={`px-2 py-1 rounded-lg text-xs font-mono transition-all ${
+                className={`px-2 py-1 rounded-lg text-xs font-mono transition-all shrink-0 ${
                   speedMultiplier === s
                     ? 'bg-cyan-500 text-black font-bold shadow-md shadow-cyan-500/20'
                     : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10'
@@ -220,7 +220,7 @@ export default function RoutePreviewHUD({
           {/* Play / Pause Toggle Button */}
           <button
             onClick={onTogglePlay}
-            className="flex items-center space-x-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-amber-500 text-black font-bold text-xs tracking-wider shadow-lg shadow-cyan-500/30 hover:brightness-110 active:scale-95 transition-all"
+            className="flex items-center space-x-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-amber-500 text-black font-bold text-xs tracking-wider shadow-lg shadow-cyan-500/30 hover:brightness-110 active:scale-95 transition-all shrink-0"
           >
             {isPlaying ? (
               <>
