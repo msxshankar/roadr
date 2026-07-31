@@ -19,6 +19,7 @@ import {
   DEFAULT_UK_MPG,
   DEFAULT_UK_PETROL_PRICE_PENCE,
   computeTelemetry,
+  mergeRouteDetails,
 } from '@/lib/mapbox';
 import {
   parseRecordedRoutes,
@@ -61,7 +62,6 @@ export default function Home() {
   const [currentBearing, setCurrentBearing] = useState(0);
   const [orientationMode, setOrientationMode] = useState<'follow' | 'manual'>('follow');
   const [manualBearing, setManualBearing] = useState(0);
-  const [showRouteDetails, setShowRouteDetails] = useState(false);
 
   const routeRequestIdRef = useRef(0);
   const detailGeometryRef = useRef<GeoJSON.LineString | null>(null);
@@ -186,7 +186,6 @@ export default function Home() {
     setPreviewProgress(0);
     setOrientationMode('follow');
     setManualBearing(currentBearing);
-    setShowRouteDetails(true);
     setIsMobilePanelOpen(false);
   };
 
@@ -299,7 +298,9 @@ export default function Home() {
     if (!geometry || routeData.details.hasElevationData || detailGeometryRef.current === geometry) return;
     detailGeometryRef.current = geometry;
     fetchRouteDetails(geometry.coordinates as [number, number][]).then((details) => {
-      setRouteData((current) => current && current.geometry === geometry ? { ...current, details } : current);
+      setRouteData((current) => current && current.geometry === geometry
+        ? { ...current, details: mergeRouteDetails(current.details, details) }
+        : current);
     }).catch((error) => {
       console.warn('Terrain enrichment unavailable; keeping geometry estimate.', error);
     });
@@ -322,7 +323,6 @@ export default function Home() {
         previewProgress={previewProgress}
         speedMultiplier={speedMultiplier}
         cameraZoom={cameraZoom}
-        showRouteDetails={showRouteDetails}
         orientationMode={orientationMode}
         manualBearing={manualBearing}
         onManualBearingChange={setManualBearing}
@@ -338,7 +338,7 @@ export default function Home() {
         {routeData && origin && destination && <TelemetryCard telemetry={routeData.telemetry} details={routeData.details} origin={origin} destination={destination} provider={routeData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={() => setIsRecordModalOpen(true)} />}
       </div>}
 
-      {isPreviewActive && origin && destination && routeData && <RoutePreviewHUD origin={origin} destination={destination} telemetry={routeData.telemetry} details={routeData.details} progress={previewProgress} isPlaying={isPlayingPreview} speedMultiplier={speedMultiplier} bearing={currentBearing} cameraZoom={cameraZoom} selectedStyleId={selectedStyleId} orientationMode={orientationMode} showRouteDetails={showRouteDetails} onStyleChange={setSelectedStyleId} onChangeCameraZoom={setCameraZoom} onChangeOrientationMode={(mode) => { setOrientationMode(mode); if (mode === 'manual') setManualBearing(currentBearing); }} onToggleRouteDetails={() => setShowRouteDetails((visible) => !visible)} onTogglePlay={handleTogglePlayPreview} onSeek={setPreviewProgress} onChangeSpeedMultiplier={setSpeedMultiplier} onExitPreview={handleExitPreview} />}
+      {isPreviewActive && origin && destination && routeData && <RoutePreviewHUD origin={origin} destination={destination} telemetry={routeData.telemetry} progress={previewProgress} isPlaying={isPlayingPreview} speedMultiplier={speedMultiplier} bearing={currentBearing} cameraZoom={cameraZoom} selectedStyleId={selectedStyleId} orientationMode={orientationMode} onStyleChange={setSelectedStyleId} onChangeCameraZoom={setCameraZoom} onChangeOrientationMode={(mode) => { setOrientationMode(mode); if (mode === 'manual') setManualBearing(currentBearing); }} onTogglePlay={handleTogglePlayPreview} onSeek={setPreviewProgress} onChangeSpeedMultiplier={setSpeedMultiplier} onExitPreview={handleExitPreview} />}
 
       {routeData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={routeData} vehicle={vehicle} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
       <VehicleGarageModal isOpen={isGarageOpen} vehicle={vehicle} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onClose={() => setIsGarageOpen(false)} />

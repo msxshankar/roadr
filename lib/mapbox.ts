@@ -178,6 +178,30 @@ export function interpolateRoutePosition(
   return { position, bearing: calculateBearing(startCoord, lookAhead), index: startIndex };
 }
 
+/** Find the road segment containing a physical route distance in logarithmic time. */
+export function findRouteSegmentAtDistance(
+  segments: RouteSegment[],
+  distanceMeters: number
+): RouteSegment | undefined {
+  if (segments.length === 0) return undefined;
+
+  const target = Math.max(Number.isFinite(distanceMeters) ? distanceMeters : 0, 0);
+  if (target <= segments[0].startDistanceMeters) return segments[0];
+  if (target >= segments[segments.length - 1].endDistanceMeters) return segments[segments.length - 1];
+
+  let low = 0;
+  let high = segments.length - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const segment = segments[middle];
+    if (target < segment.startDistanceMeters) high = middle - 1;
+    else if (target > segment.endDistanceMeters) low = middle + 1;
+    else return segment;
+  }
+
+  return segments[Math.min(Math.max(low, 0), segments.length - 1)];
+}
+
 function normaliseAngle(angle: number): number {
   return Math.abs(((angle + 540) % 360) - 180);
 }
@@ -336,7 +360,9 @@ export function buildRouteDetails(
     const widthLabel: RouteSegment['widthLabel'] =
       widthMeters < 4.5 ? 'Narrow' : widthMeters > 7 ? 'Wide' : 'Standard';
     const surface = hint?.surface || 'Paved';
-    const speedLimit = hint?.speedLimitMph ?? inferSpeedLimit(hint?.highway);
+    // Keep the HUD useful before the optional OSM lookup returns. Authoritative
+    // route/OSM values replace this estimate when enrichment completes.
+    const speedLimit = hint?.speedLimitMph ?? inferSpeedLimit(hint?.highway) ?? 60;
 
     if (elevationEnd > elevationStart) elevationGain += elevationEnd - elevationStart;
     if (widthLabel === 'Narrow') narrowCount += 1;
@@ -418,6 +444,45 @@ export function buildRouteDetails(
     segments,
     hasElevationData: elevationSamples.length > 1,
     source,
+  };
+}
+
+/** Merge slower terrain/OSM enrichment without throwing away fast route hints. */
+export function mergeRouteDetails(base: RouteDetails, enrichment: RouteDetails): RouteDetails {
+  if (enrichment.segments.length === 0 || base.segments.length === 0) return enrichment;
+
+  const segments = enrichment.segments.map((segment, index) => {
+    const original = base.segments[index];
+    if (!original) return segment;
+
+    const hasAuthoritativeEnrichment = segment.speedLimitSource && segment.speedLimitSource !== 'estimated';
+    const speedLimitMph = hasAuthoritativeEnrichment || original.speedLimitMph === undefined
+      ? segment.speedLimitMph
+      : original.speedLimitMph;
+    const roadName = segment.roadName === 'Unnamed road' ? original.roadName : segment.roadName;
+    const surface = segment.surface === 'Paved' && original.surface !== 'Paved' ? original.surface : segment.surface;
+    return {
+      ...segment,
+      roadName,
+      surface,
+      surfaceQuality: surface === segment.surface ? segment.surfaceQuality : original.surfaceQuality,
+      ...(speedLimitMph
+        ? {
+            speedLimitMph,
+            speedLimitSource: hasAuthoritativeEnrichment
+              ? segment.speedLimitSource
+              : original.speedLimitSource || 'estimated',
+          }
+        : {}),
+    };
+  });
+
+  return {
+    ...enrichment,
+    segments,
+    speedLimitCoveragePercent: Number(
+      ((segments.filter((segment) => Number.isFinite(segment.speedLimitMph)).length / Math.max(segments.length, 1)) * 100).toFixed(0)
+    ),
   };
 }
 

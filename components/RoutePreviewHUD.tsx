@@ -1,14 +1,13 @@
 'use client';
 
 import React from 'react';
-import { Eye, Gauge, Layers3, MousePointer2, Navigation2, Pause, Play, RotateCcw, X } from 'lucide-react';
-import { LocationPoint, RouteDetails, RouteTelemetry } from '@/types';
+import { Eye, Gauge, MousePointer2, Navigation2, Pause, Play, RotateCcw, X } from 'lucide-react';
+import { LocationPoint, RouteTelemetry } from '@/types';
 
 interface RoutePreviewHUDProps {
   origin: LocationPoint;
   destination: LocationPoint;
   telemetry: RouteTelemetry;
-  details: RouteDetails;
   progress: number;
   isPlaying: boolean;
   speedMultiplier: number;
@@ -16,11 +15,9 @@ interface RoutePreviewHUDProps {
   cameraZoom?: number;
   selectedStyleId?: string;
   orientationMode: 'follow' | 'manual';
-  showRouteDetails: boolean;
   onStyleChange?: (styleId: string) => void;
   onChangeCameraZoom?: (zoom: number) => void;
   onChangeOrientationMode: (mode: 'follow' | 'manual') => void;
-  onToggleRouteDetails: () => void;
   onTogglePlay: () => void;
   onSeek: (newProgress: number) => void;
   onChangeSpeedMultiplier: (speed: number) => void;
@@ -45,7 +42,6 @@ export default function RoutePreviewHUD({
   origin,
   destination,
   telemetry,
-  details,
   progress,
   isPlaying,
   speedMultiplier,
@@ -53,11 +49,9 @@ export default function RoutePreviewHUD({
   cameraZoom = 16.8,
   selectedStyleId = 'satellite',
   orientationMode,
-  showRouteDetails,
   onStyleChange,
   onChangeCameraZoom,
   onChangeOrientationMode,
-  onToggleRouteDetails,
   onTogglePlay,
   onSeek,
   onChangeSpeedMultiplier,
@@ -66,10 +60,6 @@ export default function RoutePreviewHUD({
   const currentMiles = (telemetry.distanceMiles * progress).toFixed(1);
   const remainingMiles = (telemetry.distanceMiles * (1 - progress)).toFixed(1);
   const simulatedSpeed = Math.round(telemetry.averageSpeedMph * speedMultiplier);
-  const currentDistance = telemetry.distanceMeters * progress;
-  const currentSegmentIndex = details.segments.findIndex((segment) => currentDistance >= segment.startDistanceMeters && currentDistance <= segment.endDistanceMeters);
-  const currentSegment = currentSegmentIndex >= 0 ? details.segments[currentSegmentIndex] : undefined;
-  const currentGradient = currentSegment?.gradientPercent || 0;
   const altitudeLabel = cameraZoom >= 18 ? 'Ground detail' : cameraZoom >= 16 ? 'Follow along' : 'High aerial';
 
   return (
@@ -87,20 +77,12 @@ export default function RoutePreviewHUD({
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
             <div className="flex items-center justify-between gap-2 text-xs"><div className="flex items-center gap-1.5 text-cyan-300"><Eye className="h-3.5 w-3.5 text-cyan-400" /><span>{altitudeLabel} · {cameraZoom.toFixed(1)}x</span></div><div className="hidden items-center gap-1 sm:flex">{HEIGHT_PRESETS.map((preset) => <button key={preset.label} onClick={() => onChangeCameraZoom?.(preset.zoom)} className={`rounded px-2 py-0.5 text-[10px] ${Math.abs(cameraZoom - preset.zoom) < 0.25 ? 'bg-cyan-500 font-bold text-black' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}>{preset.label}</button>)}</div></div>
-            <div className="mt-2 flex items-center space-x-3"><span className="shrink-0 text-[10px] font-mono text-gray-500">Aerial</span><input type="range" min={14} max={18.8} step={0.1} value={cameraZoom} onChange={(event) => onChangeCameraZoom?.(parseFloat(event.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-cyan-400" /><span className="shrink-0 text-[10px] font-mono text-cyan-300">Road detail</span></div>
+            <div className="mt-2 flex items-center space-x-3"><span className="shrink-0 text-[10px] font-mono text-gray-500">Aerial</span><input type="range" min={14} max={18.8} step={0.1} value={cameraZoom} onChange={(event) => onChangeCameraZoom?.(parseFloat(event.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-cyan-400" /><span className="shrink-0 text-[10px] font-mono text-cyan-300">Close ground</span></div>
           </div>
           <div className="flex items-stretch gap-2">
             <button onClick={() => onChangeOrientationMode('follow')} className={`flex min-w-[105px] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-[10px] transition-all ${orientationMode === 'follow' ? 'border-cyan-400/50 bg-cyan-500/20 text-cyan-200' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`}><RotateCcw className="mb-1 h-4 w-4" />Follow road</button>
             <button onClick={() => onChangeOrientationMode('manual')} className={`flex min-w-[105px] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-[10px] transition-all ${orientationMode === 'manual' ? 'border-amber-400/50 bg-amber-500/20 text-amber-200' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`}><MousePointer2 className="mb-1 h-4 w-4" />Mouse turn</button>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2">
-          <div className="flex items-center gap-2"><Layers3 className="h-4 w-4 text-emerald-400" /><div><p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-200">Road detail mode</p><p className="text-[10px] text-gray-500">Gradient and terrain colour along the route</p></div></div>
-          <button onClick={onToggleRouteDetails} className={`rounded-lg px-3 py-1.5 text-[10px] font-bold transition-all ${showRouteDetails ? 'bg-emerald-400 text-black' : 'border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'}`}>{showRouteDetails ? 'ON · Gradient map' : 'OFF · Clean route'}</button>
-          <div className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-mono ${currentGradient >= 0 ? 'border-amber-400/25 bg-amber-500/10 text-amber-200' : 'border-cyan-400/25 bg-cyan-500/10 text-cyan-200'}`}>Current grade: {currentGradient > 0 ? '+' : ''}{currentGradient.toFixed(1)}%</div>
-          <div className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-mono text-gray-300">{currentSegment?.speedLimitMph ? `${currentSegment.speedLimitMph} mph limit` : 'Limit unavailable'}</div>
-          <div className="w-full truncate border-t border-white/10 pt-1.5 text-[10px] font-mono text-gray-400 sm:border-t-0 sm:pt-0">Section {currentSegment ? `${currentSegmentIndex + 1}/${details.segments.length}` : '—'} · {currentSegment?.roadName || 'Route section'} · {currentSegment ? `${currentSegment.widthMeters}m ${currentSegment.surface.toLowerCase()} · ${currentSegment.camber.toLowerCase()}` : 'road data loading'}</div>
         </div>
 
         <div className="space-y-1.5"><div className="flex justify-between text-[11px] font-mono text-gray-400"><span className="font-medium text-cyan-400">Driven: {currentMiles} mi</span><span className="font-semibold text-gray-200">{Math.round(progress * 100)}%</span><span className="font-medium text-amber-400">Remaining: {remainingMiles} mi</span></div><input aria-label="Preview progress" type="range" min={0} max={100} step={0.1} value={progress * 100} onChange={(event) => onSeek(parseFloat(event.target.value) / 100)} className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-cyan-400" /></div>
