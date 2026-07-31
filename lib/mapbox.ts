@@ -50,6 +50,41 @@ export function formatDuration(seconds: number): string {
 }
 
 /**
+ * Compute Haversine distance in meters between two [lng, lat] coordinates
+ */
+export function haversineDistance(
+  coord1: [number, number],
+  coord2: [number, number]
+): number {
+  const R = 6371000; // Earth radius in meters
+  const [lng1, lat1] = coord1.map((deg) => (deg * Math.PI) / 180);
+  const [lng2, lat2] = coord2.map((deg) => (deg * Math.PI) / 180);
+
+  const dLat = lat2 - lat1;
+  const dLng = lng2 - lng1;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+
+/**
+ * Precalculate cumulative distances (meters) along route polyline
+ */
+export function computeCumulativeDistances(coordinates: [number, number][]): number[] {
+  if (!coordinates || coordinates.length === 0) return [0];
+  const cumulative = [0];
+  for (let i = 1; i < coordinates.length; i++) {
+    const dist = haversineDistance(coordinates[i - 1], coordinates[i]);
+    cumulative.push(cumulative[i - 1] + dist);
+  }
+  return cumulative;
+}
+
+/**
  * Calculate bearing angle in degrees between two coordinates [lng1, lat1] and [lng2, lat2]
  */
 export function calculateBearing(
@@ -79,11 +114,12 @@ export function lerpAngle(currentAngle: number, targetAngle: number, alpha: numb
 }
 
 /**
- * Interpolate coordinate and bearing along route coordinates array based on progress ratio (0 to 1)
+ * Interpolate coordinate and bearing along route coordinates based on PHYSICAL METERS (Constant Speed)
  */
 export function interpolateRoutePosition(
   coordinates: [number, number][],
-  progress: number
+  progress: number,
+  cachedCumulativeDistances?: number[]
 ): { position: [number, number]; bearing: number; index: number } {
   if (!coordinates || coordinates.length === 0) {
     return { position: [-2.5, 54.5], bearing: 0, index: 0 };
@@ -92,21 +128,46 @@ export function interpolateRoutePosition(
     return { position: coordinates[0], bearing: 0, index: 0 };
   }
 
-  const clampedProgress = Math.min(Math.max(progress, 0), 1);
-  const totalPoints = coordinates.length;
-  const exactIndex = clampedProgress * (totalPoints - 1);
-  const startIndex = Math.floor(exactIndex);
-  const endIndex = Math.min(startIndex + 1, totalPoints - 1);
-  const segmentRatio = exactIndex - startIndex;
+  const cumulativeDistances =
+    cachedCumulativeDistances && cachedCumulativeDistances.length === coordinates.length
+      ? cachedCumulativeDistances
+      : computeCumulativeDistances(coordinates);
+
+  const totalDistanceMeters = cumulativeDistances[cumulativeDistances.length - 1];
+  const targetMeters = Math.min(Math.max(progress, 0), 1) * totalDistanceMeters;
+
+  // Find exact segment index by physical distance
+  let startIndex = 0;
+  while (
+    startIndex < cumulativeDistances.length - 2 &&
+    cumulativeDistances[startIndex + 1] < targetMeters
+  ) {
+    startIndex++;
+  }
+
+  const endIndex = Math.min(startIndex + 1, coordinates.length - 1);
+  const segmentStartDist = cumulativeDistances[startIndex];
+  const segmentEndDist = cumulativeDistances[endIndex];
+  const segmentLen = Math.max(segmentEndDist - segmentStartDist, 0.001);
+
+  const segmentRatio = (targetMeters - segmentStartDist) / segmentLen;
 
   const startCoord = coordinates[startIndex];
   const endCoord = coordinates[endIndex];
 
+  // Physical distance interpolation
   const lng = startCoord[0] + (endCoord[0] - startCoord[0]) * segmentRatio;
   const lat = startCoord[1] + (endCoord[1] - startCoord[1]) * segmentRatio;
 
-  // Look ahead 3 points to smooth out micro-jitter in raw GPS coordinates
-  const lookAheadIndex = Math.min(startIndex + 3, totalPoints - 1);
+  // Look ahead ~50 meters for smooth forward bearing
+  let lookAheadMeters = targetMeters + 40;
+  let lookAheadIndex = startIndex;
+  while (
+    lookAheadIndex < cumulativeDistances.length - 1 &&
+    cumulativeDistances[lookAheadIndex] < lookAheadMeters
+  ) {
+    lookAheadIndex++;
+  }
   const targetCoord = coordinates[lookAheadIndex] || endCoord;
   const bearing = calculateBearing(startCoord, targetCoord);
 

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { LocationPoint, RouteData } from '@/types';
-import { interpolateRoutePosition, lerpAngle } from '@/lib/mapbox';
+import { interpolateRoutePosition, computeCumulativeDistances, lerpAngle } from '@/lib/mapbox';
 import { Key } from 'lucide-react';
 
 interface MapProps {
@@ -105,12 +105,25 @@ export default function Map({
   const currentBearingRef = useRef<number>(0);
   const lastTickTimeRef = useRef<number>(0);
 
+  const cumulativeDistancesRef = useRef<number[]>([]);
+
   const [isUsingMapboxKey, setIsUsingMapboxKey] = useState<boolean>(false);
 
   // Sync external seek changes to ref
   useEffect(() => {
     progressRef.current = previewProgress;
   }, [previewProgress]);
+
+  // Precompute physical cumulative distances when route changes
+  useEffect(() => {
+    if (routeData && routeData.geometry && routeData.geometry.coordinates) {
+      cumulativeDistancesRef.current = computeCumulativeDistances(
+        routeData.geometry.coordinates as [number, number][]
+      );
+    } else {
+      cumulativeDistancesRef.current = [];
+    }
+  }, [routeData]);
 
   // Initialize Mapbox Map
   useEffect(() => {
@@ -137,7 +150,6 @@ export default function Map({
         attributionControl: false,
       });
 
-      // Increase tile cache size to 150 tiles to prevent tile pop-in during satellite preview
       if (typeof (map as any).setTileCacheSize === 'function') {
         (map as any).setTileCacheSize(150);
       }
@@ -297,7 +309,7 @@ export default function Map({
     }
   }, [routeData, selectedStyleId, token, isPreviewActive]);
 
-  // HIGH-PERFORMANCE 60 FPS DIRECT ANIMATION LOOP WITH GIMBAL CAMERA DAMPING & TILE PREFETCH
+  // HIGH-PERFORMANCE CONSTANT-SPEED 60 FPS DIRECT ANIMATION LOOP WITH GIMBAL CAMERA DAMPING
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !routeData || !routeData.geometry || !routeData.geometry.coordinates) return;
@@ -314,8 +326,11 @@ export default function Map({
       return;
     }
 
-    // Initialize 3D Vehicle Avatar Marker if missing
-    const initialInterpolation = interpolateRoutePosition(coords, progressRef.current);
+    const initialInterpolation = interpolateRoutePosition(
+      coords,
+      progressRef.current,
+      cumulativeDistancesRef.current
+    );
     currentBearingRef.current = initialInterpolation.bearing;
 
     if (!vehicleMarkerRef.current) {
@@ -338,16 +353,19 @@ export default function Map({
       lastTime = now;
 
       if (isPlayingPreview) {
-        // Step progress based on speed multiplier (supports 0.5x, 1x, 2x, 4x, 8x)
+        // Step progress based on PHYSICAL DISTANCE (Constant real-world speed across all road types)
         const step = (deltaMs / 1000) * 0.012 * speedMultiplier;
         progressRef.current = Math.min(progressRef.current + step, 1);
       }
 
-      // Compute exact position and raw target bearing
-      const { position, bearing: rawBearing } = interpolateRoutePosition(coords, progressRef.current);
+      // Compute exact position and raw target bearing using PHYSICAL DISTANCE arc-length
+      const { position, bearing: rawBearing } = interpolateRoutePosition(
+        coords,
+        progressRef.current,
+        cumulativeDistancesRef.current
+      );
 
-      // SILKY SMOOTH CAMERA GIMBAL DAMPING (lerpAngle shortest-path smoothing)
-      // Dampens camera rotation to 6% per frame to eliminate jerky camera snaps on turns
+      // Smooth camera rotation filter (lerpAngle shortest-path smoothing)
       currentBearingRef.current = lerpAngle(currentBearingRef.current, rawBearing, 0.06);
 
       if (vehicleMarkerRef.current) {
@@ -355,7 +373,7 @@ export default function Map({
         vehicleMarkerRef.current.setRotation(currentBearingRef.current);
       }
 
-      // 60 FPS Camera Position Update with 55° pitch for stable horizon
+      // 60 FPS Camera Position Update
       map.jumpTo({
         center: position,
         zoom: 16.2,
@@ -363,7 +381,6 @@ export default function Map({
         bearing: currentBearingRef.current,
       });
 
-      // Throttle React state notification (~10fps for HUD slider updates) to prevent React lag
       if (onProgressTick && now - lastTickTimeRef.current > 100) {
         lastTickTimeRef.current = now;
         onProgressTick(progressRef.current, currentBearingRef.current);
