@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, X, Loader2, Navigation, Tag } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Bookmark, Search, MapPin, X, Loader2 } from 'lucide-react';
 import { LocationPoint } from '@/types';
 import { searchLocations, GeocodeResult } from '@/lib/geocoding';
 
@@ -11,6 +11,7 @@ interface LocationSearchInputProps {
   value: LocationPoint | null;
   placeholder: string;
   token?: string;
+  savedPlaces: LocationPoint[];
   onSelectLocation: (location: LocationPoint) => void;
   onClear: () => void;
 }
@@ -21,6 +22,7 @@ export default function LocationSearchInput({
   value,
   placeholder,
   token,
+  savedPlaces,
   onSelectLocation,
   onClear,
 }: LocationSearchInputProps) {
@@ -29,6 +31,16 @@ export default function LocationSearchInput({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const savedSuggestions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return savedPlaces
+      .filter((place) => !normalizedQuery || place.name.toLowerCase().includes(normalizedQuery))
+      .slice(0, 6);
+  }, [query, savedPlaces]);
+
+  const isCommittedValue = Boolean(value && query.trim() === value.name.trim());
 
   // Sync internal query string when external value prop changes
   useEffect(() => {
@@ -41,22 +53,28 @@ export default function LocationSearchInput({
 
   // Debounced autocomplete search
   useEffect(() => {
-    if (!query || (value && query === value.name)) {
+    if (!query.trim() || isCommittedValue) {
       setSuggestions([]);
-      setIsOpen(false);
+      setIsLoading(false);
       return;
     }
 
+    let isCancelled = false;
     const timer = setTimeout(async () => {
       setIsLoading(true);
       const results = await searchLocations(query, token);
+      if (isCancelled) return;
+
       setSuggestions(results);
       setIsLoading(false);
-      setIsOpen(results.length > 0);
+      setIsOpen(savedSuggestions.length > 0 || results.length > 0);
     }, 250);
 
-    return () => clearTimeout(timer);
-  }, [query, token, value]);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, token, isCommittedValue, savedSuggestions]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -80,16 +98,19 @@ export default function LocationSearchInput({
     onSelectLocation(location);
   };
 
+  const handleSelectSavedPlace = (location: LocationPoint) => {
+    setQuery(location.name);
+    setSuggestions([]);
+    setIsOpen(false);
+    onSelectLocation(location);
+  };
+
   const handleClear = () => {
     setQuery('');
     setSuggestions([]);
     setIsOpen(false);
     onClear();
   };
-
-  const badgeStyles = badgeColor === 'cyan'
-    ? 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30 font-semibold'
-    : 'text-amber-400 bg-amber-500/10 border-amber-500/30 font-semibold';
 
   const dotStyles = badgeColor === 'cyan' ? 'bg-cyan-400 shadow-cyan-400' : 'bg-amber-400 shadow-amber-400';
 
@@ -121,9 +142,12 @@ export default function LocationSearchInput({
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setIsOpen(true);
+          }}
           onFocus={() => {
-            if (suggestions.length > 0) setIsOpen(true);
+            if (savedSuggestions.length > 0 || suggestions.length > 0) setIsOpen(true);
           }}
           placeholder={placeholder}
           className={`w-full bg-black/60 border rounded-xl pl-9 pr-8 py-2.5 text-xs text-gray-100 placeholder:text-gray-500 focus:outline-none transition-all font-medium ${
@@ -146,33 +170,74 @@ export default function LocationSearchInput({
       </div>
 
       {/* Autocomplete Dropdown List */}
-      {isOpen && (
+      {isOpen && (savedSuggestions.length > 0 || suggestions.length > 0) && (
         <div className="absolute left-0 right-0 top-full mt-1 z-50 liquid-glass rounded-xl border border-white/15 shadow-2xl overflow-hidden max-h-60 overflow-y-auto animate-fade-in">
-          {suggestions.map((item, index) => (
-            <button
-              key={`${item.lng}-${item.lat}-${index}`}
-              type="button"
-              onClick={() => handleSelect(item)}
-              className="w-full text-left px-3.5 py-2.5 hover:bg-white/10 transition-colors border-b border-white/5 last:border-none flex items-start space-x-2.5 group"
-            >
-              <MapPin className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${badgeColor === 'cyan' ? 'text-cyan-400' : 'text-amber-400'}`} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-white group-hover:text-cyan-300 truncate">
-                    {item.name}
-                  </span>
-                  {item.category && (
-                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-gray-400 uppercase ml-2 shrink-0 border border-white/10">
-                      {item.category}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] text-gray-400 truncate mt-0.5">
-                  {item.fullName}
-                </p>
+          {savedSuggestions.length > 0 && (
+            <>
+              <div className="px-3.5 py-2 flex items-center space-x-1.5 bg-black/20 border-b border-white/10">
+                <Bookmark className="w-3 h-3 text-cyan-400" />
+                <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-cyan-300">
+                  Saved places
+                </span>
               </div>
-            </button>
-          ))}
+              {savedSuggestions.map((item) => (
+                <button
+                  key={`saved-${item.lng}-${item.lat}`}
+                  type="button"
+                  onClick={() => handleSelectSavedPlace(item)}
+                  className="w-full text-left px-3.5 py-2.5 hover:bg-white/10 transition-colors border-b border-white/5 last:border-none flex items-start space-x-2.5 group"
+                >
+                  <Bookmark className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${badgeColor === 'cyan' ? 'text-cyan-400' : 'text-amber-400'}`} />
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-xs font-semibold text-white group-hover:text-cyan-300 truncate">
+                      {item.name}
+                    </span>
+                    <span className="block text-[10px] text-gray-400 truncate mt-0.5">
+                      Saved place · {item.lat.toFixed(3)}°, {item.lng.toFixed(3)}°
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </>
+          )}
+
+          {suggestions.length > 0 && (
+            <>
+              {savedSuggestions.length > 0 && (
+                <div className="px-3.5 py-2 flex items-center space-x-1.5 bg-black/20 border-y border-white/10">
+                  <Search className="w-3 h-3 text-gray-400" />
+                  <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-gray-400">
+                    Search results
+                  </span>
+                </div>
+              )}
+              {suggestions.map((item, index) => (
+                <button
+                  key={`${item.lng}-${item.lat}-${index}`}
+                  type="button"
+                  onClick={() => handleSelect(item)}
+                  className="w-full text-left px-3.5 py-2.5 hover:bg-white/10 transition-colors border-b border-white/5 last:border-none flex items-start space-x-2.5 group"
+                >
+                  <MapPin className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${badgeColor === 'cyan' ? 'text-cyan-400' : 'text-amber-400'}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-white group-hover:text-cyan-300 truncate">
+                        {item.name}
+                      </span>
+                      {item.category && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-gray-400 uppercase ml-2 shrink-0 border border-white/10">
+                          {item.category}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-gray-400 truncate mt-0.5">
+                      {item.fullName}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>

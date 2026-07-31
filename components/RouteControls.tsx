@@ -11,6 +11,7 @@ interface RouteControlsProps {
   destination: LocationPoint | null;
   activeClickMode: 'origin' | 'destination';
   token?: string;
+  savedPlaces: LocationPoint[];
   onChangeClickMode: (mode: 'origin' | 'destination') => void;
   onSelectOrigin: (location: LocationPoint) => void;
   onSelectDestination: (location: LocationPoint) => void;
@@ -27,6 +28,7 @@ export default function RouteControls({
   destination,
   activeClickMode,
   token,
+  savedPlaces,
   onChangeClickMode,
   onSelectOrigin,
   onSelectDestination,
@@ -79,6 +81,7 @@ export default function RouteControls({
         value={origin}
         placeholder="Type city, landmark, or UK postcode (e.g. M1 1AG, London)..."
         token={token}
+        savedPlaces={savedPlaces}
         onSelectLocation={onSelectOrigin}
         onClear={onClearOrigin}
       />
@@ -105,6 +108,7 @@ export default function RouteControls({
         value={destination}
         placeholder="Type city, landmark, or UK postcode (e.g. EH1 1YY, Edinburgh)..."
         token={token}
+        savedPlaces={savedPlaces}
         onSelectLocation={onSelectDestination}
         onClear={onClearDestination}
       />

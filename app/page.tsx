@@ -10,6 +10,11 @@ import RoutePreviewHUD from '@/components/RoutePreviewHUD';
 import { LocationPoint, RouteData, UKPresetRoute } from '@/types';
 import { UK_SCENIC_ROUTES } from '@/lib/presets';
 import {
+  parseSavedPlaces,
+  SAVED_PLACES_STORAGE_KEY,
+  upsertSavedPlace,
+} from '@/lib/savedPlaces';
+import {
   fetchRoute,
   DEFAULT_MAPBOX_TOKEN,
   DEFAULT_UK_MPG,
@@ -24,6 +29,8 @@ export default function Home() {
 
   const [origin, setOrigin] = useState<LocationPoint | null>(UK_SCENIC_ROUTES[0].origin);
   const [destination, setDestination] = useState<LocationPoint | null>(UK_SCENIC_ROUTES[0].destination);
+  const [savedPlaces, setSavedPlaces] = useState<LocationPoint[]>([]);
+  const [hasLoadedSavedPlaces, setHasLoadedSavedPlaces] = useState(false);
 
   const [mpg, setMpg] = useState<number>(DEFAULT_UK_MPG);
   const [pricePerLiterPence, setPricePerLiterPence] = useState<number>(DEFAULT_UK_PETROL_PRICE_PENCE);
@@ -47,6 +54,30 @@ export default function Home() {
   const [isPlayingPreview, setIsPlayingPreview] = useState<boolean>(false);
   const [speedMultiplier, setSpeedMultiplier] = useState<number>(2);
   const [currentBearing, setCurrentBearing] = useState<number>(0);
+
+  useEffect(() => {
+    try {
+      setSavedPlaces(parseSavedPlaces(window.localStorage.getItem(SAVED_PLACES_STORAGE_KEY)));
+    } catch (err) {
+      console.warn('Unable to load saved places:', err);
+    } finally {
+      setHasLoadedSavedPlaces(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedSavedPlaces) return;
+
+    try {
+      window.localStorage.setItem(SAVED_PLACES_STORAGE_KEY, JSON.stringify(savedPlaces));
+    } catch (err) {
+      console.warn('Unable to save places:', err);
+    }
+  }, [savedPlaces, hasLoadedSavedPlaces]);
+
+  const rememberPlace = (location: LocationPoint) => {
+    setSavedPlaces((currentPlaces) => upsertSavedPlace(currentPlaces, location));
+  };
 
   // Fetch Live Fuel Price dynamically from FuelMap API route on mount
   useEffect(() => {
@@ -153,6 +184,8 @@ export default function Home() {
 
   const handleSelectPresetRoute = (preset: UKPresetRoute) => {
     handleExitPreview();
+    rememberPlace(preset.origin);
+    rememberPlace(preset.destination);
     setOrigin(preset.origin);
     setDestination(preset.destination);
     handleCalculateRoute(preset.origin, preset.destination, mpg, pricePerLiterPence);
@@ -160,12 +193,14 @@ export default function Home() {
 
   const handleSelectOrigin = (location: LocationPoint) => {
     handleExitPreview();
+    rememberPlace(location);
     setOrigin(location);
     if (destination) handleCalculateRoute(location, destination, mpg, pricePerLiterPence);
   };
 
   const handleSelectDestination = (location: LocationPoint) => {
     handleExitPreview();
+    rememberPlace(location);
     setDestination(location);
     if (origin) handleCalculateRoute(origin, location, mpg, pricePerLiterPence);
   };
@@ -173,12 +208,10 @@ export default function Home() {
   const handleMapClick = (point: LocationPoint, mode: 'origin' | 'destination') => {
     if (isPreviewActive) return;
     if (mode === 'origin') {
-      setOrigin(point);
       setActiveClickMode('destination');
-      if (destination) handleCalculateRoute(point, destination, mpg, pricePerLiterPence);
+      handleSelectOrigin(point);
     } else {
-      setDestination(point);
-      if (origin) handleCalculateRoute(origin, point, mpg, pricePerLiterPence);
+      handleSelectDestination(point);
     }
   };
 
@@ -275,6 +308,7 @@ export default function Home() {
             destination={destination}
             activeClickMode={activeClickMode}
             token={token}
+            savedPlaces={savedPlaces}
             onChangeClickMode={setActiveClickMode}
             onSelectOrigin={handleSelectOrigin}
             onSelectDestination={handleSelectDestination}
