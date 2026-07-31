@@ -9,7 +9,7 @@ import TokenModal from '@/components/TokenModal';
 import { LocationPoint, RouteData, UKPresetRoute } from '@/types';
 import { UK_SCENIC_ROUTES } from '@/lib/presets';
 import { fetchRoute, DEFAULT_MAPBOX_TOKEN, DEFAULT_UK_MPG, DEFAULT_UK_PETROL_PRICE_PENCE, computeTelemetry } from '@/lib/mapbox';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Sliders, Map as MapIcon, ChevronUp, ChevronDown } from 'lucide-react';
 
 export default function Home() {
   const [token, setToken] = useState<string>(DEFAULT_MAPBOX_TOKEN);
@@ -29,6 +29,9 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [activeClickMode, setActiveClickMode] = useState<'origin' | 'destination'>('destination');
+  
+  // Mobile drawer visibility toggle (open by default on desktop, collapsible on mobile)
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState<boolean>(true);
 
   // Fetch Live Fuel Price dynamically from FuelMap API route on mount
   useEffect(() => {
@@ -173,8 +176,24 @@ export default function Home() {
         onOpenTokenModal={() => setIsTokenModalOpen(true)}
       />
 
-      {/* Left Sidebar Floating Controls Panel */}
-      <div className="absolute top-20 left-4 z-30 flex flex-col space-y-4 max-h-[calc(100vh-100px)] overflow-y-auto pr-2 pb-6 max-w-md w-full">
+      {/* Mobile Floating Toggle Bar (Bottom) */}
+      <div className="md:hidden fixed bottom-4 left-4 right-4 z-40 flex items-center justify-between bg-black/80 backdrop-blur-xl border border-white/15 p-2 rounded-2xl shadow-2xl">
+        <button
+          onClick={() => setIsMobilePanelOpen(!isMobilePanelOpen)}
+          className="flex-1 py-2 px-3 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all active:scale-95"
+        >
+          <Sliders className="w-4 h-4 text-cyan-400" />
+          <span>{isMobilePanelOpen ? 'Hide Controls' : 'Route & Telemetry Controls'}</span>
+          {isMobilePanelOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
+      {/* Left Sidebar / Mobile Bottom Sheet Controls Panel */}
+      <div
+        className={`fixed md:absolute top-16 md:top-20 left-2 right-2 md:right-auto md:left-4 z-30 flex flex-col space-y-3.5 max-h-[75vh] md:max-h-[calc(100vh-100px)] overflow-y-auto pr-1 pb-16 md:pb-6 max-w-md w-auto md:w-full transition-all duration-300 ${
+          isMobilePanelOpen ? 'opacity-100 translate-y-0' : 'opacity-0 pointer-events-none translate-y-8 md:opacity-100 md:pointer-events-auto md:translate-y-0'
+        }`}
+      >
         {/* Error Banner if any */}
         {errorMsg && (
           <div className="bg-red-950/80 border border-red-500/30 text-red-200 p-3 rounded-2xl text-xs flex items-start space-x-2 backdrop-blur-md shadow-xl">
