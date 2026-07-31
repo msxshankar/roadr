@@ -72,7 +72,6 @@ const FREE_OSM_STREETS: mapboxgl.Style = {
 };
 
 export const MAPBOX_STYLES = [
-  { id: 'dark', name: 'Dark Obsidian', url: 'mapbox://styles/mapbox/dark-v11', fallback: FREE_CARTO_DARK },
   { id: 'satellite', name: '3D Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12', fallback: FREE_CARTO_DARK },
   { id: 'satellite-pure', name: 'Pure Satellite', url: 'mapbox://styles/mapbox/satellite-v9', fallback: FREE_CARTO_DARK },
   { id: 'streets', name: 'Streets Nav', url: 'mapbox://styles/mapbox/navigation-dark-v1', fallback: FREE_OSM_STREETS },
@@ -85,7 +84,7 @@ export default function Map({
   destination,
   routeData,
   activeClickMode,
-  selectedStyleId = 'dark',
+  selectedStyleId = 'satellite',
   onStyleChange,
   isPreviewActive = false,
   isPlayingPreview = false,

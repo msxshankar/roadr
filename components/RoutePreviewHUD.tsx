@@ -24,9 +24,9 @@ interface RoutePreviewHUDProps {
 
 const PREVIEW_MAP_STYLES = [
   { id: 'satellite', name: '🛰️ 3D Satellite' },
-  { id: 'dark', name: '🌑 Dark Obsidian' },
   { id: 'satellite-pure', name: '📷 Pure Satellite' },
   { id: 'streets', name: '🗺️ Streets Nav' },
+  { id: 'outdoors', name: '🏔️ Outdoors Topo' },
 ];
 
 const SPEED_OPTIONS = [0.5, 1, 2, 4, 8];
