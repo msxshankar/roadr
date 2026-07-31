@@ -3,7 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { LocationPoint, RouteData } from '@/types';
-import { Layers, Key, ShieldAlert } from 'lucide-react';
+import { interpolateRoutePosition } from '@/lib/mapbox';
+import { Key } from 'lucide-react';
 
 interface MapProps {
   token: string;
@@ -11,11 +12,12 @@ interface MapProps {
   destination: LocationPoint | null;
   routeData: RouteData | null;
   activeClickMode: 'origin' | 'destination';
+  isPreviewActive?: boolean;
+  previewProgress?: number;
   onMapClick: (point: LocationPoint, mode: 'origin' | 'destination') => void;
   onOpenTokenModal: () => void;
 }
 
-// 100% Free CartoDB & OSM raster styles (work without any Mapbox API Key)
 const FREE_CARTO_DARK: mapboxgl.Style = {
   version: 8,
   sources: {
@@ -75,6 +77,8 @@ export default function Map({
   destination,
   routeData,
   activeClickMode,
+  isPreviewActive = false,
+  previewProgress = 0,
   onMapClick,
   onOpenTokenModal,
 }: MapProps) {
@@ -82,11 +86,12 @@ export default function Map({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const originMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const destinationMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const vehicleMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
   const [selectedStyleId, setSelectedStyleId] = useState<string>('dark');
   const [isUsingMapboxKey, setIsUsingMapboxKey] = useState<boolean>(false);
 
-  // Initialize Map
+  // Initialize Mapbox Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -97,7 +102,6 @@ export default function Map({
       mapboxgl.accessToken = token.trim();
     }
 
-    // Determine initial style: Use Mapbox style URL if token is valid, else free CartoDB style
     const targetStyleConfig = MAPBOX_STYLES.find((s) => s.id === selectedStyleId) || MAPBOX_STYLES[0];
     const initialStyle = hasValidToken ? targetStyleConfig.url : targetStyleConfig.fallback;
 
@@ -115,6 +119,7 @@ export default function Map({
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
       map.on('click', (e) => {
+        if (isPreviewActive) return; // Ignore map clicks during 3D drive preview
         const { lng, lat } = e.lngLat;
         const name = `${lat.toFixed(3)}°N, ${lng.toFixed(3)}°W`;
         onMapClick({ name, lng, lat }, activeClickMode);
@@ -240,21 +245,23 @@ export default function Map({
         },
       });
 
-      // Auto Fit Camera Bounds to Route
-      const coordinates = routeData.geometry.coordinates;
-      if (coordinates && coordinates.length > 0) {
-        const bounds = new mapboxgl.LngLatBounds(
-          coordinates[0] as [number, number],
-          coordinates[0] as [number, number]
-        );
-        for (const coord of coordinates) {
-          bounds.extend(coord as [number, number]);
+      // Auto Fit Camera Bounds if NOT in 3D Preview Mode
+      if (!isPreviewActive) {
+        const coordinates = routeData.geometry.coordinates;
+        if (coordinates && coordinates.length > 0) {
+          const bounds = new mapboxgl.LngLatBounds(
+            coordinates[0] as [number, number],
+            coordinates[0] as [number, number]
+          );
+          for (const coord of coordinates) {
+            bounds.extend(coord as [number, number]);
+          }
+          map.fitBounds(bounds, {
+            padding: { top: 120, bottom: 120, left: 450, right: 120 },
+            maxZoom: 13,
+            duration: 1500,
+          });
         }
-        map.fitBounds(bounds, {
-          padding: { top: 120, bottom: 120, left: 450, right: 120 },
-          maxZoom: 13,
-          duration: 1500,
-        });
       }
     };
 
@@ -263,7 +270,51 @@ export default function Map({
     } else {
       map.once('styledata', updateLayer);
     }
-  }, [routeData, selectedStyleId, token]);
+  }, [routeData, selectedStyleId, token, isPreviewActive]);
+
+  // 3D Third-Person Driving Camera & Vehicle Avatar Animation Loop
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !routeData || !routeData.geometry || !routeData.geometry.coordinates) return;
+
+    const coords = routeData.geometry.coordinates as [number, number][];
+    if (coords.length < 2) return;
+
+    if (isPreviewActive) {
+      const { position, bearing } = interpolateRoutePosition(coords, previewProgress);
+
+      // 1. Create or Update 3D Glowing Vehicle Avatar Marker
+      if (!vehicleMarkerRef.current) {
+        const vehicleEl = document.createElement('div');
+        vehicleEl.className = 'marker-vehicle-container';
+        vehicleEl.innerHTML = `
+          <div class="w-10 h-10 rounded-full bg-cyan-500/30 border-2 border-cyan-400 flex items-center justify-center shadow-lg shadow-cyan-500/50 animate-pulse">
+            <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[14px] border-b-cyan-300 drop-shadow-[0_0_8px_#00f0ff]" style="transform: rotate(0deg)"></div>
+          </div>
+        `;
+        vehicleMarkerRef.current = new mapboxgl.Marker({ element: vehicleEl, rotationAlignment: 'map' })
+          .setLngLat(position)
+          .addTo(map);
+      } else {
+        vehicleMarkerRef.current.setLngLat(position);
+        vehicleMarkerRef.current.setRotation(bearing);
+      }
+
+      // 2. Set 3D Third-Person Camera View (Pitch: 65°, Zoom: 16.5, Facing Bearing)
+      map.jumpTo({
+        center: position,
+        zoom: 16.5,
+        pitch: 65,
+        bearing: bearing,
+      });
+    } else {
+      // Exit Preview Mode: Remove Vehicle Avatar Marker
+      if (vehicleMarkerRef.current) {
+        vehicleMarkerRef.current.remove();
+        vehicleMarkerRef.current = null;
+      }
+    }
+  }, [isPreviewActive, previewProgress, routeData]);
 
   return (
     <div className="relative w-full h-full min-h-screen bg-[#090a0f]">
@@ -271,24 +322,26 @@ export default function Map({
       <div ref={mapContainerRef} className="w-full h-full min-h-screen" />
 
       {/* Map Style Selector Overlay (Top Right) */}
-      <div className="absolute top-20 right-4 z-30 liquid-glass p-1.5 rounded-xl border border-white/10 flex items-center space-x-1 shadow-xl">
-        {MAPBOX_STYLES.map((style) => (
-          <button
-            key={style.id}
-            onClick={() => handleStyleChange(style.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              selectedStyleId === style.id
-                ? 'bg-cyan-500 text-black font-semibold shadow-md shadow-cyan-500/20'
-                : 'text-gray-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            {style.name}
-          </button>
-        ))}
-      </div>
+      {!isPreviewActive && (
+        <div className="absolute top-20 right-4 z-30 liquid-glass p-1.5 rounded-xl border border-white/10 flex items-center space-x-1 shadow-xl">
+          {MAPBOX_STYLES.map((style) => (
+            <button
+              key={style.id}
+              onClick={() => handleStyleChange(style.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                selectedStyleId === style.id
+                  ? 'bg-cyan-500 text-black font-semibold shadow-md shadow-cyan-500/20'
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {style.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Status Notice Banner if using Open Basemap */}
-      {!isUsingMapboxKey && (
+      {!isUsingMapboxKey && !isPreviewActive && (
         <div className="absolute bottom-6 right-6 z-30 liquid-glass px-4 py-2.5 rounded-xl text-xs flex items-center space-x-3 border border-cyan-500/30 text-gray-200 shadow-2xl">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
           <span>
