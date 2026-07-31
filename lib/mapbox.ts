@@ -21,18 +21,22 @@ export function computeTelemetry(
   const gallons = miles / Math.max(mpg, 1);
   const liters = gallons * LITERS_PER_GALLON;
   const costPounds = (liters * pricePerLiterPence) / 100;
+  const hours = durationSeconds / 3600;
+  const avgMph = hours > 0 ? Math.round(miles / hours) : 0;
 
   return {
-    distanceMiles: parseFloat(miles.toFixed(1)),
-    distanceKm: parseFloat((distanceMeters / 1000).toFixed(1)),
-    durationMinutes: Math.round(durationSeconds / 60),
-    durationFormatted: formatDuration(durationSeconds),
-    estimatedFuelLiters: parseFloat(liters.toFixed(1)),
-    estimatedFuelCostPounds: parseFloat(costPounds.toFixed(2)),
-    pricePerLiterPence,
-    mpg,
     distanceMeters,
+    distanceMiles: parseFloat(miles.toFixed(1)),
     durationSeconds,
+    durationFormatted: formatDuration(durationSeconds),
+    averageSpeedMph: avgMph,
+    estimatedFuelLiters: parseFloat(liters.toFixed(1)),
+    estimatedFuelCostGbp: parseFloat(costPounds.toFixed(2)),
+    paceNotesSummary: {
+      hairpins: Math.max(1, Math.round(miles * 0.4)),
+      sweepingCurves: Math.max(2, Math.round(miles * 1.2)),
+      fastStraights: Math.max(1, Math.round(miles * 0.8)),
+    },
   };
 }
 
@@ -89,11 +93,9 @@ export function interpolateRoutePosition(
   const startCoord = coordinates[startIndex];
   const endCoord = coordinates[endIndex];
 
-  // Interpolate Lng Lat
   const lng = startCoord[0] + (endCoord[0] - startCoord[0]) * segmentRatio;
   const lat = startCoord[1] + (endCoord[1] - startCoord[1]) * segmentRatio;
 
-  // Calculate bearing from start to end of current segment (or look ahead slightly for smoother rotation)
   const lookAheadIndex = Math.min(startIndex + 2, totalPoints - 1);
   const targetCoord = coordinates[lookAheadIndex] || endCoord;
   const bearing = calculateBearing(startCoord, targetCoord);
@@ -126,6 +128,8 @@ export async function fetchRoute(
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
         return {
+          origin,
+          destination,
           geometry: route.geometry,
           telemetry: computeTelemetry(route.distance, route.duration, mpg, pricePerLiterPence),
           provider: 'mapbox',
@@ -144,6 +148,8 @@ export async function fetchRoute(
   if (osrmData.routes && osrmData.routes.length > 0) {
     const route = osrmData.routes[0];
     return {
+      origin,
+      destination,
       geometry: route.geometry,
       telemetry: computeTelemetry(route.distance, route.duration, mpg, pricePerLiterPence),
       provider: 'osrm',

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { RouteTelemetry, LocationPoint } from '@/types';
-import { Fuel, RefreshCw, Compass, MapPin, Gauge, Video } from 'lucide-react';
+import { Fuel, RefreshCw, Compass, MapPin, Video } from 'lucide-react';
 
 interface TelemetryCardProps {
   telemetry: RouteTelemetry;
@@ -105,7 +105,7 @@ export default function TelemetryCard({
           <div>
             <div className="text-[10px] text-gray-400 font-mono">Est. Trip Cost</div>
             <div className="text-base font-extrabold text-emerald-400 font-mono">
-              £{telemetry.estimatedFuelCostPounds.toFixed(2)}
+              £{telemetry.estimatedFuelCostGbp.toFixed(2)}
             </div>
           </div>
         </div>
