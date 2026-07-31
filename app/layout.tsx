@@ -1,10 +1,17 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'ROADR | Interactive UK Driving Route Planner & Scenic Telemetry',
-  description: 'Roadr is a liquid glass styled web app for driving enthusiasts to plan scenic UK routes, estimate live fuel costs, and inspect road telemetry.',
+  description: 'Roadr is a map-first UK route planner for scenic driving routes, live fuel estimates, and road telemetry.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#07111f',
 };
 
 export default function RootLayout({

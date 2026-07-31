@@ -8,23 +8,23 @@
 :root {
   --font-sans: 'Inter', sans-serif;
   --font-display: 'Outfit', sans-serif;
-  --bg-obsidian: #0f1b2b;
+  --bg-obsidian: #07111f;
   --app-text: #f2f5f7;
   --app-strong: #ffffff;
   --app-muted: #a7b5c3;
-  --app-panel: #15283b;
-  --app-panel-strong: #1b3146;
-  --app-field: #0f2031;
-  --app-border: #2b4258;
-  --app-accent: #75b8ae;
-  --app-accent-strong: #2f7770;
-  --app-accent-soft: #24464a;
+  --app-panel: #101d31;
+  --app-panel-strong: #172842;
+  --app-field: #0b1728;
+  --app-border: #2a405c;
+  --app-accent: #78a9ff;
+  --app-accent-strong: #3b73d1;
+  --app-accent-soft: #1e385d;
   --app-secondary: #9b91c9;
   --app-secondary-strong: #665a9a;
   --app-secondary-soft: #3c3a5d;
-  --app-warm: #d3a066;
-  --app-warm-strong: #9a642d;
-  --app-warm-soft: #4b3928;
+  --app-warm: #f2c66d;
+  --app-warm-strong: #b57b27;
+  --app-warm-soft: #4c3b25;
   --app-success: #83bd98;
   --app-success-soft: #27483a;
   --app-danger: #d17b83;
@@ -33,23 +33,23 @@
 }
 
 html[data-theme='light'] {
-  --bg-obsidian: #f3f6f8;
+  --bg-obsidian: #e9f0f7;
   --app-text: #1d2c3d;
   --app-strong: #122235;
   --app-muted: #526273;
   --app-panel: #ffffff;
-  --app-panel-strong: #eef3f5;
-  --app-field: #f7fafb;
-  --app-border: #c8d5dc;
-  --app-accent: #176c68;
-  --app-accent-strong: #0f5b58;
-  --app-accent-soft: #dcefeb;
+  --app-panel-strong: #f3f7fb;
+  --app-field: #f7fafe;
+  --app-border: #cbd7e5;
+  --app-accent: #2d67c7;
+  --app-accent-strong: #1f52ad;
+  --app-accent-soft: #dbe9ff;
   --app-secondary: #625794;
   --app-secondary-strong: #51447f;
   --app-secondary-soft: #e9e5f5;
-  --app-warm: #a9662c;
-  --app-warm-strong: #8c5423;
-  --app-warm-soft: #f5e9dc;
+  --app-warm: #a96f1b;
+  --app-warm-strong: #895711;
+  --app-warm-soft: #f5ead3;
   --app-success: #287452;
   --app-success-soft: #e0f0e8;
   --app-danger: #a94e5a;
@@ -109,6 +109,50 @@ body,
   background: var(--app-panel) !important;
   border-color: var(--app-border) !important;
   box-shadow: 0 10px 30px var(--app-shadow) !important;
+}
+
+/* Flighty-inspired hierarchy: the map stays open, while every control is a
+   solid, rounded card with a clear compact state. No blur is needed for legibility. */
+.flighty-card,
+.flighty-preview-panel,
+.flighty-map-card,
+.flighty-import-card {
+  background: var(--app-panel) !important;
+  border-color: var(--app-border) !important;
+  box-shadow: 0 16px 42px var(--app-shadow);
+}
+
+.flighty-map-chip,
+.flighty-dock-status {
+  background: var(--app-panel) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text);
+}
+
+.flighty-header {
+  box-shadow: 0 8px 28px var(--app-shadow);
+}
+
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.map-overlay-safe {
+  top: max(0.75rem, env(safe-area-inset-top));
+}
+
+.map-control-safe {
+  top: max(4.5rem, calc(env(safe-area-inset-top) + 3.75rem));
+}
+
+.mobile-dock {
+  bottom: max(0.5rem, env(safe-area-inset-bottom));
+  background: var(--app-panel) !important;
+  border-color: var(--app-border) !important;
 }
 
 .theme-scope,
@@ -401,6 +445,46 @@ body,
 }
 
 @media (max-width: 639px) {
+  .flighty-header {
+    border-bottom: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .flighty-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(to bottom, var(--app-panel) 0%, color-mix(in srgb, var(--app-panel) 86%, transparent) 72%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .flighty-header .header-action {
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+    justify-content: center;
+    padding: 0.625rem;
+  }
+
+  .flighty-header .header-action span {
+    display: none;
+  }
+
+  .flighty-header .header-badge {
+    display: none;
+  }
+
+  .mobile-route-sheet {
+    top: max(5.5rem, calc(env(safe-area-inset-top) + 4.75rem));
+    bottom: max(4.5rem, calc(env(safe-area-inset-bottom) + 4.25rem));
+    border-radius: 1.5rem;
+  }
+
+  .flighty-preview-panel {
+    max-height: calc(100dvh - max(0.75rem, env(safe-area-inset-top)) - 0.5rem);
+  }
+
   .mapboxgl-ctrl-bottom-right {
     bottom: 5.5rem !important;
     right: 0.5rem !important;

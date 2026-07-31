@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, GripVertical, Navigation, Plus, Route as RouteIcon, Trash2, X } from 'lucide-react';
 import { LocationPoint } from '@/types';
 import LocationSearchInput from './LocationSearchInput';
+import GoogleMapsImport from './GoogleMapsImport';
 
 interface RouteControlsProps {
   origin: LocationPoint | null;
@@ -22,6 +23,8 @@ interface RouteControlsProps {
   onSwapLocations: () => void;
   onClearRoute: () => void;
   onCalculateRoute: () => void;
+  onImportGoogleRoute: (points: LocationPoint[]) => void;
+  onCloseMobilePanel?: () => void;
   isLoadingRoute: boolean;
 }
 
@@ -42,6 +45,8 @@ export default function RouteControls({
   onSwapLocations,
   onClearRoute,
   onCalculateRoute,
+  onImportGoogleRoute,
+  onCloseMobilePanel,
   isLoadingRoute,
 }: RouteControlsProps) {
   const [isAddingStop, setIsAddingStop] = useState(false);
@@ -50,14 +55,23 @@ export default function RouteControls({
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
 
   return (
-    <div className="theme-scope theme-panel liquid-glass w-full max-w-md space-y-3 rounded-2xl border border-white/10 p-4 shadow-2xl">
+    <div className="theme-scope theme-panel flighty-card liquid-glass w-full max-w-md space-y-3 rounded-2xl border border-white/10 p-4 shadow-2xl">
       <div className="flex items-center justify-between">
         <div>
           <p className="font-display text-sm font-bold text-white">Plan a journey</p>
           <p className="mt-0.5 text-[10px] text-gray-400">Search a place or use a saved destination.</p>
         </div>
-        <RouteIcon className="h-5 w-5 text-teal-300" />
+        <div className="flex items-center gap-2">
+          <RouteIcon className="h-5 w-5 text-teal-300" />
+          {onCloseMobilePanel && (
+            <button type="button" onClick={onCloseMobilePanel} className="rounded-xl border border-white/10 bg-white/5 p-2 text-gray-400 hover:bg-white/10 hover:text-white md:hidden" title="Close route planner" aria-label="Close route planner">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
+
+      <GoogleMapsImport token={token} onImport={onImportGoogleRoute} />
 
       <LocationSearchInput
         label="Origin"

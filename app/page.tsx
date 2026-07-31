@@ -28,7 +28,7 @@ import {
   RECORDED_ROUTES_STORAGE_KEY,
   VEHICLE_STORAGE_KEY,
 } from '@/lib/vehicle';
-import { AlertCircle, ChevronDown, ChevronUp, Sliders } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronUp, MapPinned, Sliders } from 'lucide-react';
 
 const Map = dynamic(() => import('@/components/Map'), {
   ssr: false,
@@ -57,7 +57,7 @@ export default function Home() {
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(true);
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
 
   const [selectedStyleId, setSelectedStyleId] = useState('satellite');
   const [isPreviewActive, setIsPreviewActive] = useState(false);
@@ -139,6 +139,19 @@ export default function Home() {
     rememberPlace(location);
     setDestination(location);
     if (origin) void handleCalculateRoute(origin, location, mpg, pricePerLiterPence, stops);
+  };
+
+  const handleImportGoogleRoute = (points: LocationPoint[]) => {
+    if (points.length < 2) return;
+    handleExitPreview();
+    const nextOrigin = points[0];
+    const nextDestination = points[points.length - 1];
+    const nextStops = points.slice(1, -1);
+    points.forEach(rememberPlace);
+    setOrigin(nextOrigin);
+    setDestination(nextDestination);
+    setStops(nextStops);
+    void handleCalculateRoute(nextOrigin, nextDestination, mpg, pricePerLiterPence, nextStops);
   };
 
   const handleAddStop = (location: LocationPoint) => {
@@ -365,7 +378,7 @@ export default function Home() {
   }, [routeData?.geometry, routeData?.details.hasElevationData]);
 
   return (
-    <main className="app-shell relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[#090a0f] text-gray-100">
+    <main className="app-shell flighty-shell relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[#090a0f] text-gray-100">
       {!isPreviewActive && <Header token={token} onOpenTokenModal={() => setIsTokenModalOpen(true)} onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} onOpenGarage={() => setIsGarageOpen(true)} />}
 
       <Map
@@ -389,11 +402,16 @@ export default function Home() {
         onOpenTokenModal={() => setIsTokenModalOpen(true)}
       />
 
-      {!isPreviewActive && <div className="theme-scope theme-section fixed bottom-2 left-2 right-2 z-40 flex items-center justify-between rounded-2xl border border-white/15 p-2 shadow-2xl md:hidden"><button type="button" onClick={() => setIsMobilePanelOpen((open) => !open)} aria-expanded={isMobilePanelOpen} aria-controls="mobile-route-panel" className="theme-primary-button flex min-h-11 flex-1 items-center justify-center space-x-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all active:scale-95"><Sliders className="h-4 w-4" /><span>{isMobilePanelOpen ? 'Hide controls' : 'Route & telemetry'}</span>{isMobilePanelOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}</button></div>}
+      {!isPreviewActive && <div className="theme-scope mobile-dock fixed bottom-2 left-2 right-2 z-40 flex items-center gap-2 rounded-2xl border border-white/15 p-2 shadow-2xl md:hidden">
+        <button type="button" onClick={() => setIsMobilePanelOpen((open) => !open)} aria-expanded={isMobilePanelOpen} aria-controls="mobile-route-panel" className="theme-primary-button flex min-h-11 min-w-0 flex-1 items-center justify-center space-x-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all active:scale-95">
+          <Sliders className="h-4 w-4" /><span>{isMobilePanelOpen ? 'Close planner' : routeData ? 'Route details' : 'Plan a route'}</span>{isMobilePanelOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+        </button>
+        {routeData && <div className="flighty-dock-status flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-[10px] font-semibold text-gray-300"><MapPinned className="h-3.5 w-3.5 text-cyan-300" /><span>{routeData.telemetry.distanceMiles.toFixed(1)} mi</span></div>}
+      </div>}
 
-      {!isPreviewActive && <div id="mobile-route-panel" className={`theme-scope fixed inset-x-2 bottom-16 top-16 z-30 flex max-h-[calc(100dvh-8rem)] w-auto max-w-none flex-col space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1 transition-all duration-300 md:absolute md:bottom-auto md:left-4 md:right-auto md:top-20 md:max-h-[calc(100dvh-6rem)] md:w-full md:max-w-md md:pb-6 ${isMobilePanelOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0 md:pointer-events-auto md:translate-y-0 md:opacity-100'}`}>
+      {!isPreviewActive && <div id="mobile-route-panel" className={`theme-scope mobile-route-sheet fixed inset-x-2 bottom-16 top-16 z-30 flex max-h-[calc(100dvh-8rem)] w-auto max-w-none flex-col space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1 transition-all duration-300 md:absolute md:bottom-auto md:left-4 md:right-auto md:top-20 md:max-h-[calc(100dvh-6rem)] md:w-full md:max-w-md md:pb-6 ${isMobilePanelOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0 md:pointer-events-auto md:translate-y-0 md:opacity-100'}`}>
         {errorMsg && <div className="theme-section flex items-start space-x-2 rounded-2xl border border-red-500/30 bg-red-950/80 p-3 text-xs text-red-200 shadow-xl"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" /><div><strong className="block font-semibold">Route error</strong><span>{errorMsg}</span></div></div>}
-        <RouteControls origin={origin} destination={destination} token={token} savedPlaces={savedPlaces} stops={stops} onSelectOrigin={handleSelectOrigin} onSelectDestination={handleSelectDestination} onAddStop={handleAddStop} onRemoveStop={handleRemoveStop} onReorderStops={handleReorderStops} onRemoveSavedPlace={(place) => setSavedPlaces((current) => current.filter((item) => item.lng !== place.lng || item.lat !== place.lat))} onClearOrigin={() => { setOrigin(null); setRouteData(null); }} onClearDestination={() => { setDestination(null); setRouteData(null); }} onSwapLocations={handleSwapLocations} onClearRoute={handleClearRoute} onCalculateRoute={() => void handleCalculateRoute()} isLoadingRoute={isLoadingRoute} />
+        <RouteControls origin={origin} destination={destination} token={token} savedPlaces={savedPlaces} stops={stops} onSelectOrigin={handleSelectOrigin} onSelectDestination={handleSelectDestination} onAddStop={handleAddStop} onRemoveStop={handleRemoveStop} onReorderStops={handleReorderStops} onRemoveSavedPlace={(place) => setSavedPlaces((current) => current.filter((item) => item.lng !== place.lng || item.lat !== place.lat))} onClearOrigin={() => { setOrigin(null); setRouteData(null); }} onClearDestination={() => { setDestination(null); setRouteData(null); }} onSwapLocations={handleSwapLocations} onClearRoute={handleClearRoute} onCalculateRoute={() => void handleCalculateRoute()} onImportGoogleRoute={handleImportGoogleRoute} onCloseMobilePanel={() => setIsMobilePanelOpen(false)} isLoadingRoute={isLoadingRoute} />
         {routeData && origin && destination && <TelemetryCard telemetry={routeData.telemetry} details={routeData.details} origin={origin} destination={destination} provider={routeData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={() => setIsRecordModalOpen(true)} />}
       </div>}
 
