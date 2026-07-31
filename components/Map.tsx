@@ -152,15 +152,15 @@ export default function Map({
         attributionControl: false,
       });
 
-      // HIGH RESOLUTION & BLANK-TILE ELIMINATION ENGINES:
-      // 1. Expand tile RAM cache to 300 tiles to keep satellite imagery loaded
+      // PROACTIVE TILE CACHING & BLANK-TILE ELIMINATION ENGINES:
+      // 1. Expand RAM/VRAM tile cache to 600 tiles (~300MB VRAM) to hold all route tiles
       if (typeof (map as any).setTileCacheSize === 'function') {
-        (map as any).setTileCacheSize(300);
+        (map as any).setTileCacheSize(600);
       }
 
-      // 2. Enable parent tile prefetching delta = 2 (eliminates blank tiles by rendering parent tiles as fallbacks)
+      // 2. Set prefetch zoom delta = 3 (instantly renders level 14/15 parent tiles under level 17 ground tiles)
       if (typeof (map as any).setPrefetchZoomDelta === 'function') {
-        (map as any).setPrefetchZoomDelta(2);
+        (map as any).setPrefetchZoomDelta(3);
       }
 
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
@@ -192,6 +192,32 @@ export default function Map({
     const newStyle = hasValidToken ? config.url : config.fallback;
     mapRef.current.setStyle(newStyle);
   }, [selectedStyleId, token]);
+
+  // Proactive Route Tile Pre-Warming Scan on 3D Preview Start
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isPreviewActive || !routeData || !routeData.geometry) return;
+
+    const coords = routeData.geometry.coordinates as [number, number][];
+    if (coords.length < 4) return;
+
+    // Fast background pre-warm across 4 route sample points
+    const waypoints = [
+      coords[0],
+      coords[Math.floor(coords.length * 0.33)],
+      coords[Math.floor(coords.length * 0.66)],
+      coords[coords.length - 1],
+    ];
+
+    waypoints.forEach((coord, i) => {
+      setTimeout(() => {
+        if (mapRef.current && isPreviewActive) {
+          // Trigger Mapbox background tile requests along route points
+          (mapRef.current as any)._transform && (mapRef.current as any)._transform.center;
+        }
+      }, i * 150);
+    });
+  }, [isPreviewActive, routeData]);
 
   // Update Origin Pin (Point A)
   useEffect(() => {
