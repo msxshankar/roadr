@@ -31,7 +31,9 @@ const PREVIEW_MAP_STYLES = [
   { id: 'outdoors', name: '🏔️ Topo' },
 ];
 
-const SPEED_OPTIONS = [0.5, 1, 2, 4, 8, 16];
+// Preview playback is deliberately quarter-speed so the camera has time to show
+// corners, elevation and road context without changing the real route duration.
+const SPEED_OPTIONS = [0.125, 0.25, 0.5, 1, 2, 4];
 const HEIGHT_PRESETS = [
   { label: 'Ground', zoom: 18.8 },
   { label: 'Balanced', zoom: 16.8 },
@@ -64,7 +66,7 @@ export default function RoutePreviewHUD({
 
   return (
     <div className="fixed inset-x-0 bottom-4 z-50 flex flex-col items-center px-3 sm:px-4 pointer-events-none">
-      <div className="w-full max-w-3xl space-y-3 rounded-3xl border border-cyan-500/40 bg-[#080c13]/95 p-4 text-gray-100 shadow-2xl shadow-cyan-500/20 pointer-events-auto sm:p-5">
+      <div className="theme-preview-panel w-full max-w-3xl space-y-3 rounded-3xl border border-teal-400/40 bg-[#080c13]/95 p-4 text-gray-100 shadow-2xl shadow-teal-500/20 pointer-events-auto sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
           <div className="flex min-w-0 items-center space-x-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-cyan-500/40 bg-cyan-500/20"><Navigation2 className="h-4 w-4 text-cyan-400" style={{ transform: `rotate(${bearing}deg)` }} /></div><div className="truncate"><div className="flex items-center space-x-1.5 text-xs font-semibold text-cyan-300"><span>3D DRIVE PREVIEW</span><span className="h-2 w-2 animate-ping rounded-full bg-emerald-400" /></div><p className="truncate text-xs text-gray-300">{origin.name.split(',')[0]} → {destination.name.split(',')[0]}</p></div></div>
           <div className="flex max-w-full items-center gap-2 overflow-x-auto">
@@ -81,7 +83,7 @@ export default function RoutePreviewHUD({
           </div>
           <div className="flex items-stretch gap-2">
             <button onClick={() => onChangeOrientationMode('follow')} className={`flex min-w-[105px] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-[10px] transition-all ${orientationMode === 'follow' ? 'border-cyan-400/50 bg-cyan-500/20 text-cyan-200' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`}><RotateCcw className="mb-1 h-4 w-4" />Follow road</button>
-            <button onClick={() => onChangeOrientationMode('manual')} className={`flex min-w-[105px] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-[10px] transition-all ${orientationMode === 'manual' ? 'border-amber-400/50 bg-amber-500/20 text-amber-200' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`}><MousePointer2 className="mb-1 h-4 w-4" />Mouse turn</button>
+            <button onClick={() => onChangeOrientationMode('manual')} className={`flex min-w-[105px] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-[10px] transition-all ${orientationMode === 'manual' ? 'border-amber-400/50 bg-amber-500/20 text-amber-200' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`}><MousePointer2 className="mb-1 h-4 w-4" />Mouse turn + tilt</button>
           </div>
         </div>
 

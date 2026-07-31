@@ -13,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-[#090a0f] text-gray-100 antialiased min-h-screen selection:bg-cyan-500 selection:text-black">
+    <html lang="en" suppressHydrationWarning>
+      <body className="app-body bg-[#090a0f] text-gray-100 antialiased min-h-screen selection:bg-teal-300 selection:text-slate-950">
         {children}
         <SpeedInsights />
       </body>

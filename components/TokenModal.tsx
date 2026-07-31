@@ -28,7 +28,7 @@ export default function TokenModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-md liquid-glass rounded-2xl p-6 shadow-2xl border border-white/15">
+      <div className="theme-modal relative w-full max-w-md liquid-glass rounded-2xl p-6 shadow-2xl border border-white/15">
         {/* Close Button */}
         <button
           onClick={onClose}

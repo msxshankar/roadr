@@ -8,14 +8,33 @@
 :root {
   --font-sans: 'Inter', sans-serif;
   --font-display: 'Outfit', sans-serif;
-  --bg-obsidian: #090a0f;
+  --bg-obsidian: #07121f;
+  --app-text: #edf5f5;
+  --app-panel: rgba(12, 28, 43, 0.88);
+  --app-panel-border: rgba(153, 246, 228, 0.18);
+  --app-accent: #6ee7d8;
+  --app-accent-secondary: #a78bfa;
+  --app-warm: #fda4af;
 }
 
-body {
+html[data-theme='light'] {
+  --bg-obsidian: #edf4f5;
+  --app-text: #17263b;
+  --app-panel: rgba(255, 255, 255, 0.92);
+  --app-panel-border: rgba(39, 74, 94, 0.16);
+  --app-accent: #087f78;
+  --app-accent-secondary: #7355c7;
+  --app-warm: #c84d63;
+}
+
+body,
+.app-body,
+.app-shell {
   background-color: var(--bg-obsidian);
-  color: #f3f4f6;
+  color: var(--app-text);
   font-family: var(--font-sans);
   overflow-x: hidden;
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 /* Custom Scrollbars */
@@ -36,18 +55,88 @@ body {
 
 /* Liquid Glass Panels */
 .liquid-glass {
-  background: rgba(18, 20, 29, 0.65);
+  background: var(--app-panel);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--app-panel-border);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
 }
 
 .liquid-glass-header {
-  background: rgba(9, 10, 15, 0.85);
+  background: color-mix(in srgb, var(--bg-obsidian) 88%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--app-panel-border);
+}
+
+.theme-brand-surface {
+  background: var(--bg-obsidian);
+}
+
+.theme-modal {
+  color: var(--app-text);
+}
+
+html[data-theme='light'] .theme-panel,
+html[data-theme='light'] .theme-modal {
+  color: var(--app-text);
+  border-color: var(--app-panel-border);
+}
+
+html[data-theme='light'] .theme-panel .text-white,
+html[data-theme='light'] .theme-modal .text-white {
+  color: #17263b;
+}
+
+html[data-theme='light'] .theme-panel .text-gray-100,
+html[data-theme='light'] .theme-panel .text-gray-200,
+html[data-theme='light'] .theme-panel .text-gray-300,
+html[data-theme='light'] .theme-modal .text-gray-100,
+html[data-theme='light'] .theme-modal .text-gray-200,
+html[data-theme='light'] .theme-modal .text-gray-300 {
+  color: #3d5065;
+}
+
+html[data-theme='light'] .theme-panel .text-gray-400,
+html[data-theme='light'] .theme-panel .text-gray-500,
+html[data-theme='light'] .theme-modal .text-gray-400,
+html[data-theme='light'] .theme-modal .text-gray-500 {
+  color: #64778a;
+}
+
+html[data-theme='light'] .theme-panel [class*='bg-black/'],
+html[data-theme='light'] .theme-modal [class*='bg-black/'] {
+  background-color: rgba(222, 234, 238, 0.65);
+}
+
+html[data-theme='light'] .theme-panel [class*='bg-white/'],
+html[data-theme='light'] .theme-modal [class*='bg-white/'] {
+  background-color: rgba(255, 255, 255, 0.62);
+}
+
+html[data-theme='light'] .theme-panel [class*='border-white/'],
+html[data-theme='light'] .theme-modal [class*='border-white/'] {
+  border-color: rgba(39, 74, 94, 0.14);
+}
+
+html[data-theme='light'] .theme-panel input,
+html[data-theme='light'] .theme-panel select,
+html[data-theme='light'] .theme-modal input,
+html[data-theme='light'] .theme-modal select {
+  color: #17263b;
+  background-color: rgba(255, 255, 255, 0.88);
+}
+
+html[data-theme='light'] .theme-preview-panel {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(8, 127, 120, 0.28);
+  color: #17263b;
+}
+
+html[data-theme='light'] .theme-preview-panel .text-gray-100,
+html[data-theme='light'] .theme-preview-panel .text-gray-200,
+html[data-theme='light'] .theme-preview-panel .text-gray-300 {
+  color: #3d5065;
 }
 
 .liquid-glass-card {
@@ -118,6 +207,26 @@ body {
   border-right: 7px solid transparent;
   border-bottom: 16px solid #cffafe;
   filter: drop-shadow(0 0 6px #00f0ff);
+}
+
+.mini-vehicle-marker {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid #ccfbf1;
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.85);
+}
+
+.mini-vehicle-marker span {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 9px solid #5eead4;
 }
 
 @keyframes pulse-cyan {

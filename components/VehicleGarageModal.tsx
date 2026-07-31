@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { CarFront, Check, Fuel, Gauge, History, Save, X } from 'lucide-react';
+import { ArrowRight, CarFront, Fuel, Gauge, History, Save, Trash2, X } from 'lucide-react';
 import { RecordedRoute, VehicleFuelType, VehicleProfile } from '@/types';
-import { vehicleLabel } from '@/lib/vehicle';
+import { calculateVehicleRangeMiles, vehicleLabel } from '@/lib/vehicle';
 
 interface VehicleGarageModalProps {
   isOpen: boolean;
   vehicle: VehicleProfile | null;
   recordedRoutes: RecordedRoute[];
   onSave: (vehicle: VehicleProfile) => void;
+  onSelectRecordedRoute: (route: RecordedRoute) => void;
+  onDeleteRecordedRoute: (routeId: string) => void;
   onClose: () => void;
 }
 
@@ -25,6 +27,8 @@ export default function VehicleGarageModal({
   vehicle,
   recordedRoutes,
   onSave,
+  onSelectRecordedRoute,
+  onDeleteRecordedRoute,
   onClose,
 }: VehicleGarageModalProps) {
   const [form, setForm] = useState<VehicleProfile>({
@@ -46,7 +50,7 @@ export default function VehicleGarageModal({
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 sm:p-6">
-      <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-3xl border border-cyan-500/30 bg-[#11151f] shadow-2xl shadow-black/60">
+      <div className="theme-modal w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-3xl border border-cyan-500/30 bg-[#11151f] shadow-2xl shadow-black/60">
         <div className="flex items-start justify-between border-b border-white/10 px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-500/15">
@@ -106,6 +110,7 @@ export default function VehicleGarageModal({
             <div>
               <p className="text-xs font-semibold text-cyan-200">Fuel calculations locked to this car</p>
               <p className="mt-0.5 text-[10px] text-gray-400">Roadr will use {Number(form.mpg) || 0} MPG for route estimates and recorded drives.</p>
+              <p className="mt-1 text-[10px] text-teal-200">Estimated full-tank range: {calculateVehicleRangeMiles(form) ?? '—'} mi</p>
             </div>
             <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-emerald-400 px-4 py-2.5 text-xs font-extrabold text-black shadow-lg shadow-cyan-500/20 hover:brightness-110">
               <Save className="h-4 w-4" /> Save car profile
@@ -126,7 +131,7 @@ export default function VehicleGarageModal({
           ) : (
             <div className="space-y-2">
               {vehicleRoutes.map((route) => (
-                <div key={route.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+                <div key={route.id} role="button" tabIndex={0} onClick={() => onSelectRecordedRoute(route)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelectRecordedRoute(route); }} className="group flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left transition-colors hover:border-teal-300/40 hover:bg-teal-400/10">
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold text-white">{route.name}</p>
                     <p className="mt-0.5 text-[10px] text-gray-500">{new Date(route.recordedAt).toLocaleDateString()} · {route.distanceMiles.toFixed(1)} mi</p>
@@ -135,7 +140,8 @@ export default function VehicleGarageModal({
                     <p className="text-xs font-bold text-emerald-300">£{route.fuelCostGbp.toFixed(2)}</p>
                     <p className="text-[10px] text-gray-500">{route.fuelLiters.toFixed(1)} L</p>
                   </div>
-                  <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <button type="button" onClick={(event) => { event.stopPropagation(); onSelectRecordedRoute(route); }} className="rounded-lg p-1.5 text-teal-300 opacity-70 transition-opacity hover:bg-teal-400/20 hover:opacity-100" title="Load this drive into the route planner" aria-label={`Load ${route.name}`}><ArrowRight className="h-4 w-4" /></button>
+                  <button type="button" onClick={(event) => { event.stopPropagation(); onDeleteRecordedRoute(route.id); }} className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-500/15 hover:text-red-300" title="Delete recorded drive" aria-label={`Delete ${route.name}`}><Trash2 className="h-4 w-4" /></button>
                 </div>
               ))}
             </div>

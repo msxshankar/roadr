@@ -4,6 +4,7 @@ import {
   computeCumulativeDistances,
   haversineDistance,
   sampleRouteCoordinates,
+  ElevationRouteSample,
 } from '@/lib/mapbox';
 import { RouteStepHint } from '@/lib/mapbox';
 
@@ -11,6 +12,8 @@ interface OSMWay {
   tags?: Record<string, string>;
   center?: { lat: number; lon: number };
 }
+
+const roadWaysCache = new Map<string, { expiresAt: number; ways: OSMWay[] }>();
 
 function parseNumber(value: string | undefined): number | undefined {
   if (!value) return undefined;
@@ -29,7 +32,7 @@ function parseSpeed(value: string | undefined): number | undefined {
 
 function buildOverpassQuery(samples: Array<{ coordinate: [number, number] }>): string {
   const clauses = samples
-    .map(({ coordinate: [lng, lat] }) => `way(around:35,${lat},${lng})["highway"];`)
+    .map(({ coordinate: [lng, lat] }) => `way(around:50,${lat},${lng})["highway"];`)
     .join('');
   return `[out:json][timeout:10];(${clauses});out tags center;`;
 }
@@ -48,7 +51,7 @@ function nearestWay(
       closest = way;
     }
   }
-  return closestDistance <= 120 ? closest : undefined;
+  return closestDistance <= 180 ? closest : undefined;
 }
 
 async function fetchElevation(
@@ -75,29 +78,35 @@ async function fetchElevation(
 async function fetchRoadWays(samples: Array<{ coordinate: [number, number] }>) {
   if (samples.length === 0) return [] as OSMWay[];
   const query = buildOverpassQuery(samples);
+  const cached = roadWaysCache.get(query);
+  if (cached && cached.expiresAt > Date.now()) return cached.ways;
   const endpoints = [
-    'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass-api.de/api/interpreter',
   ];
-  for (const endpoint of endpoints) {
-    try {
+  try {
+    const ways = await Promise.any(endpoints.map(async (endpoint) => {
       const response = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, {
         headers: { Accept: 'application/json', 'User-Agent': 'Roadr UK route planner' },
-        signal: AbortSignal.timeout(11000),
+        signal: AbortSignal.timeout(9000),
       });
-      if (!response.ok) continue;
+      if (!response.ok) throw new Error(`Overpass returned ${response.status}`);
       const data = await response.json();
       return (data.elements || []) as OSMWay[];
-    } catch {
-      // Try the secondary public Overpass instance before falling back to estimates.
-    }
+    }));
+    roadWaysCache.set(query, { expiresAt: Date.now() + 5 * 60 * 1000, ways });
+    while (roadWaysCache.size > 8) roadWaysCache.delete(roadWaysCache.keys().next().value as string);
+    return ways;
+  } catch {
+    // Both public Overpass instances failed; the caller keeps route estimates.
+    throw new Error('OpenStreetMap service unavailable');
   }
-  throw new Error('OpenStreetMap service unavailable');
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const mode = body?.mode === 'road' || body?.mode === 'terrain' ? body.mode : 'full';
     const coordinates = Array.isArray(body?.coordinates)
       ? body.coordinates.filter(
           (coordinate: unknown): coordinate is [number, number] =>
@@ -110,11 +119,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'A route geometry is required.' }, { status: 400 });
     }
 
-    const elevationSamples = sampleRouteCoordinates(coordinates, 40);
-    const roadSamples = sampleRouteCoordinates(coordinates, 18);
+    const elevationSamples = mode === 'road' ? [] : sampleRouteCoordinates(coordinates, 40);
+    const roadSamples = mode === 'terrain' ? [] : sampleRouteCoordinates(coordinates, mode === 'road' ? 28 : 18);
     const [elevationResult, waysResult] = await Promise.allSettled([
-      fetchElevation(elevationSamples),
-      fetchRoadWays(roadSamples),
+      mode === 'road' ? Promise.resolve([] as ElevationRouteSample[]) : fetchElevation(elevationSamples),
+      mode === 'terrain' ? Promise.resolve([] as OSMWay[]) : fetchRoadWays(roadSamples),
     ]);
     const elevations = elevationResult.status === 'fulfilled' ? elevationResult.value : [];
     const ways = waysResult.status === 'fulfilled' ? waysResult.value : [];

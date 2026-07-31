@@ -9,12 +9,13 @@ import TokenModal from '@/components/TokenModal';
 import RoutePreviewHUD from '@/components/RoutePreviewHUD';
 import VehicleGarageModal from '@/components/VehicleGarageModal';
 import RecordRouteModal from '@/components/RecordRouteModal';
-import { LocationPoint, RecordedRoute, RouteData, UKPresetRoute, VehicleProfile } from '@/types';
-import { UK_SCENIC_ROUTES } from '@/lib/presets';
+import { LocationPoint, RecordedRoute, RouteData, VehicleProfile } from '@/types';
+import { DEFAULT_DESTINATION, DEFAULT_ORIGIN } from '@/lib/defaultRoute';
 import { parseSavedPlaces, SAVED_PLACES_STORAGE_KEY, upsertSavedPlace } from '@/lib/savedPlaces';
 import {
   fetchRoute,
   fetchRouteDetails,
+  fetchRouteRoadDetails,
   DEFAULT_MAPBOX_TOKEN,
   DEFAULT_UK_MPG,
   DEFAULT_UK_PETROL_PRICE_PENCE,
@@ -35,8 +36,8 @@ export default function Home() {
   const [isGarageOpen, setIsGarageOpen] = useState(false);
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
 
-  const [origin, setOrigin] = useState<LocationPoint | null>(UK_SCENIC_ROUTES[0].origin);
-  const [destination, setDestination] = useState<LocationPoint | null>(UK_SCENIC_ROUTES[0].destination);
+  const [origin, setOrigin] = useState<LocationPoint | null>(DEFAULT_ORIGIN);
+  const [destination, setDestination] = useState<LocationPoint | null>(DEFAULT_DESTINATION);
   const [stops, setStops] = useState<LocationPoint[]>([]);
   const [savedPlaces, setSavedPlaces] = useState<LocationPoint[]>([]);
   const [vehicle, setVehicle] = useState<VehicleProfile | null>(null);
@@ -57,14 +58,16 @@ export default function Home() {
   const [isPreviewActive, setIsPreviewActive] = useState(false);
   const [previewProgress, setPreviewProgress] = useState(0);
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
-  const [speedMultiplier, setSpeedMultiplier] = useState(4);
+  const [speedMultiplier, setSpeedMultiplier] = useState(1);
   const [cameraZoom, setCameraZoom] = useState(16.8);
   const [currentBearing, setCurrentBearing] = useState(0);
   const [orientationMode, setOrientationMode] = useState<'follow' | 'manual'>('follow');
   const [manualBearing, setManualBearing] = useState(0);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   const routeRequestIdRef = useRef(0);
-  const detailGeometryRef = useRef<GeoJSON.LineString | null>(null);
+  const terrainGeometryRef = useRef<GeoJSON.LineString | null>(null);
+  const roadGeometryRef = useRef<GeoJSON.LineString | null>(null);
 
   const handleExitPreview = () => {
     setIsPreviewActive(false);
@@ -87,7 +90,8 @@ export default function Home() {
     try {
       const data = await fetchRoute(startPoint, endPoint, currentToken, currentMpg, currentPricePence, currentStops);
       if (requestId !== routeRequestIdRef.current) return;
-      detailGeometryRef.current = null;
+      terrainGeometryRef.current = null;
+      roadGeometryRef.current = null;
       setRouteData(data);
     } catch (error: any) {
       if (requestId !== routeRequestIdRef.current) return;
@@ -145,14 +149,27 @@ export default function Home() {
     if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, nextStops);
   };
 
-  const handleSelectPresetRoute = (preset: UKPresetRoute) => {
+  const handleReorderStops = (fromIndex: number, toIndex: number) => {
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= stops.length || toIndex >= stops.length) return;
+    const nextStops = [...stops];
+    const [movedStop] = nextStops.splice(fromIndex, 1);
+    nextStops.splice(toIndex, 0, movedStop);
+    setStops(nextStops);
+    if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, nextStops);
+  };
+
+  const handleLoadRecordedRoute = (record: RecordedRoute) => {
     handleExitPreview();
-    rememberPlace(preset.origin);
-    rememberPlace(preset.destination);
-    setOrigin(preset.origin);
-    setDestination(preset.destination);
-    setStops([]);
-    void handleCalculateRoute(preset.origin, preset.destination, mpg, pricePerLiterPence, []);
+    const nextStops = record.stops || [];
+    setOrigin(record.origin);
+    setDestination(record.destination);
+    setStops(nextStops);
+    setIsGarageOpen(false);
+    void handleCalculateRoute(record.origin, record.destination, mpg, pricePerLiterPence, nextStops);
+  };
+
+  const handleDeleteRecordedRoute = (routeId: string) => {
+    setRecordedRoutes((current) => current.filter((route) => route.id !== routeId));
   };
 
   const handleSwapLocations = () => {
@@ -232,6 +249,24 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    try {
+      const storedTheme = window.localStorage.getItem('roadr:theme:v1');
+      if (storedTheme === 'light' || storedTheme === 'dark') setTheme(storedTheme);
+    } catch {
+      // Keep the dark default when local storage is unavailable.
+    }
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      window.localStorage.setItem('roadr:theme:v1', theme);
+    } catch {
+      // Theme still applies for the current session when storage is unavailable.
+    }
+  }, [theme]);
+
+  useEffect(() => {
     if (!hasLoadedLocalData) return;
     try {
       window.localStorage.setItem(SAVED_PLACES_STORAGE_KEY, JSON.stringify(savedPlaces));
@@ -245,7 +280,7 @@ export default function Home() {
 
   // Calculate the initial route even if the live fuel feed is unavailable.
   useEffect(() => {
-    void handleCalculateRoute(UK_SCENIC_ROUTES[0].origin, UK_SCENIC_ROUTES[0].destination, mpg, pricePerLiterPence, []);
+    void handleCalculateRoute(DEFAULT_ORIGIN, DEFAULT_DESTINATION, mpg, pricePerLiterPence, []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -292,11 +327,25 @@ export default function Home() {
     }
   }, [vehicle, pricePerLiterPence, routeData]);
 
-  // Terrain and OSM enrichment runs after the fast route response and never blocks route interaction.
+  // Road tags load independently so the preview can show a real/estimated limit quickly.
   useEffect(() => {
     const geometry = routeData?.geometry;
-    if (!geometry || routeData.details.hasElevationData || detailGeometryRef.current === geometry) return;
-    detailGeometryRef.current = geometry;
+    if (!geometry || roadGeometryRef.current === geometry) return;
+    roadGeometryRef.current = geometry;
+    fetchRouteRoadDetails(geometry.coordinates as [number, number][]).then((details) => {
+      setRouteData((current) => current && current.geometry === geometry
+        ? { ...current, details: mergeRouteDetails(current.details, details) }
+        : current);
+    }).catch((error) => {
+      console.warn('Road-tag enrichment unavailable; keeping route hints.', error);
+    });
+  }, [routeData?.geometry]);
+
+  // Terrain enrichment runs after the fast route response and never blocks route interaction.
+  useEffect(() => {
+    const geometry = routeData?.geometry;
+    if (!geometry || routeData.details.hasElevationData || terrainGeometryRef.current === geometry) return;
+    terrainGeometryRef.current = geometry;
     fetchRouteDetails(geometry.coordinates as [number, number][]).then((details) => {
       setRouteData((current) => current && current.geometry === geometry
         ? { ...current, details: mergeRouteDetails(current.details, details) }
@@ -307,8 +356,8 @@ export default function Home() {
   }, [routeData?.geometry, routeData?.details.hasElevationData]);
 
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-[#090a0f] text-gray-100">
-      {!isPreviewActive && <Header token={token} onOpenTokenModal={() => setIsTokenModalOpen(true)} onSelectPreset={handleSelectPresetRoute} onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} provider={routeData?.provider} vehicle={vehicle} onOpenGarage={() => setIsGarageOpen(true)} />}
+    <main className="app-shell relative h-screen w-full overflow-hidden bg-[#090a0f] text-gray-100">
+      {!isPreviewActive && <Header token={token} onOpenTokenModal={() => setIsTokenModalOpen(true)} onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} onOpenGarage={() => setIsGarageOpen(true)} />}
 
       <Map
         token={token}
@@ -323,6 +372,7 @@ export default function Home() {
         previewProgress={previewProgress}
         speedMultiplier={speedMultiplier}
         cameraZoom={cameraZoom}
+        onCameraZoomChange={setCameraZoom}
         orientationMode={orientationMode}
         manualBearing={manualBearing}
         onManualBearingChange={setManualBearing}
@@ -334,14 +384,14 @@ export default function Home() {
 
       {!isPreviewActive && <div className={`fixed left-2 right-2 top-16 z-30 flex max-h-[75vh] w-auto max-w-md flex-col space-y-3.5 overflow-y-auto pb-16 pr-1 transition-all duration-300 md:absolute md:left-4 md:right-auto md:top-20 md:max-h-[calc(100vh-90px)] md:w-full md:pb-6 ${isMobilePanelOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-8 opacity-0 md:pointer-events-auto md:translate-y-0 md:opacity-100'}`}>
         {errorMsg && <div className="flex items-start space-x-2 rounded-2xl border border-red-500/30 bg-red-950/80 p-3 text-xs text-red-200 shadow-xl backdrop-blur-md"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" /><div><strong className="block font-semibold">Route error</strong><span>{errorMsg}</span></div></div>}
-        <RouteControls origin={origin} destination={destination} token={token} savedPlaces={savedPlaces} stops={stops} onSelectOrigin={handleSelectOrigin} onSelectDestination={handleSelectDestination} onAddStop={handleAddStop} onRemoveStop={handleRemoveStop} onRemoveSavedPlace={(place) => setSavedPlaces((current) => current.filter((item) => item.lng !== place.lng || item.lat !== place.lat))} onClearOrigin={() => { setOrigin(null); setRouteData(null); }} onClearDestination={() => { setDestination(null); setRouteData(null); }} onSwapLocations={handleSwapLocations} onClearRoute={handleClearRoute} onCalculateRoute={() => void handleCalculateRoute()} isLoadingRoute={isLoadingRoute} />
+        <RouteControls origin={origin} destination={destination} token={token} savedPlaces={savedPlaces} stops={stops} onSelectOrigin={handleSelectOrigin} onSelectDestination={handleSelectDestination} onAddStop={handleAddStop} onRemoveStop={handleRemoveStop} onReorderStops={handleReorderStops} onRemoveSavedPlace={(place) => setSavedPlaces((current) => current.filter((item) => item.lng !== place.lng || item.lat !== place.lat))} onClearOrigin={() => { setOrigin(null); setRouteData(null); }} onClearDestination={() => { setDestination(null); setRouteData(null); }} onSwapLocations={handleSwapLocations} onClearRoute={handleClearRoute} onCalculateRoute={() => void handleCalculateRoute()} isLoadingRoute={isLoadingRoute} />
         {routeData && origin && destination && <TelemetryCard telemetry={routeData.telemetry} details={routeData.details} origin={origin} destination={destination} provider={routeData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={() => setIsRecordModalOpen(true)} />}
       </div>}
 
       {isPreviewActive && origin && destination && routeData && <RoutePreviewHUD origin={origin} destination={destination} telemetry={routeData.telemetry} progress={previewProgress} isPlaying={isPlayingPreview} speedMultiplier={speedMultiplier} bearing={currentBearing} cameraZoom={cameraZoom} selectedStyleId={selectedStyleId} orientationMode={orientationMode} onStyleChange={setSelectedStyleId} onChangeCameraZoom={setCameraZoom} onChangeOrientationMode={(mode) => { setOrientationMode(mode); if (mode === 'manual') setManualBearing(currentBearing); }} onTogglePlay={handleTogglePlayPreview} onSeek={setPreviewProgress} onChangeSpeedMultiplier={setSpeedMultiplier} onExitPreview={handleExitPreview} />}
 
       {routeData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={routeData} vehicle={vehicle} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
-      <VehicleGarageModal isOpen={isGarageOpen} vehicle={vehicle} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onClose={() => setIsGarageOpen(false)} />
+      <VehicleGarageModal isOpen={isGarageOpen} vehicle={vehicle} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onSelectRecordedRoute={handleLoadRecordedRoute} onDeleteRecordedRoute={handleDeleteRecordedRoute} onClose={() => setIsGarageOpen(false)} />
       <TokenModal isOpen={isTokenModalOpen} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsTokenModalOpen(false)} />
     </main>
   );

@@ -271,6 +271,14 @@ function inferSpeedLimit(highway?: string): number | undefined {
   }
 }
 
+function inferSpeedLimitFromRoadName(roadName?: string): number | undefined {
+  if (!roadName) return undefined;
+  const reference = roadName.match(/\b([MBA])\s?\d+[A-Z]?\b/i)?.[1]?.toUpperCase();
+  if (reference === 'M') return 70;
+  if (reference === 'A' || reference === 'B') return 60;
+  return undefined;
+}
+
 function elevationAtDistance(
   distanceMeters: number,
   samples: ElevationRouteSample[]
@@ -360,9 +368,9 @@ export function buildRouteDetails(
     const widthLabel: RouteSegment['widthLabel'] =
       widthMeters < 4.5 ? 'Narrow' : widthMeters > 7 ? 'Wide' : 'Standard';
     const surface = hint?.surface || 'Paved';
-    // Keep the HUD useful before the optional OSM lookup returns. Authoritative
-    // route/OSM values replace this estimate when enrichment completes.
-    const speedLimit = hint?.speedLimitMph ?? inferSpeedLimit(hint?.highway) ?? 60;
+    // Use a road-class default only when a road class is known. A blanket 60 mph
+    // value made an un-enriched route look authoritative and hid pending data.
+    const speedLimit = hint?.speedLimitMph ?? inferSpeedLimit(hint?.highway) ?? inferSpeedLimitFromRoadName(hint?.roadName);
 
     if (elevationEnd > elevationStart) elevationGain += elevationEnd - elevationStart;
     if (widthLabel === 'Narrow') narrowCount += 1;
@@ -455,8 +463,9 @@ export function mergeRouteDetails(base: RouteDetails, enrichment: RouteDetails):
     const original = base.segments[index];
     if (!original) return segment;
 
-    const hasAuthoritativeEnrichment = segment.speedLimitSource && segment.speedLimitSource !== 'estimated';
-    const speedLimitMph = hasAuthoritativeEnrichment || original.speedLimitMph === undefined
+    const hasAuthoritativeEnrichment = Boolean(segment.speedLimitSource && segment.speedLimitSource !== 'estimated');
+    const hasAuthoritativeBase = Boolean(original.speedLimitSource && original.speedLimitSource !== 'estimated');
+    const speedLimitMph = hasAuthoritativeEnrichment || !hasAuthoritativeBase
       ? segment.speedLimitMph
       : original.speedLimitMph;
     const roadName = segment.roadName === 'Unnamed road' ? original.roadName : segment.roadName;
@@ -466,12 +475,12 @@ export function mergeRouteDetails(base: RouteDetails, enrichment: RouteDetails):
       roadName,
       surface,
       surfaceQuality: surface === segment.surface ? segment.surfaceQuality : original.surfaceQuality,
-      ...(speedLimitMph
+      ...(speedLimitMph !== undefined
         ? {
             speedLimitMph,
             speedLimitSource: hasAuthoritativeEnrichment
               ? segment.speedLimitSource
-              : original.speedLimitSource || 'estimated',
+              : original.speedLimitSource || segment.speedLimitSource || 'estimated',
           }
         : {}),
     };
@@ -611,7 +620,19 @@ export async function fetchRouteDetails(
   const response = await fetch('/api/route-details', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ coordinates }),
+    body: JSON.stringify({ coordinates, mode: 'terrain' }),
+  });
+  return readJson(response);
+}
+
+/** Fetch road tags separately so speed limits can update before terrain returns. */
+export async function fetchRouteRoadDetails(
+  coordinates: [number, number][]
+): Promise<RouteDetails> {
+  const response = await fetch('/api/route-details', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ coordinates, mode: 'road' }),
   });
   return readJson(response);
 }

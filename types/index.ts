@@ -106,12 +106,3 @@ export interface RecordedRoute {
   fuelCostGbp: number;
   durationSeconds: number;
 }
-
-export interface UKPresetRoute {
-  id: string;
-  title: string;
-  subtitle: string;
-  tag: string;
-  origin: LocationPoint;
-  destination: LocationPoint;
-}

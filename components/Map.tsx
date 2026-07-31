@@ -4,7 +4,6 @@ import React, {
   forwardRef,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -33,6 +32,7 @@ interface MapProps {
   previewProgress?: number;
   speedMultiplier?: number;
   cameraZoom?: number;
+  onCameraZoomChange?: (zoom: number) => void;
   orientationMode?: 'follow' | 'manual';
   manualBearing?: number;
   onManualBearingChange?: (bearing: number) => void;
@@ -71,60 +71,24 @@ const FREE_OSM_STREETS: mapboxgl.Style = {
   layers: [{ id: 'osm-layer', type: 'raster', source: 'osm-tiles', minzoom: 0, maxzoom: 19 }],
 };
 
-export const MAPBOX_STYLES = [
-  { id: 'satellite', name: '3D Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12', fallback: FREE_CARTO_DARK },
-  { id: 'satellite-pure', name: 'Pure Satellite', url: 'mapbox://styles/mapbox/satellite-v9', fallback: FREE_CARTO_DARK },
-  { id: 'streets', name: 'Streets Nav', url: 'mapbox://styles/mapbox/navigation-dark-v1', fallback: FREE_OSM_STREETS },
-  { id: 'outdoors', name: 'Outdoors Topo', url: 'mapbox://styles/mapbox/outdoors-v12', fallback: FREE_OSM_STREETS },
-];
-
-const MINI_CONTEXT = {
-  minLng: -10.5,
-  maxLng: 2.5,
-  minLat: 49.4,
-  maxLat: 59.5,
-  width: 200,
-  height: 150,
-  padding: 8,
+const FREE_SATELLITE: mapboxgl.Style = {
+  version: 8,
+  sources: {
+    'esri-satellite': {
+      type: 'raster',
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tileSize: 256,
+      attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics',
+    },
+  },
+  layers: [{ id: 'esri-satellite-layer', type: 'raster', source: 'esri-satellite', minzoom: 0, maxzoom: 19 }],
 };
 
-// A deliberately lightweight coastline keeps the context map crisp and cheap to redraw.
-const IRELAND_COASTLINE: [number, number][] = [
-  [-10.3, 51.5], [-9.5, 51.8], [-9.25, 52.5], [-9.65, 53.2], [-9.0, 53.7],
-  [-8.8, 54.45], [-8.1, 55.2], [-7.1, 55.4], [-6.0, 55.3], [-5.5, 54.9],
-  [-6.0, 54.35], [-6.3, 53.8], [-6.0, 53.2], [-6.5, 52.7], [-7.0, 52.2],
-  [-7.5, 51.9], [-8.2, 51.6], [-9.0, 51.4], [-10.3, 51.5],
-];
-
-const GREAT_BRITAIN_COASTLINE: [number, number][] = [
-  [-5.72, 50.02], [-5.15, 50.06], [-4.5, 50.2], [-3.9, 50.2], [-3.3, 50.35],
-  [-2.8, 50.55], [-2.2, 50.58], [-1.6, 50.75], [-1.1, 50.95], [-0.6, 51.25],
-  [-0.2, 51.45], [-0.15, 51.8], [0.15, 52.1], [0.45, 52.5], [0.37, 52.9],
-  [0.5, 53.2], [0.25, 53.55], [0.2, 53.9], [0.35, 54.2], [0.12, 54.55],
-  [-0.22, 54.75], [-0.33, 55.05], [-0.65, 55.35], [-0.85, 55.75], [-1.3, 55.9],
-  [-1.4, 56.25], [-1.8, 56.45], [-2.25, 56.65], [-2.55, 57.0], [-3.0, 57.3],
-  [-3.25, 57.65], [-3.8, 57.95], [-4.25, 58.35], [-4.85, 58.63], [-5.2, 58.6],
-  [-5.55, 58.75], [-5.95, 58.5], [-6.0, 58.15], [-5.8, 57.8], [-5.4, 57.55],
-  [-5.25, 57.2], [-5.45, 56.9], [-5.2, 56.6], [-4.8, 56.4], [-4.55, 56.05],
-  [-4.25, 55.8], [-4.4, 55.45], [-4.75, 55.2], [-4.7, 54.85], [-4.45, 54.45],
-  [-4.55, 54.1], [-4.85, 53.8], [-5.05, 53.45], [-5.35, 53.15], [-5.2, 52.8],
-  [-4.9, 52.5], [-4.75, 52.1], [-4.9, 51.75], [-5.15, 51.5], [-5.4, 51.25],
-  [-5.55, 50.9], [-5.7, 50.5], [-5.72, 50.02],
-];
-
-const NORTHERN_IRELAND_COASTLINE: [number, number][] = [
-  [-8.2, 54.0], [-7.8, 54.0], [-7.3, 54.2], [-6.8, 54.1], [-6.0, 54.3],
-  [-5.55, 54.55], [-5.4, 54.9], [-5.9, 55.2], [-6.5, 55.2], [-7.0, 55.1],
-  [-7.4, 55.3], [-7.8, 55.1], [-8.2, 54.7], [-8.4, 54.3], [-8.2, 54.0],
-];
-
-const MINI_PLACES = [
-  { name: 'London', coordinate: [-0.1276, 51.5072] as [number, number] },
-  { name: 'Birmingham', coordinate: [-1.8904, 52.4862] as [number, number] },
-  { name: 'Manchester', coordinate: [-2.2426, 53.4808] as [number, number] },
-  { name: 'Edinburgh', coordinate: [-3.1883, 55.9533] as [number, number] },
-  { name: 'Cardiff', coordinate: [-3.1791, 51.4816] as [number, number] },
-  { name: 'Belfast', coordinate: [-5.93, 54.6] as [number, number] },
+export const MAPBOX_STYLES = [
+  { id: 'satellite', name: '3D Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12', fallback: FREE_SATELLITE },
+  { id: 'satellite-pure', name: 'Pure Satellite', url: 'mapbox://styles/mapbox/satellite-v9', fallback: FREE_SATELLITE },
+  { id: 'streets', name: 'Streets Nav', url: 'mapbox://styles/mapbox/navigation-dark-v1', fallback: FREE_OSM_STREETS },
+  { id: 'outdoors', name: 'Outdoors Topo', url: 'mapbox://styles/mapbox/outdoors-v12', fallback: FREE_OSM_STREETS },
 ];
 
 function getPreviewPitch(zoom: number): number {
@@ -139,140 +103,122 @@ function clampProgress(value: number): number {
   return Math.min(Math.max(Number.isFinite(value) ? value : 0, 0), 1);
 }
 
-function toSvgPoints(points: [number, number][]): string {
-  return points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
-}
-
-function MiniMapProject(coordinate: [number, number]): [number, number] {
-  const lngRange = MINI_CONTEXT.maxLng - MINI_CONTEXT.minLng;
-  const latRange = MINI_CONTEXT.maxLat - MINI_CONTEXT.minLat;
-  return [
-    MINI_CONTEXT.padding + ((coordinate[0] - MINI_CONTEXT.minLng) / lngRange) * (MINI_CONTEXT.width - MINI_CONTEXT.padding * 2),
-    MINI_CONTEXT.padding + ((MINI_CONTEXT.maxLat - coordinate[1]) / latRange) * (MINI_CONTEXT.height - MINI_CONTEXT.padding * 2),
-  ];
-}
-
-function MiniMapPolygon({
-  points,
-  fill,
-  stroke,
-  strokeOpacity,
-}: {
-  points: [number, number][];
-  fill: string;
-  stroke: string;
-  strokeOpacity: number;
-}) {
-  return <polygon points={toSvgPoints(points.map(MiniMapProject))} fill={fill} stroke={stroke} strokeOpacity={strokeOpacity} />;
-}
-
 interface MiniMapHandle {
   update: (progress: number, position: [number, number], bearing: number) => void;
 }
 
-const MiniMap = React.memo(forwardRef<MiniMapHandle, { routeData: RouteData }>(function MiniMap({ routeData }, ref) {
-  const geometry = routeData.geometry.coordinates as [number, number][];
-  const base = useMemo(() => {
-    if (geometry.length < 2) return null;
-    const cumulative = computeCumulativeDistances(geometry);
-    const stride = Math.max(1, Math.ceil(geometry.length / 180));
-    const sampledGeometry = geometry
-      .map((coordinate, index) => ({ coordinate, index }))
-      .filter(({ index }) => index % stride === 0 || index === geometry.length - 1);
-    const routeCoordinates = sampledGeometry.map(({ coordinate }) => MiniMapProject(coordinate));
-    return {
-      cumulative,
-      totalDistance: cumulative[cumulative.length - 1] || 1,
-      routePoints: toSvgPoints(routeCoordinates),
-      start: MiniMapProject(geometry[0]),
-      finish: MiniMapProject(geometry[geometry.length - 1]),
-      project: MiniMapProject,
-      sampled: sampledGeometry.map(({ coordinate, index }) => ({
-        distanceMeters: cumulative[index],
-        point: MiniMapProject(coordinate),
-      })),
-    };
-  }, [geometry]);
-
-  const arrowRef = useRef<SVGGElement>(null);
-  const travelledRef = useRef<SVGPolylineElement>(null);
+const MiniMap = React.memo(forwardRef<MiniMapHandle, { routeData: RouteData; token: string; selectedStyleId: string }>(function MiniMap({ routeData, token, selectedStyleId }, ref) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const vehicleMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const progressRef = useRef<HTMLSpanElement>(null);
 
   useImperativeHandle(ref, () => ({
     update(progress, position, bearing) {
-      if (!base) return;
-      const boundedProgress = clampProgress(progress);
-      const current = base.project(position);
-      const travelled = base.sampled
-        .filter(({ distanceMeters }) => distanceMeters <= boundedProgress * base.totalDistance)
-        .map(({ point }) => point);
-      if (travelled.length === 0 || travelled[travelled.length - 1][0] !== current[0] || travelled[travelled.length - 1][1] !== current[1]) {
-        travelled.push(current);
-      }
-      arrowRef.current?.setAttribute('transform', `translate(${current[0].toFixed(2)} ${current[1].toFixed(2)}) rotate(${bearing.toFixed(2)})`);
-      travelledRef.current?.setAttribute('points', toSvgPoints(travelled));
-      if (progressRef.current) progressRef.current.textContent = `${Math.round(boundedProgress * 100)}%`;
+      vehicleMarkerRef.current?.setLngLat(position).setRotation(bearing);
+      if (progressRef.current) progressRef.current.textContent = `${Math.round(clampProgress(progress) * 100)}%`;
     },
-  }), [base]);
+  }), []);
 
-  if (!base) return null;
+  useEffect(() => {
+    const geometry = routeData.geometry.coordinates as [number, number][];
+    if (!containerRef.current || geometry.length < 2) return;
+    const hasValidToken = Boolean(token && token.trim().startsWith('pk.'));
+    if (hasValidToken) mapboxgl.accessToken = token.trim();
+    const styleConfig = MAPBOX_STYLES.find((style) => style.id === selectedStyleId) || MAPBOX_STYLES[0];
+    const miniMap = new mapboxgl.Map({
+      container: containerRef.current,
+      style: hasValidToken ? styleConfig.url : styleConfig.fallback,
+      center: geometry[0],
+      zoom: 8,
+      attributionControl: false,
+      interactive: false,
+      fadeDuration: 0,
+      logoPosition: 'bottom-left',
+    });
+
+    const addRoute = () => {
+      if (!miniMap.isStyleLoaded()) return;
+      if (miniMap.getSource('mini-route-source')) return;
+      miniMap.addSource('mini-route-source', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: routeData.geometry } });
+      miniMap.addLayer({ id: 'mini-route-glow', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#0f172a', 'line-width': 7, 'line-opacity': 0.8 } });
+      miniMap.addLayer({ id: 'mini-route-line', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#5eead4', 'line-width': 3, 'line-opacity': 0.95 } });
+      const bounds = new mapboxgl.LngLatBounds(geometry[0], geometry[0]);
+      geometry.forEach((coordinate) => bounds.extend(coordinate));
+      miniMap.fitBounds(bounds, { padding: 24, maxZoom: 13, duration: 0 });
+      const markerElement = document.createElement('div');
+      markerElement.className = 'mini-vehicle-marker';
+      markerElement.innerHTML = '<span></span>';
+      vehicleMarkerRef.current = new mapboxgl.Marker({ element: markerElement, rotationAlignment: 'map' }).setLngLat(geometry[0]).addTo(miniMap);
+    };
+    miniMap.once('load', addRoute);
+    miniMap.on('error', (event) => console.warn('Mini-map tile error:', event.error));
+
+    return () => {
+      vehicleMarkerRef.current?.remove();
+      vehicleMarkerRef.current = null;
+      miniMap.remove();
+    };
+  }, [routeData.geometry, selectedStyleId, token]);
 
   return (
-    <div className="pointer-events-none absolute right-4 top-4 z-30 w-56 rounded-2xl border border-white/20 bg-[#08111b]/95 p-2.5 shadow-2xl shadow-black/50">
+    <div className="pointer-events-none absolute right-4 top-4 z-30 w-60 rounded-2xl border border-white/20 bg-[#08111b]/95 p-2.5 shadow-2xl shadow-black/50">
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-cyan-300">UK route context</span>
+        <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-teal-200">Route close-up</span>
         <span ref={progressRef} className="text-[9px] font-mono text-gray-400">0%</span>
       </div>
-      <svg viewBox={`0 0 ${MINI_CONTEXT.width} ${MINI_CONTEXT.height}`} className="h-auto w-full rounded-xl border border-white/10 bg-[#071421]" aria-label="UK route context mini-map">
-        <defs>
-          <linearGradient id="mini-sea-gradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#0d2233" />
-            <stop offset="100%" stopColor="#071421" />
-          </linearGradient>
-          <filter id="mini-route-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="1.2" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        <rect width={MINI_CONTEXT.width} height={MINI_CONTEXT.height} fill="url(#mini-sea-gradient)" />
-        {[[-8, 0], [-4, 0], [0, 0]].map(([lng], index) => {
-          const [x] = MiniMapProject([lng, MINI_CONTEXT.minLat]);
-          return <line key={`lng-${index}`} x1={x} y1="0" x2={x} y2={MINI_CONTEXT.height} stroke="#6ba2bd" strokeOpacity="0.1" strokeDasharray="2 4" />;
-        })}
-        {[52, 55, 58].map((lat) => {
-          const [, y] = MiniMapProject([MINI_CONTEXT.minLng, lat]);
-          return <line key={`lat-${lat}`} x1="0" y1={y} x2={MINI_CONTEXT.width} y2={y} stroke="#6ba2bd" strokeOpacity="0.1" strokeDasharray="2 4" />;
-        })}
-        <MiniMapPolygon points={IRELAND_COASTLINE} fill="#193344" stroke="#6ba2bd" strokeOpacity={0.25} />
-        <MiniMapPolygon points={GREAT_BRITAIN_COASTLINE} fill="#254152" stroke="#8cc6d8" strokeOpacity={0.45} />
-        <MiniMapPolygon points={NORTHERN_IRELAND_COASTLINE} fill="#36576a" stroke="#b8e7f2" strokeOpacity={0.5} />
-        {MINI_PLACES.map((place) => {
-          const [x, y] = MiniMapProject(place.coordinate);
-          return (
-            <g key={place.name}>
-              <circle cx={x} cy={y} r="1.2" fill="#b8e7f2" opacity="0.8" />
-              <text x={x + 2} y={y + 2.2} fill="#b8e7f2" fillOpacity="0.55" fontSize="3.8" fontFamily="ui-monospace, monospace">{place.name}</text>
-            </g>
-          );
-        })}
-        <polyline points={base.routePoints} fill="none" stroke="#07101a" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
-        <polyline points={base.routePoints} fill="none" stroke="#8be7f5" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
-        <polyline ref={travelledRef} points={`${base.start[0]},${base.start[1]}`} fill="none" stroke="#22d3ee" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" filter="url(#mini-route-glow)" />
-        <circle cx={base.start[0]} cy={base.start[1]} r="2" fill="#22d3ee" stroke="#e0f2fe" strokeWidth="0.7" />
-        <circle cx={base.finish[0]} cy={base.finish[1]} r="2" fill="#f59e0b" stroke="#fff7ed" strokeWidth="0.7" />
-        <g ref={arrowRef} transform={`translate(${base.start[0]} ${base.start[1]}) rotate(0)`}>
-          <path d="M 0 -5.5 L 3.2 3 L 0 1.2 L -3.2 3 Z" fill="#f8fafc" stroke="#06b6d4" strokeWidth="0.8" />
-        </g>
-      </svg>
-      <div className="mt-1.5 flex items-center justify-between text-[9px] font-mono text-gray-500">
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />Start</span>
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" />Finish</span>
-      </div>
+      <div ref={containerRef} className="h-36 w-full overflow-hidden rounded-xl border border-white/15 bg-[#071421]" aria-label="Satellite route close-up mini-map" />
+      <div className="mt-1.5 flex items-center justify-between text-[9px] font-mono text-gray-500"><span>Actual route</span><span>{token.trim().startsWith('pk.') ? 'Mapbox satellite' : 'Satellite fallback'}</span></div>
     </div>
   );
 }));
 
 MiniMap.displayName = 'MiniMap';
+
+interface GradientGraphHandle {
+  update: (progress: number) => void;
+}
+
+const GradientGraph = React.memo(forwardRef<GradientGraphHandle, { details: RouteDetails }>(function GradientGraph({ details }, ref) {
+  const markerRef = useRef<SVGCircleElement>(null);
+  const profile = details.elevationProfile;
+  const width = 220;
+  const height = 58;
+  const padding = 7;
+  const values = profile.map((sample) => sample.gradientPercent);
+  const minimum = Math.min(...values, 0);
+  const maximum = Math.max(...values, 0);
+  const range = Math.max(maximum - minimum, 1);
+  const points = profile.map((sample, index) => {
+    const x = padding + (index / Math.max(profile.length - 1, 1)) * (width - padding * 2);
+    const y = padding + ((maximum - sample.gradientPercent) / range) * (height - padding * 2);
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(' ');
+  const zeroY = padding + ((maximum - 0) / range) * (height - padding * 2);
+
+  useImperativeHandle(ref, () => ({
+    update(progress) {
+      const x = padding + clampProgress(progress) * (width - padding * 2);
+      markerRef.current?.setAttribute('cx', x.toFixed(2));
+    },
+  }), []);
+
+  return (
+    <div aria-label="Route gradient graph" className="mt-2 rounded-xl border border-white/10 bg-black/20 p-2">
+      <div className="mb-1 flex items-center justify-between gap-2 text-[9px] font-mono text-gray-500"><span>Route gradient</span><span>{details.hasElevationData ? `${minimum.toFixed(1)}% to +${maximum.toFixed(1)}%` : 'Terrain loading'}</span></div>
+      {profile.length > 1 && details.hasElevationData ? (
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-14 w-full" role="img" aria-label="Gradient graph for the complete route">
+          <line x1={padding} y1={zeroY} x2={width - padding} y2={zeroY} stroke="#94a3b8" strokeOpacity="0.28" strokeDasharray="3 3" />
+          <polyline points={points} fill="none" stroke="#fda4af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <circle ref={markerRef} cx={padding} cy={padding} r="3.5" fill="#6ee7d8" stroke="#ecfeff" strokeWidth="1" />
+        </svg>
+      ) : (
+        <div className="flex h-14 items-center justify-center text-[10px] text-gray-500">Waiting for elevation samples…</div>
+      )}
+    </div>
+  );
+}));
+
+GradientGraph.displayName = 'GradientGraph';
 
 export default function Map({
   token,
@@ -285,8 +231,9 @@ export default function Map({
   isPreviewActive = false,
   isPlayingPreview = false,
   previewProgress = 0,
-  speedMultiplier = 4,
+  speedMultiplier = 1,
   cameraZoom = 16.8,
+  onCameraZoomChange,
   orientationMode = 'follow',
   manualBearing = 0,
   onManualBearingChange,
@@ -310,8 +257,11 @@ export default function Map({
   const isPlayingRef = useRef(isPlayingPreview);
   const speedMultiplierRef = useRef(speedMultiplier);
   const cameraZoomRef = useRef(cameraZoom);
+  const previousCameraZoomRef = useRef(cameraZoom);
+  const cameraPitchRef = useRef(getPreviewPitch(cameraZoom));
   const onProgressTickRef = useRef(onProgressTick);
   const onManualBearingChangeRef = useRef(onManualBearingChange);
+  const onCameraZoomChangeRef = useRef(onCameraZoomChange);
   const currentPositionRef = useRef<[number, number] | null>(null);
   const lastTickTimeRef = useRef(0);
   const cumulativeDistancesRef = useRef<number[]>([]);
@@ -320,6 +270,7 @@ export default function Map({
   const speedLimitValueRef = useRef<HTMLSpanElement>(null);
   const speedLimitSourceRef = useRef<HTMLSpanElement>(null);
   const speedLimitKeyRef = useRef('');
+  const gradientGraphRef = useRef<GradientGraphHandle>(null);
   const [isUsingMapboxKey, setIsUsingMapboxKey] = useState(false);
 
   const routeGeometry = routeData?.geometry;
@@ -333,7 +284,13 @@ export default function Map({
   }, [speedMultiplier]);
 
   useEffect(() => {
+    const previousZoom = previousCameraZoomRef.current;
+    if (Math.abs(cameraZoom - previousZoom) > 0.001) {
+      const pitchOffset = cameraPitchRef.current - getPreviewPitch(previousZoom);
+      cameraPitchRef.current = Math.min(Math.max(getPreviewPitch(cameraZoom) + pitchOffset, 24), 78);
+    }
     cameraZoomRef.current = cameraZoom;
+    previousCameraZoomRef.current = cameraZoom;
   }, [cameraZoom]);
 
   useEffect(() => {
@@ -358,6 +315,10 @@ export default function Map({
   }, [onManualBearingChange]);
 
   useEffect(() => {
+    onCameraZoomChangeRef.current = onCameraZoomChange;
+  }, [onCameraZoomChange]);
+
+  useEffect(() => {
     routeDetailsRef.current = routeData?.details || null;
   }, [routeData?.details]);
 
@@ -378,6 +339,7 @@ export default function Map({
     cumulativeDistancesRef.current = routeGeometry?.coordinates
       ? computeCumulativeDistances(routeGeometry.coordinates as [number, number][])
       : [];
+    speedLimitKeyRef.current = '';
   }, [routeGeometry]);
 
   // Keep a single Mapbox instance alive while the user changes map styles.
@@ -573,20 +535,26 @@ export default function Map({
   // reads the same ref, so the camera never waits for a React render to catch up.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !isPreviewActive || orientationMode !== 'manual') return;
+    if (!map || !isPreviewActive) return;
+    const isManual = orientationMode === 'manual';
     const canvas = map.getCanvas();
     const previousCursor = canvas.style.cursor;
     const previousTouchAction = canvas.style.touchAction;
-    canvas.style.cursor = 'ew-resize';
-    canvas.style.touchAction = 'none';
-    map.dragPan.disable();
+    if (isManual) {
+      canvas.style.cursor = 'move';
+      canvas.style.touchAction = 'none';
+      map.dragPan.disable();
+    }
+    map.scrollZoom.disable();
     let activePointerId: number | null = null;
     let lastX = 0;
+    let lastY = 0;
 
     const onPointerDown = (event: PointerEvent) => {
-      if (event.button !== 0 || activePointerId !== null) return;
+      if (!isManual || event.button !== 0 || activePointerId !== null) return;
       activePointerId = event.pointerId;
       lastX = event.clientX;
+      lastY = event.clientY;
       try {
         canvas.setPointerCapture?.(event.pointerId);
       } catch {
@@ -596,23 +564,42 @@ export default function Map({
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      if (event.pointerId !== activePointerId) return;
+      if (!isManual || event.pointerId !== activePointerId) return;
       const deltaX = event.clientX - lastX;
+      const deltaY = event.clientY - lastY;
       lastX = event.clientX;
-      if (deltaX === 0) return;
+      lastY = event.clientY;
+      if (deltaX === 0 && deltaY === 0) return;
       const nextBearing = normaliseBearing(manualBearingRef.current + deltaX * 0.78);
+      const nextPitch = Math.min(Math.max(cameraPitchRef.current - deltaY * 0.42, 24), 78);
       manualBearingRef.current = nextBearing;
       cameraBearingRef.current = nextBearing;
+      cameraPitchRef.current = nextPitch;
       const center = currentPositionRef.current;
       if (center) {
         map.jumpTo({
           center,
           zoom: Math.min(cameraZoomRef.current, MAX_PREVIEW_ZOOM),
-          pitch: getPreviewPitch(Math.min(cameraZoomRef.current, MAX_PREVIEW_ZOOM)),
+          pitch: nextPitch,
           bearing: nextBearing,
         });
       }
       event.preventDefault();
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const previousZoom = cameraZoomRef.current;
+      const zoomDelta = event.deltaY * (event.ctrlKey ? 0.014 : 0.009);
+      const nextZoom = Math.min(Math.max(previousZoom - zoomDelta, 14), MAX_PREVIEW_ZOOM);
+      if (Math.abs(nextZoom - previousZoom) < 0.001) return;
+      const pitchOffset = cameraPitchRef.current - getPreviewPitch(previousZoom);
+      cameraZoomRef.current = nextZoom;
+      previousCameraZoomRef.current = nextZoom;
+      cameraPitchRef.current = Math.min(Math.max(getPreviewPitch(nextZoom) + pitchOffset, 24), 78);
+      onCameraZoomChangeRef.current?.(Number(nextZoom.toFixed(1)));
+      const center = currentPositionRef.current;
+      if (center) map.jumpTo({ center, zoom: nextZoom, pitch: cameraPitchRef.current, bearing: cameraBearingRef.current });
     };
 
     const stopPointer = (event: PointerEvent) => {
@@ -625,14 +612,17 @@ export default function Map({
     canvas.addEventListener('pointermove', onPointerMove, { passive: false });
     canvas.addEventListener('pointerup', stopPointer);
     canvas.addEventListener('pointercancel', stopPointer);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', stopPointer);
       canvas.removeEventListener('pointercancel', stopPointer);
+      canvas.removeEventListener('wheel', onWheel);
       canvas.style.cursor = previousCursor;
       canvas.style.touchAction = previousTouchAction;
-      map.dragPan.enable();
+      if (isManual) map.dragPan.enable();
+      map.scrollZoom.enable();
     };
   }, [isPreviewActive, orientationMode]);
 
@@ -670,7 +660,7 @@ export default function Map({
       const details = routeDetailsRef.current;
       const segment = details ? findRouteSegmentAtDistance(details.segments, distanceMeters) : undefined;
       const limit = segment?.speedLimitMph;
-      const key = `${segment?.id || 'none'}:${limit || 'unknown'}`;
+      const key = `${segment?.id || 'none'}:${limit ?? 'unknown'}:${segment?.speedLimitSource || 'pending'}:${segment?.roadName || ''}`;
       if (key === speedLimitKeyRef.current) return;
       speedLimitKeyRef.current = key;
       if (speedLimitValueRef.current) speedLimitValueRef.current.textContent = limit ? `${Math.round(limit)} mph` : '—';
@@ -708,12 +698,13 @@ export default function Map({
       map.jumpTo({
         center: target.position,
         zoom,
-        pitch: getPreviewPitch(zoom),
+        pitch: cameraPitchRef.current,
         bearing: cameraBearingRef.current,
       });
 
       const totalDistance = cumulativeDistancesRef.current[cumulativeDistancesRef.current.length - 1] || 0;
       miniMapRef.current?.update(progressRef.current, target.position, currentBearingRef.current);
+      gradientGraphRef.current?.update(progressRef.current);
       updateSpeedLimit(progressRef.current * totalDistance);
 
       if (onProgressTickRef.current && now - lastTickTimeRef.current >= 100) {
@@ -751,17 +742,18 @@ export default function Map({
 
       {isPreviewActive && routeData && (
         <>
-          <div className="pointer-events-none absolute left-4 top-4 z-30 min-w-[128px] rounded-2xl border border-amber-300/35 bg-[#090d14]/95 px-3 py-2 shadow-xl shadow-black/30">
+          <div className="pointer-events-none absolute left-4 top-4 z-30 w-[232px] rounded-2xl border border-amber-300/35 bg-[#090d14]/95 px-3 py-2 shadow-xl shadow-black/30">
             <div className="flex items-center justify-between gap-3">
               <span className="text-[9px] font-mono uppercase tracking-[0.15em] text-amber-200">Speed limit</span>
               <span ref={speedLimitValueRef} className="text-lg font-black leading-none text-amber-300">—</span>
             </div>
             <span ref={speedLimitSourceRef} className="mt-1 block max-w-[190px] truncate text-[9px] font-mono text-gray-500">Road data loading</span>
+            <GradientGraph ref={gradientGraphRef} details={routeData.details} />
           </div>
-          <MiniMap ref={miniMapRef} routeData={routeData} />
+          <MiniMap ref={miniMapRef} routeData={routeData} token={token} selectedStyleId={selectedStyleId} />
           {orientationMode === 'manual' && (
-            <div className="pointer-events-none absolute left-4 top-[5.6rem] z-30 flex items-center gap-2 rounded-xl border border-cyan-400/40 bg-[#090d14]/95 px-3 py-2 text-[10px] text-cyan-200 shadow-xl">
-              <MousePointer2 className="h-3.5 w-3.5 text-cyan-400" /> Drag left/right to turn
+            <div className="pointer-events-none absolute left-4 top-[14.2rem] z-30 flex max-w-[232px] items-center gap-2 rounded-xl border border-cyan-400/40 bg-[#090d14]/95 px-3 py-2 text-[10px] text-cyan-200 shadow-xl">
+              <MousePointer2 className="h-3.5 w-3.5 shrink-0 text-cyan-400" /> Drag to turn / tilt · wheel or pinch to zoom
             </div>
           )}
         </>

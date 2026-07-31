@@ -24,7 +24,7 @@ export default function RecordRouteModal({ isOpen, routeData, vehicle, onSave, o
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 sm:p-6">
-      <div className="w-full max-w-md rounded-3xl border border-amber-500/30 bg-[#11151f] p-5 shadow-2xl shadow-black/60 sm:p-6">
+      <div className="theme-modal w-full max-w-md rounded-3xl border border-amber-500/30 bg-[#11151f] p-5 shadow-2xl shadow-black/60 sm:p-6">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-500/15"><RouteIcon className="h-5 w-5 text-amber-300" /></div>

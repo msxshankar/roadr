@@ -2,6 +2,7 @@ import { RecordedRoute, VehicleFuelType, VehicleProfile } from '@/types';
 
 export const VEHICLE_STORAGE_KEY = 'roadr:vehicle-profile:v1';
 export const RECORDED_ROUTES_STORAGE_KEY = 'roadr:recorded-routes:v1';
+export const UK_GALLON_LITERS = 4.54609;
 
 export const DEFAULT_VEHICLE: Omit<VehicleProfile, 'id'> = {
   nickname: 'My car',
@@ -65,4 +66,20 @@ export function vehicleLabel(vehicle: VehicleProfile | null): string {
   if (!vehicle) return 'No car configured';
   const details = [vehicle.make, vehicle.model].filter(Boolean).join(' ');
   return details ? `${vehicle.nickname} · ${details}` : vehicle.nickname;
+}
+
+/** Estimate how far a full tank can take the configured vehicle in UK miles. */
+export function calculateVehicleRangeMiles(vehicle: VehicleProfile | null): number | null {
+  if (!vehicle || !Number.isFinite(vehicle.mpg) || !Number.isFinite(vehicle.tankLiters)) return null;
+  return Number(((Math.max(vehicle.mpg, 1) * Math.max(vehicle.tankLiters, 1)) / UK_GALLON_LITERS).toFixed(0));
+}
+
+export function getRouteRangeStatus(
+  vehicle: VehicleProfile | null,
+  routeDistanceMiles: number
+): { rangeMiles: number | null; remainingMiles: number | null; isBeyondRange: boolean } {
+  const rangeMiles = calculateVehicleRangeMiles(vehicle);
+  if (rangeMiles === null) return { rangeMiles: null, remainingMiles: null, isBeyondRange: false };
+  const remainingMiles = Number((rangeMiles - Math.max(routeDistanceMiles, 0)).toFixed(0));
+  return { rangeMiles, remainingMiles, isBeyondRange: remainingMiles < 0 };
 }
