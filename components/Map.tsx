@@ -138,8 +138,8 @@ export default function Map({
       });
 
       // Increase tile cache size to 150 tiles to prevent tile pop-in during satellite preview
-      if (typeof map.setTileCacheSize === 'function') {
-        map.setTileCacheSize(150);
+      if (typeof (map as any).setTileCacheSize === 'function') {
+        (map as any).setTileCacheSize(150);
       }
 
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
