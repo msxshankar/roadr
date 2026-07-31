@@ -9,7 +9,7 @@ import TokenModal from '@/components/TokenModal';
 import RoutePreviewHUD from '@/components/RoutePreviewHUD';
 import VehicleGarageModal from '@/components/VehicleGarageModal';
 import RecordRouteModal from '@/components/RecordRouteModal';
-import { LocationPoint, RecordedRoute, RouteData, RoadrAppState, RouteOption, VehicleProfile } from '@/types';
+import { LocationPoint, RecordedRoute, RouteData, RoadrAppState, VehicleProfile } from '@/types';
 import { DEFAULT_DESTINATION, DEFAULT_ORIGIN } from '@/lib/defaultRoute';
 import { parseSavedPlaces, upsertSavedPlace } from '@/lib/savedPlaces';
 import {
@@ -51,6 +51,7 @@ export default function Home() {
   const [liveFuelSource, setLiveFuelSource] = useState('fuelmap.co.uk');
   const [isLiveFuelFetching, setIsLiveFuelFetching] = useState(true);
   const [routeData, setRouteData] = useState<RouteData | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
@@ -73,6 +74,8 @@ export default function Home() {
   const terrainGeometryRef = useRef<GeoJSON.LineString | null>(null);
   const roadGeometryRef = useRef<GeoJSON.LineString | null>(null);
   const vehicle = vehicles.find((item) => item.id === activeVehicleId) || null;
+  const selectedAlternative = routeData?.alternatives?.find((alternative) => alternative.id === selectedRouteId) || null;
+  const activeRouteData = selectedAlternative || routeData;
 
   const handleExitPreview = () => {
     setIsPreviewActive(false);
@@ -97,6 +100,7 @@ export default function Home() {
       if (requestId !== routeRequestIdRef.current) return;
       terrainGeometryRef.current = null;
       roadGeometryRef.current = null;
+      setSelectedRouteId(null);
       setRouteData(data);
     } catch (error: any) {
       if (requestId !== routeRequestIdRef.current) return;
@@ -116,6 +120,10 @@ export default function Home() {
     setRouteData((current) => current ? {
       ...current,
       telemetry: computeTelemetry(current.telemetry.distanceMeters, current.telemetry.durationSeconds, newMpg, newPricePence),
+      alternatives: current.alternatives?.map((alternative) => ({
+        ...alternative,
+        telemetry: computeTelemetry(alternative.telemetry.distanceMeters, alternative.telemetry.durationSeconds, newMpg, newPricePence),
+      })),
     } : current);
   };
 
@@ -128,6 +136,10 @@ export default function Home() {
     setRouteData((current) => current ? {
       ...current,
       telemetry: computeTelemetry(current.telemetry.distanceMeters, current.telemetry.durationSeconds, nextVehicle.mpg, pricePerLiterPence),
+      alternatives: current.alternatives?.map((alternative) => ({
+        ...alternative,
+        telemetry: computeTelemetry(alternative.telemetry.distanceMeters, alternative.telemetry.durationSeconds, nextVehicle.mpg, pricePerLiterPence),
+      })),
     } : current);
     setIsGarageOpen(false);
   };
@@ -231,6 +243,7 @@ export default function Home() {
     setDestination(null);
     setStops([]);
     setRouteData(null);
+    setSelectedRouteId(null);
     setErrorMsg(null);
   };
 
@@ -254,8 +267,9 @@ export default function Home() {
     setOrientationMode('manual');
   };
 
-  const handleSelectAlternative = (alternative: RouteOption) => {
-    setRouteData((current) => current ? { ...alternative, alternatives: current.alternatives } : current);
+  const handleSelectRoute = (routeId: string | null) => {
+    if (routeId && !routeData?.alternatives?.some((alternative) => alternative.id === routeId)) return;
+    setSelectedRouteId(routeId);
     setPreviewProgress(0);
     setIsPreviewActive(false);
     setIsPlayingPreview(false);
@@ -294,19 +308,19 @@ export default function Home() {
   };
 
   const handleRecordRoute = (name: string) => {
-    if (!routeData || !vehicle) return;
+    if (!activeRouteData || !vehicle) return;
     const record: RecordedRoute = {
       id: `drive-${Date.now()}`,
       name,
       vehicleId: vehicle.id,
-      origin: routeData.origin,
-      destination: routeData.destination,
-      stops: routeData.stops,
+      origin: activeRouteData.origin,
+      destination: activeRouteData.destination,
+      stops: activeRouteData.stops,
       recordedAt: new Date().toISOString(),
-      distanceMiles: routeData.telemetry.distanceMiles,
-      fuelLiters: routeData.telemetry.estimatedFuelLiters,
-      fuelCostGbp: routeData.telemetry.estimatedFuelCostGbp,
-      durationSeconds: routeData.telemetry.durationSeconds,
+      distanceMiles: activeRouteData.telemetry.distanceMiles,
+      fuelLiters: activeRouteData.telemetry.estimatedFuelLiters,
+      fuelCostGbp: activeRouteData.telemetry.estimatedFuelCostGbp,
+      durationSeconds: activeRouteData.telemetry.durationSeconds,
     };
     setRecordedRoutes((current) => [record, ...current].slice(0, 50));
     setIsRecordModalOpen(false);
@@ -443,41 +457,66 @@ export default function Home() {
       telemetry.estimatedFuelLiters !== routeData.telemetry.estimatedFuelLiters ||
       telemetry.estimatedFuelCostGbp !== routeData.telemetry.estimatedFuelCostGbp
     ) {
-      setRouteData((current) => current ? { ...current, telemetry } : current);
+      setRouteData((current) => current ? {
+        ...current,
+        telemetry,
+        alternatives: current.alternatives?.map((alternative) => ({
+          ...alternative,
+          telemetry: computeTelemetry(alternative.telemetry.distanceMeters, alternative.telemetry.durationSeconds, vehicle.mpg, pricePerLiterPence),
+        })),
+      } : current);
     }
   }, [vehicle, pricePerLiterPence, routeData]);
 
   // Road tags load independently so the preview can show a real/estimated limit quickly.
   useEffect(() => {
-    const geometry = routeData?.geometry;
+    const geometry = activeRouteData?.geometry;
     if (!geometry || roadGeometryRef.current === geometry) return;
     roadGeometryRef.current = geometry;
     const controller = new AbortController();
     fetchRouteRoadDetails(geometry.coordinates as [number, number][], controller.signal).then((details) => {
-      setRouteData((current) => current && current.geometry === geometry
-        ? { ...current, details: mergeRouteDetails(current.details, details) }
-        : current);
+      setRouteData((current) => {
+        if (!current) return current;
+        if (selectedRouteId === null && current.geometry === geometry) {
+          return { ...current, details: mergeRouteDetails(current.details, details) };
+        }
+        return {
+          ...current,
+          alternatives: current.alternatives?.map((alternative) => alternative.geometry === geometry
+            ? { ...alternative, details: mergeRouteDetails(alternative.details, details) }
+            : alternative),
+        };
+      });
     }).catch((error) => {
       if (!controller.signal.aborted) console.warn('Road-tag enrichment unavailable; keeping route hints.', error);
     });
     return () => controller.abort();
-  }, [routeData?.geometry]);
+  }, [activeRouteData?.geometry, selectedRouteId]);
 
   // Terrain enrichment runs after the fast route response and never blocks route interaction.
   useEffect(() => {
-    const geometry = routeData?.geometry;
-    if (!geometry || routeData.details.hasElevationData || terrainGeometryRef.current === geometry) return;
+    const geometry = activeRouteData?.geometry;
+    if (!geometry || activeRouteData.details.hasElevationData || terrainGeometryRef.current === geometry) return;
     terrainGeometryRef.current = geometry;
     const controller = new AbortController();
     fetchRouteDetails(geometry.coordinates as [number, number][], controller.signal).then((details) => {
-      setRouteData((current) => current && current.geometry === geometry
-        ? { ...current, details: mergeRouteDetails(current.details, details) }
-        : current);
+      setRouteData((current) => {
+        if (!current) return current;
+        if (selectedRouteId === null && current.geometry === geometry) {
+          return { ...current, details: mergeRouteDetails(current.details, details) };
+        }
+        return {
+          ...current,
+          alternatives: current.alternatives?.map((alternative) => alternative.geometry === geometry
+            ? { ...alternative, details: mergeRouteDetails(alternative.details, details) }
+            : alternative),
+        };
+      });
     }).catch((error) => {
       if (!controller.signal.aborted) console.warn('Terrain enrichment unavailable; keeping geometry estimate.', error);
     });
     return () => controller.abort();
-  }, [routeData?.geometry, routeData?.details.hasElevationData]);
+  }, [activeRouteData?.geometry, activeRouteData?.details.hasElevationData, selectedRouteId]);
 
   return (
     <main className="app-shell flighty-shell relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[var(--bg-obsidian)] text-gray-100">
@@ -488,7 +527,9 @@ export default function Home() {
         origin={origin}
         destination={destination}
         stops={stops}
-        routeData={routeData}
+        routeData={activeRouteData}
+        primaryRouteData={routeData}
+        selectedRouteId={selectedRouteId}
         selectedStyleId={selectedStyleId}
         onStyleChange={setSelectedStyleId}
         isPreviewActive={isPreviewActive}
@@ -512,22 +553,22 @@ export default function Home() {
       </button>}
 
       {!isPreviewActive && <div className="theme-scope mobile-dock fixed bottom-2 left-2 right-2 z-40 flex items-center gap-2 rounded-2xl border border-white/15 p-2 shadow-2xl md:hidden">
-        <button type="button" onClick={() => setIsMobilePanelOpen((open) => !open)} aria-expanded={isMobilePanelOpen} aria-controls="mobile-route-panel" className="theme-primary-button flex min-h-11 min-w-0 flex-1 items-center justify-center space-x-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all active:scale-95">
+        <button type="button" onClick={() => setIsMobilePanelOpen((open) => !open)} aria-expanded={isMobilePanelOpen} aria-controls="mobile-route-panel" aria-label={isMobilePanelOpen ? 'Close route details' : routeData ? 'Open route details' : 'Open route planner'} className="theme-primary-button flex min-h-11 min-w-0 flex-1 items-center justify-center space-x-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all active:scale-95">
           <Sliders className="h-4 w-4" /><span>{isMobilePanelOpen ? 'Close planner' : routeData ? 'Route details' : 'Plan a route'}</span>{isMobilePanelOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
         </button>
-        {routeData && <div className="flighty-dock-status flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-[10px] font-semibold text-gray-300"><MapPinned className="h-3.5 w-3.5 text-cyan-300" /><span>{routeData.telemetry.distanceMiles.toFixed(1)} mi</span></div>}
+        {activeRouteData && <div className="flighty-dock-status flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-[10px] font-semibold text-gray-300"><MapPinned className="h-3.5 w-3.5 text-cyan-300" /><span>{activeRouteData.telemetry.distanceMiles.toFixed(1)} mi</span></div>}
       </div>}
 
-      {!isPreviewActive && <div id="mobile-route-panel" className={`theme-scope route-sidebar relative mobile-route-sheet fixed inset-x-2 bottom-16 top-16 z-30 flex max-h-[calc(100dvh-8rem)] w-auto max-w-none flex-col space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1 transition-all duration-300 md:absolute md:bottom-auto md:left-4 md:right-auto md:top-20 md:max-h-[calc(100dvh-6rem)] md:pb-6 ${isMobilePanelOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0 md:pointer-events-auto md:translate-y-0 md:opacity-100'} ${isSidebarOpen ? 'md:translate-x-0' : 'md:pointer-events-none md:-translate-x-[calc(100%+1.5rem)] md:opacity-0'}`} style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
+      {!isPreviewActive && <div id="mobile-route-panel" data-mobile-panel-open={isMobilePanelOpen} className={`theme-scope route-sidebar mobile-route-sheet fixed inset-x-2 bottom-16 top-16 z-30 flex max-h-[calc(100dvh-8rem)] w-auto max-w-none flex-col space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1 transition-all duration-300 md:absolute md:bottom-auto md:left-4 md:right-auto md:top-20 md:max-h-[calc(100dvh-6rem)] md:pb-6 ${isMobilePanelOpen ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0 md:pointer-events-auto md:translate-y-0 md:opacity-100'} ${isSidebarOpen ? 'md:translate-x-0' : 'md:pointer-events-none md:-translate-x-[calc(100%+1.5rem)] md:opacity-0'}`} style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
         {errorMsg && <div className="theme-section flex items-start space-x-2 rounded-2xl border border-red-500/30 bg-red-950/80 p-3 text-xs text-red-200 shadow-xl"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" /><div><strong className="block font-semibold">Route error</strong><span>{errorMsg}</span></div></div>}
-        <RouteControls origin={origin} destination={destination} token={token} savedPlaces={savedPlaces} stops={stops} onSelectOrigin={handleSelectOrigin} onSelectDestination={handleSelectDestination} onAddStop={handleAddStop} onRemoveStop={handleRemoveStop} onReorderStops={handleReorderStops} onClearOrigin={() => { setOrigin(null); setRouteData(null); }} onClearDestination={() => { setDestination(null); setRouteData(null); }} onSwapLocations={handleSwapLocations} onClearRoute={handleClearRoute} onCalculateRoute={() => void handleCalculateRoute()} onImportGoogleRoute={handleImportGoogleRoute} onCloseMobilePanel={() => setIsMobilePanelOpen(false)} isLoadingRoute={isLoadingRoute} />
-        {routeData && origin && destination && <TelemetryCard telemetry={routeData.telemetry} details={routeData.details} alternatives={routeData.alternatives || []} origin={origin} destination={destination} provider={routeData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectAlternative={handleSelectAlternative} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={() => setIsRecordModalOpen(true)} />}
+        <RouteControls origin={origin} destination={destination} token={token} savedPlaces={savedPlaces} stops={stops} onSelectOrigin={handleSelectOrigin} onSelectDestination={handleSelectDestination} onAddStop={handleAddStop} onRemoveStop={handleRemoveStop} onReorderStops={handleReorderStops} onClearOrigin={() => { setOrigin(null); setRouteData(null); setSelectedRouteId(null); }} onClearDestination={() => { setDestination(null); setRouteData(null); setSelectedRouteId(null); }} onSwapLocations={handleSwapLocations} onClearRoute={handleClearRoute} onCalculateRoute={() => void handleCalculateRoute()} onImportGoogleRoute={handleImportGoogleRoute} onCloseMobilePanel={() => setIsMobilePanelOpen(false)} isLoadingRoute={isLoadingRoute} />
+        {activeRouteData && origin && destination && routeData && <TelemetryCard telemetry={activeRouteData.telemetry} details={activeRouteData.details} originalRoute={routeData} selectedRouteId={selectedRouteId} alternatives={routeData.alternatives || []} origin={origin} destination={destination} provider={activeRouteData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectRoute={handleSelectRoute} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={() => setIsRecordModalOpen(true)} />}
         <div className="route-sidebar-resizer hidden md:block" role="separator" aria-label="Resize route planner sidebar" aria-orientation="vertical" onPointerDown={handleSidebarResizeStart} />
       </div>}
 
-      {isPreviewActive && origin && destination && routeData && <RoutePreviewHUD origin={origin} destination={destination} telemetry={routeData.telemetry} progress={previewProgress} isPlaying={isPlayingPreview} speedMultiplier={speedMultiplier} bearing={currentBearing} cameraZoom={cameraZoom} selectedStyleId={selectedStyleId} orientationMode={orientationMode} onStyleChange={setSelectedStyleId} onChangeCameraZoom={setCameraZoom} onChangeOrientationMode={(mode) => { setOrientationMode(mode); if (mode === 'manual') setManualBearing(currentBearing); }} onTogglePlay={handleTogglePlayPreview} onSeek={setPreviewProgress} onChangeSpeedMultiplier={setSpeedMultiplier} onExitPreview={handleExitPreview} />}
+      {isPreviewActive && origin && destination && activeRouteData && <RoutePreviewHUD origin={origin} destination={destination} telemetry={activeRouteData.telemetry} progress={previewProgress} isPlaying={isPlayingPreview} speedMultiplier={speedMultiplier} bearing={currentBearing} cameraZoom={cameraZoom} selectedStyleId={selectedStyleId} orientationMode={orientationMode} onStyleChange={setSelectedStyleId} onChangeCameraZoom={setCameraZoom} onChangeOrientationMode={(mode) => { setOrientationMode(mode); if (mode === 'manual') setManualBearing(currentBearing); }} onTogglePlay={handleTogglePlayPreview} onSeek={setPreviewProgress} onChangeSpeedMultiplier={setSpeedMultiplier} onExitPreview={handleExitPreview} />}
 
-      {routeData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={routeData} vehicle={vehicle} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
+      {activeRouteData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={activeRouteData} vehicle={vehicle} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
       <VehicleGarageModal isOpen={isGarageOpen} vehicles={vehicles} activeVehicleId={activeVehicleId} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onSelectVehicle={handleSelectVehicle} onDeleteVehicle={handleDeleteVehicle} onSelectRecordedRoute={handleLoadRecordedRoute} onDeleteRecordedRoute={handleDeleteRecordedRoute} onClose={() => setIsGarageOpen(false)} />
       <TokenModal isOpen={isTokenModalOpen} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsTokenModalOpen(false)} />
     </main>

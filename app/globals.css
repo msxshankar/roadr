@@ -196,13 +196,28 @@ body,
   color: var(--app-text) !important;
 }
 
-.header-car-select {
-  color: inherit;
+.header-car-picker {
+  width: min(11rem, 22vw);
+  min-width: 0;
+}
+
+.header-car-select,
+.theme-scope .header-car-select {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  appearance: none;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-car-select option {
-  background: #101011;
-  color: #f2f5f7;
+  background: var(--app-panel);
+  color: var(--app-text);
 }
 
 .theme-section {
@@ -512,8 +527,13 @@ body,
     display: none;
   }
 
+  .flighty-header .header-car-picker {
+    width: min(8.5rem, 34vw);
+    max-width: 8.5rem;
+  }
+
   .flighty-header .header-car-select {
-    max-width: 5.5rem;
+    max-width: none;
   }
 
   .mobile-route-sheet {

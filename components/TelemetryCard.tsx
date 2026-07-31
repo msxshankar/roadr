@@ -19,7 +19,7 @@ import {
   Video,
   Waves,
 } from 'lucide-react';
-import { LocationPoint, RouteDetails, RouteOption, RouteTelemetry, VehicleProfile } from '@/types';
+import { LocationPoint, RouteData, RouteDetails, RouteOption, RouteTelemetry, VehicleProfile } from '@/types';
 import { getRouteRangeStatus } from '@/lib/vehicle';
 
 interface TelemetryCardProps {
@@ -28,7 +28,9 @@ interface TelemetryCardProps {
   origin: LocationPoint;
   destination: LocationPoint;
   provider?: 'mapbox' | 'osrm';
+  originalRoute: RouteData;
   alternatives: RouteOption[];
+  selectedRouteId: string | null;
   vehicle: VehicleProfile | null;
   mpg: number;
   pricePerLiterPence: number;
@@ -39,7 +41,7 @@ interface TelemetryCardProps {
   onChangePricePerLiterPence: (newPricePence: number) => void;
   onResetFuelDefaults: () => void;
   onStartPreview?: () => void;
-  onSelectAlternative: (alternative: RouteOption) => void;
+  onSelectRoute: (routeId: string | null) => void;
   onOpenGarage: () => void;
   onRecordRoute: () => void;
 }
@@ -59,7 +61,9 @@ export default function TelemetryCard({
   origin,
   destination,
   provider = 'mapbox',
+  originalRoute,
   alternatives,
+  selectedRouteId,
   vehicle,
   mpg,
   pricePerLiterPence,
@@ -70,7 +74,7 @@ export default function TelemetryCard({
   onChangePricePerLiterPence,
   onResetFuelDefaults,
   onStartPreview,
-  onSelectAlternative,
+  onSelectRoute,
   onOpenGarage,
   onRecordRoute,
 }: TelemetryCardProps) {
@@ -97,9 +101,13 @@ export default function TelemetryCard({
         </div>
       </div>
 
-      {showAlternatives && alternatives.length > 0 && <div className="theme-section space-y-1.5 rounded-xl border border-cyan-400/25 p-2.5" aria-label="Alternative routes">
-        {alternatives.slice(0, 3).map((alternative, index) => <button type="button" key={alternative.id} onClick={() => onSelectAlternative(alternative)} className="flex w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left transition-colors hover:border-cyan-300/45 hover:bg-cyan-400/10">
-          <span className="min-w-0"><span className="block text-[11px] font-semibold text-gray-200">Alternative {index + 1}</span><span className="block text-[10px] text-gray-500">{alternative.details.source}</span></span>
+      {showAlternatives && alternatives.length > 0 && <div className="theme-section space-y-1.5 rounded-xl border border-cyan-400/25 p-2.5" aria-label="Route options">
+        <button type="button" onClick={() => onSelectRoute(null)} aria-pressed={selectedRouteId === null} className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${selectedRouteId === null ? 'border-cyan-300/55 bg-cyan-400/15' : 'border-white/10 bg-white/5 hover:border-cyan-300/45 hover:bg-cyan-400/10'}`}>
+          <span className="min-w-0"><span className="block text-[11px] font-semibold text-gray-200">Original route</span><span className="block text-[10px] text-gray-500">{selectedRouteId === null ? 'Showing this route' : 'Use the primary route again'}</span></span>
+          <span className="shrink-0 text-right text-[10px] font-mono text-gray-300">{originalRoute.telemetry.distanceMiles.toFixed(1)} mi · {originalRoute.telemetry.durationFormatted}</span>
+        </button>
+        {alternatives.slice(0, 3).map((alternative, index) => <button type="button" key={alternative.id} onClick={() => onSelectRoute(alternative.id)} aria-pressed={selectedRouteId === alternative.id} className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${selectedRouteId === alternative.id ? 'border-cyan-300/55 bg-cyan-400/15' : 'border-white/10 bg-white/5 hover:border-cyan-300/45 hover:bg-cyan-400/10'}`}>
+          <span className="min-w-0"><span className="block text-[11px] font-semibold text-gray-200">Alternative {index + 1}</span><span className="block text-[10px] text-gray-500">{selectedRouteId === alternative.id ? 'Showing with original route' : alternative.details.source}</span></span>
           <span className="shrink-0 text-right text-[10px] font-mono text-gray-300">{alternative.telemetry.distanceMiles.toFixed(1)} mi · {alternative.telemetry.durationFormatted}</span>
         </button>)}
       </div>}

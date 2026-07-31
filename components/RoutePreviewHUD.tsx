@@ -39,6 +39,8 @@ const SPEED_OPTIONS = [
   { value: 0.125, label: '2x' },
   { value: 0.25, label: '4x' },
   { value: 0.5, label: '8x' },
+  { value: 1, label: '16x' },
+  { value: 2, label: '32x' },
 ];
 const HEIGHT_PRESETS = [
   { label: 'Ground', zoom: 18.8 },
@@ -107,7 +109,7 @@ export default function RoutePreviewHUD({
             <div className="flex items-center justify-between text-[10px] font-mono text-gray-400"><span>{currentMiles} mi driven</span><span className="font-semibold text-gray-200">{Math.round(progress * 100)}%</span><span>{remainingMiles} mi left</span></div>
             <div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-400 transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} /></div>
             <div className="flex min-w-0 items-center gap-1 overflow-x-auto pt-1" aria-label="Preview speed multiplier and camera lock">
-              <button type="button" onClick={() => onChangeOrientationMode('follow')} aria-label="Lock camera to road" aria-pressed={orientationMode === 'follow'} title="Lock camera to the road" className={`flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition-all ${orientationMode === 'follow' ? 'bg-cyan-500 text-black' : 'border border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'}`}><RotateCcw className="h-3 w-3" /> Lock</button>
+              <button type="button" onClick={() => onChangeOrientationMode('follow')} aria-label="Lock camera to road" aria-pressed={orientationMode === 'follow'} title={orientationMode === 'follow' ? 'Camera is locked to the road' : 'Lock camera to the road'} className={`flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition-all ${orientationMode === 'follow' ? 'bg-cyan-500 text-black' : 'border border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'}`}><RotateCcw className="h-3 w-3" /> {orientationMode === 'follow' ? 'Locked' : 'Lock'}</button>
               {SPEED_OPTIONS.map((option) => <button type="button" key={option.value} onClick={() => onChangeSpeedMultiplier(option.value)} aria-pressed={speedMultiplier === option.value} aria-label={`Set simulation speed to ${option.label}`} className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-mono transition-all ${speedMultiplier === option.value ? 'bg-cyan-500 font-bold text-black shadow-md shadow-cyan-500/20' : 'border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'}`}>{option.label}</button>)}
             </div>
           </div>
@@ -124,7 +126,7 @@ export default function RoutePreviewHUD({
               <div className="mt-2 flex items-center gap-3"><span className="shrink-0 text-[10px] font-mono text-gray-500">Aerial</span><input aria-label="Camera zoom" type="range" min={14} max={18.8} step={0.1} value={cameraZoom} onChange={(event) => onChangeCameraZoom?.(parseFloat(event.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-cyan-400" /><span className="shrink-0 text-[10px] font-mono text-cyan-300">Close ground</span></div>
             </div>
             <div className="flex items-stretch gap-2">
-              <button type="button" onClick={() => onChangeOrientationMode('follow')} aria-label="Lock camera to road" aria-pressed={orientationMode === 'follow'} className={`flex min-w-[105px] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-[10px] transition-all ${orientationMode === 'follow' ? 'border-cyan-400/50 bg-cyan-500/20 text-cyan-200' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`} title="Lock the camera to the road; any map gesture unlocks it"><RotateCcw className="mb-1 h-4 w-4" />Lock to road</button>
+              <button type="button" onClick={() => onChangeOrientationMode('follow')} aria-label="Lock camera to road" aria-pressed={orientationMode === 'follow'} className={`flex min-w-[105px] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-[10px] transition-all ${orientationMode === 'follow' ? 'border-cyan-400/50 bg-cyan-500/20 text-cyan-200' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`} title={orientationMode === 'follow' ? 'Camera is locked to the road; any map gesture unlocks it' : 'Lock the camera to the road; any map gesture unlocks it'}><RotateCcw className="mb-1 h-4 w-4" />{orientationMode === 'follow' ? 'Locked to road' : 'Lock to road'}</button>
               <button type="button" onClick={() => onChangeOrientationMode('manual')} aria-label="Touch turn and tilt camera" aria-pressed={orientationMode === 'manual'} className={`flex min-w-[105px] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-[10px] transition-all ${orientationMode === 'manual' ? 'border-amber-400/50 bg-amber-500/20 text-amber-200' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`}><MousePointer2 className="mb-1 h-4 w-4" />Touch turn + tilt</button>
             </div>
           </div>

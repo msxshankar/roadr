@@ -26,6 +26,8 @@ interface MapProps {
   destination: LocationPoint | null;
   stops: LocationPoint[];
   routeData: RouteData | null;
+  primaryRouteData?: RouteData | null;
+  selectedRouteId?: string | null;
   selectedStyleId?: string;
   onStyleChange?: (styleId: string) => void;
   isPreviewActive?: boolean;
@@ -264,6 +266,8 @@ export default function Map({
   destination,
   stops,
   routeData,
+  primaryRouteData = null,
+  selectedRouteId = null,
   selectedStyleId = 'satellite',
   onStyleChange,
   isPreviewActive = false,
@@ -293,6 +297,7 @@ export default function Map({
   const lastReportedProgressRef = useRef(previewProgress);
   const currentBearingRef = useRef(0);
   const cameraBearingRef = useRef(0);
+  const isProgrammaticCameraUpdateRef = useRef(false);
   const manualBearingRef = useRef(manualBearing);
   const orientationModeRef = useRef(orientationMode);
   const isPlayingRef = useRef(isPlayingPreview);
@@ -319,6 +324,7 @@ export default function Map({
   const [isManualHintVisible, setIsManualHintVisible] = useState(false);
 
   const routeGeometry = routeData?.geometry;
+  const primaryRouteGeometry = primaryRouteData?.geometry || routeGeometry;
 
   useEffect(() => {
     isPlayingRef.current = isPlayingPreview;
@@ -556,42 +562,53 @@ export default function Map({
     });
   }, [stops]);
 
-  // The route is a single lightweight line. Gradient/road-detail rendering is
-  // intentionally not part of the preview path because it competes with camera frames.
+  // Keep the route rendering lightweight. When an alternative is selected, the
+  // original stays visible as a muted comparison line while the selected route
+  // remains the bright driving line.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const sourceId = 'uk-route-source';
-    const glowId = 'uk-route-glow';
-    const lineId = 'uk-route-line';
+    const routeLayerIds = ['uk-route-primary-glow', 'uk-route-primary-line', 'uk-route-glow', 'uk-route-line'];
+    const routeSourceIds = ['uk-route-primary-source', 'uk-route-source'];
 
     const updateLayer = () => {
       if (!map.isStyleLoaded()) return;
-      [lineId, glowId].forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
+      routeLayerIds.forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
+      routeSourceIds.forEach((id) => { if (map.getSource(id)) map.removeSource(id); });
       if (!routeGeometry) return;
 
-      map.addSource(sourceId, {
-        type: 'geojson',
-        data: { type: 'Feature', properties: {}, geometry: routeGeometry },
-      });
-      map.addLayer({
-        id: glowId,
-        type: 'line',
-        source: sourceId,
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#2f80ff', 'line-width': 12, 'line-opacity': 0.45, 'line-blur': 2 },
-      });
-      map.addLayer({
-        id: lineId,
-        type: 'line',
-        source: sourceId,
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#f8fbff', 'line-width': 4, 'line-opacity': 0.98 },
+      const showRouteComparison = Boolean(selectedRouteId && primaryRouteGeometry);
+      const routes = showRouteComparison && primaryRouteGeometry
+        ? [
+          { sourceId: 'uk-route-primary-source', glowId: 'uk-route-primary-glow', lineId: 'uk-route-primary-line', geometry: primaryRouteGeometry, glowColor: '#6f94b6', lineColor: '#d7e3ed', glowOpacity: 0.28, lineOpacity: 0.62 },
+          { sourceId: 'uk-route-source', glowId: 'uk-route-glow', lineId: 'uk-route-line', geometry: routeGeometry, glowColor: '#2f80ff', lineColor: '#f8fbff', glowOpacity: 0.45, lineOpacity: 0.98 },
+        ]
+        : [{ sourceId: 'uk-route-source', glowId: 'uk-route-glow', lineId: 'uk-route-line', geometry: routeGeometry, glowColor: '#2f80ff', lineColor: '#f8fbff', glowOpacity: 0.45, lineOpacity: 0.98 }];
+
+      routes.forEach(({ sourceId, glowId, lineId, geometry, glowColor, lineColor, glowOpacity, lineOpacity }) => {
+        map.addSource(sourceId, {
+          type: 'geojson',
+          data: { type: 'Feature', properties: {}, geometry },
+        });
+        map.addLayer({
+          id: glowId,
+          type: 'line',
+          source: sourceId,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': glowColor, 'line-width': showRouteComparison && sourceId === 'uk-route-primary-source' ? 9 : 12, 'line-opacity': glowOpacity, 'line-blur': 2 },
+        });
+        map.addLayer({
+          id: lineId,
+          type: 'line',
+          source: sourceId,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': lineColor, 'line-width': showRouteComparison && sourceId === 'uk-route-primary-source' ? 3 : 4, 'line-opacity': lineOpacity },
+        });
       });
 
-      if (!isPreviewActive && routeGeometry.coordinates.length > 0) {
-        const coordinates = routeGeometry.coordinates;
+      if (!isPreviewActive && routes.length > 0) {
+        const coordinates = routes.flatMap((route) => route.geometry.coordinates) as [number, number][];
+        if (coordinates.length === 0) return;
         const bounds = new mapboxgl.LngLatBounds(coordinates[0] as [number, number], coordinates[0] as [number, number]);
         coordinates.forEach((coordinate) => bounds.extend(coordinate as [number, number]));
         const isCompactViewport = window.innerWidth < 640;
@@ -602,7 +619,7 @@ export default function Map({
     if (map.isStyleLoaded()) updateLayer();
     else map.once('style.load', updateLayer);
     return () => { map.off('style.load', updateLayer); };
-  }, [routeGeometry, selectedStyleId, token, isPreviewActive, isSidebarOpen, sidebarWidth]);
+  }, [routeGeometry, primaryRouteGeometry, selectedRouteId, selectedStyleId, token, isPreviewActive, isSidebarOpen, sidebarWidth]);
 
   // Native Mapbox gestures are still available in follow mode. The first user
   // gesture changes the camera contract to manual mode so playback never snaps
@@ -611,6 +628,7 @@ export default function Map({
     const map = mapRef.current;
     if (!map || !isPreviewActive) return;
     const disengage = () => {
+      if (isProgrammaticCameraUpdateRef.current) return;
       if (orientationModeRef.current === 'follow') onDisengageFollowRef.current?.();
     };
     const events: Array<'dragstart' | 'rotatestart' | 'pitchstart' | 'zoomstart'> = ['dragstart', 'rotatestart', 'pitchstart', 'zoomstart'];
@@ -645,12 +663,17 @@ export default function Map({
     const jumpCamera = (zoom: number, pitch: number, bearing: number) => {
       const center = currentPositionRef.current;
       if (!center) return;
-      map.jumpTo({
-        center,
-        zoom: Math.min(Math.max(zoom, 14), MAX_PREVIEW_ZOOM),
-        pitch,
-        bearing,
-      });
+      isProgrammaticCameraUpdateRef.current = true;
+      try {
+        map.jumpTo({
+          center,
+          zoom: Math.min(Math.max(zoom, 14), MAX_PREVIEW_ZOOM),
+          pitch,
+          bearing,
+        });
+      } finally {
+        isProgrammaticCameraUpdateRef.current = false;
+      }
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -819,12 +842,17 @@ export default function Map({
       vehicleMarkerRef.current?.setRotation(currentBearingRef.current);
 
       const zoom = Math.min(Math.max(cameraZoomRef.current, 14), MAX_PREVIEW_ZOOM);
-      map.jumpTo({
-        center: target.position,
-        zoom,
-        pitch: cameraPitchRef.current,
-        bearing: cameraBearingRef.current,
-      });
+      isProgrammaticCameraUpdateRef.current = true;
+      try {
+        map.jumpTo({
+          center: target.position,
+          zoom,
+          pitch: cameraPitchRef.current,
+          bearing: cameraBearingRef.current,
+        });
+      } finally {
+        isProgrammaticCameraUpdateRef.current = false;
+      }
 
       const totalDistance = cumulativeDistancesRef.current[cumulativeDistancesRef.current.length - 1] || 0;
       miniMapRef.current?.update(progressRef.current, target.position, currentBearingRef.current);

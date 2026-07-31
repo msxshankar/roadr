@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { CarFront, Compass, Key, MapPin, Moon, Sun } from 'lucide-react';
+import { CarFront, ChevronDown, Compass, Key, MapPin, Moon, Sun } from 'lucide-react';
 import { VehicleProfile } from '@/types';
 import { vehicleLabel } from '@/lib/vehicle';
 
@@ -63,13 +63,14 @@ export default function Header({
         <button type="button" onClick={onOpenTokenModal} className={`header-action flex shrink-0 items-center space-x-1.5 rounded-xl border px-2.5 py-1.5 text-[11px] transition-all active:scale-95 sm:px-3 sm:py-2 sm:text-xs ${token ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20' : 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'}`} title={token ? 'Mapbox key active' : 'Add Mapbox key'}>
           <Key className="h-3.5 w-3.5" /><span className="hidden font-mono font-medium sm:inline">{token ? 'Mapbox: Active' : 'Mapbox Key'}</span>{provider && <span className="hidden rounded border border-white/10 bg-black/40 px-1 py-0.5 text-[9px] font-mono uppercase text-gray-300 sm:inline">{provider}</span>}
         </button>
-        <div className={`header-action header-car-picker flex shrink-0 items-center gap-1.5 rounded-xl border px-2 py-1.5 text-[11px] transition-all sm:px-2.5 sm:py-2 sm:text-xs ${vehicle ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200' : 'border-white/10 bg-white/5 text-gray-300'}`} title="Select a car or manage the garage">
-          <CarFront className="h-3.5 w-3.5" />
-          <select aria-label="Select car from garage" value={activeVehicleId || '__none__'} onChange={handleVehicleChange} className="header-car-select max-w-[7.5rem] cursor-pointer border-0 bg-transparent p-0 text-[11px] font-medium outline-none sm:text-xs">
+        <div className={`header-action header-car-picker relative flex min-w-0 max-w-[11rem] shrink-0 items-center gap-1.5 rounded-xl border px-2 py-1.5 text-[11px] transition-all sm:max-w-[13rem] sm:px-2.5 sm:py-2 sm:text-xs ${vehicle ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200' : 'border-white/10 bg-white/5 text-gray-300'}`} title={vehicle ? vehicleLabel(vehicle) : 'Select a car or manage the garage'}>
+          <CarFront className="h-3.5 w-3.5 shrink-0" />
+          <select aria-label="Select car from garage" value={activeVehicleId || '__none__'} onChange={handleVehicleChange} className="header-car-select min-w-0 flex-1 cursor-pointer appearance-none truncate border-0 bg-transparent p-0 pr-4 text-[11px] font-medium outline-none sm:text-xs">
             <option value="__none__">No car</option>
-            {vehicles.map((item) => <option key={item.id} value={item.id}>{vehicleLabel(item)}</option>)}
+            {vehicles.map((item) => <option key={item.id} value={item.id}>{item.nickname}</option>)}
             <option value="__manage__">Manage garage…</option>
           </select>
+          <ChevronDown aria-hidden="true" className="header-car-chevron pointer-events-none absolute right-2 h-3 w-3 shrink-0 text-current opacity-70" />
         </div>
         <button type="button" onClick={onToggleTheme} className="header-action flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-[11px] text-gray-300 transition-all hover:bg-white/10 hover:text-white sm:px-3 sm:py-2 sm:text-xs" title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
           {theme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-300" /> : <Moon className="h-3.5 w-3.5 text-violet-300" />}<span className="hidden sm:inline">{theme === 'dark' ? 'Light' : 'Dark'}</span>

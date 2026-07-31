@@ -151,7 +151,7 @@ export default function RouteControls({
         label="Destination"
         badgeColor="amber"
         value={destination}
-        placeholder="Search Tesco, a town, landmark or postcode..."
+        placeholder="Search a town, landmark, postcode or business..."
         token={token}
         savedPlaces={savedPlaces}
         onSelectLocation={onSelectDestination}
