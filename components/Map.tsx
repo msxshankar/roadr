@@ -103,6 +103,7 @@ export default function Map({
   const animFrameRef = useRef<number | null>(null);
   const progressRef = useRef<number>(previewProgress);
   const currentBearingRef = useRef<number>(0);
+  const currentPositionRef = useRef<[number, number] | null>(null);
   const lastTickTimeRef = useRef<number>(0);
 
   const cumulativeDistancesRef = useRef<number[]>([]);
@@ -309,7 +310,7 @@ export default function Map({
     }
   }, [routeData, selectedStyleId, token, isPreviewActive]);
 
-  // HIGH-PERFORMANCE CONSTANT-SPEED 60 FPS DIRECT ANIMATION LOOP WITH GIMBAL CAMERA DAMPING
+  // ULTRA-SMOOTH DUAL-DAMPED GIMBAL CAMERA ENGINE (60 FPS)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !routeData || !routeData.geometry || !routeData.geometry.coordinates) return;
@@ -322,6 +323,7 @@ export default function Map({
         vehicleMarkerRef.current.remove();
         vehicleMarkerRef.current = null;
       }
+      currentPositionRef.current = null;
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       return;
     }
@@ -332,6 +334,7 @@ export default function Map({
       cumulativeDistancesRef.current
     );
     currentBearingRef.current = initialInterpolation.bearing;
+    currentPositionRef.current = initialInterpolation.position;
 
     if (!vehicleMarkerRef.current) {
       const vehicleEl = document.createElement('div');
@@ -353,31 +356,43 @@ export default function Map({
       lastTime = now;
 
       if (isPlayingPreview) {
-        // Step progress based on PHYSICAL DISTANCE (Constant real-world speed across all road types)
         const step = (deltaMs / 1000) * 0.012 * speedMultiplier;
         progressRef.current = Math.min(progressRef.current + step, 1);
       }
 
-      // Compute exact position and raw target bearing using PHYSICAL DISTANCE arc-length
-      const { position, bearing: rawBearing } = interpolateRoutePosition(
+      // Compute raw target position and raw target bearing
+      const { position: targetPos, bearing: targetBearing } = interpolateRoutePosition(
         coords,
         progressRef.current,
         cumulativeDistancesRef.current
       );
 
-      // Smooth camera rotation filter (lerpAngle shortest-path smoothing)
-      currentBearingRef.current = lerpAngle(currentBearingRef.current, rawBearing, 0.06);
+      // DUAL GIMBAL DAMPING FILTER:
+      // 1. Position Damping (smoothly interpolates camera center to eliminate micro-jumps)
+      if (!currentPositionRef.current) {
+        currentPositionRef.current = targetPos;
+      } else {
+        const posAlpha = 0.15; // Smooth 15% position damping per frame
+        currentPositionRef.current = [
+          currentPositionRef.current[0] + (targetPos[0] - currentPositionRef.current[0]) * posAlpha,
+          currentPositionRef.current[1] + (targetPos[1] - currentPositionRef.current[1]) * posAlpha,
+        ];
+      }
 
+      // 2. Ultra-smooth Bearing Damping (gentle 3.5% rotation damping per frame)
+      currentBearingRef.current = lerpAngle(currentBearingRef.current, targetBearing, 0.035);
+
+      // Update Vehicle Avatar Marker
       if (vehicleMarkerRef.current) {
-        vehicleMarkerRef.current.setLngLat(position);
+        vehicleMarkerRef.current.setLngLat(targetPos);
         vehicleMarkerRef.current.setRotation(currentBearingRef.current);
       }
 
-      // 60 FPS Camera Position Update
+      // 60 FPS Camera Update with 48° pitch for a cinematic, non-distorted horizon
       map.jumpTo({
-        center: position,
+        center: currentPositionRef.current,
         zoom: 16.2,
-        pitch: 55,
+        pitch: 48,
         bearing: currentBearingRef.current,
       });
 
