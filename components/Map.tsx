@@ -12,6 +12,8 @@ interface MapProps {
   destination: LocationPoint | null;
   routeData: RouteData | null;
   activeClickMode: 'origin' | 'destination';
+  selectedStyleId?: string;
+  onStyleChange?: (styleId: string) => void;
   isPreviewActive?: boolean;
   isPlayingPreview?: boolean;
   previewProgress?: number;
@@ -68,10 +70,12 @@ const FREE_OSM_STREETS: mapboxgl.Style = {
   ],
 };
 
-const MAPBOX_STYLES = [
+export const MAPBOX_STYLES = [
   { id: 'dark', name: 'Dark Obsidian', url: 'mapbox://styles/mapbox/dark-v11', fallback: FREE_CARTO_DARK },
   { id: 'satellite', name: '3D Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12', fallback: FREE_CARTO_DARK },
+  { id: 'satellite-pure', name: 'Pure Satellite', url: 'mapbox://styles/mapbox/satellite-v9', fallback: FREE_CARTO_DARK },
   { id: 'streets', name: 'Streets Nav', url: 'mapbox://styles/mapbox/navigation-dark-v1', fallback: FREE_OSM_STREETS },
+  { id: 'outdoors', name: 'Outdoors Topo', url: 'mapbox://styles/mapbox/outdoors-v12', fallback: FREE_OSM_STREETS },
 ];
 
 export default function Map({
@@ -80,6 +84,8 @@ export default function Map({
   destination,
   routeData,
   activeClickMode,
+  selectedStyleId = 'dark',
+  onStyleChange,
   isPreviewActive = false,
   isPlayingPreview = false,
   previewProgress = 0,
@@ -98,7 +104,6 @@ export default function Map({
   const progressRef = useRef<number>(previewProgress);
   const lastTickTimeRef = useRef<number>(0);
 
-  const [selectedStyleId, setSelectedStyleId] = useState<string>('dark');
   const [isUsingMapboxKey, setIsUsingMapboxKey] = useState<boolean>(false);
 
   // Sync external seek changes to ref
@@ -150,16 +155,16 @@ export default function Map({
     }
   }, [token]);
 
-  // Handle Style Switch
-  const handleStyleChange = (styleId: string) => {
-    setSelectedStyleId(styleId);
-    const config = MAPBOX_STYLES.find((s) => s.id === styleId);
-    if (!config || !mapRef.current) return;
+  // Handle Style Switch dynamically
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const config = MAPBOX_STYLES.find((s) => s.id === selectedStyleId);
+    if (!config) return;
 
     const hasValidToken = Boolean(token && token.trim().startsWith('pk.'));
     const newStyle = hasValidToken ? config.url : config.fallback;
     mapRef.current.setStyle(newStyle);
-  };
+  }, [selectedStyleId, token]);
 
   // Update Origin Pin (Point A)
   useEffect(() => {
@@ -303,7 +308,6 @@ export default function Map({
       return;
     }
 
-    // Initialize 3D Vehicle Avatar Marker if missing
     if (!vehicleMarkerRef.current) {
       const vehicleEl = document.createElement('div');
       vehicleEl.className = 'marker-vehicle-container';
@@ -325,21 +329,17 @@ export default function Map({
       lastTime = now;
 
       if (isPlayingPreview) {
-        // Advance progress smoothly based on time delta and speed multiplier
         const step = (deltaMs / 1000) * 0.015 * speedMultiplier;
         progressRef.current = Math.min(progressRef.current + step, 1);
       }
 
-      // Compute exact position and bearing angle
       const { position, bearing } = interpolateRoutePosition(coords, progressRef.current);
 
-      // Direct zero-overhead Mapbox updates
       if (vehicleMarkerRef.current) {
         vehicleMarkerRef.current.setLngLat(position);
         vehicleMarkerRef.current.setRotation(bearing);
       }
 
-      // 60 FPS Direct Camera jump (no React render bottleneck)
       map.jumpTo({
         center: position,
         zoom: 16.5,
@@ -347,7 +347,6 @@ export default function Map({
         bearing: bearing,
       });
 
-      // Throttle React state notification (~10fps for HUD slider updates) to prevent React lag
       if (onProgressTick && now - lastTickTimeRef.current > 100) {
         lastTickTimeRef.current = now;
         onProgressTick(progressRef.current, bearing);
@@ -372,12 +371,12 @@ export default function Map({
 
       {/* Map Style Selector Overlay (Top Right) */}
       {!isPreviewActive && (
-        <div className="absolute top-20 right-4 z-30 liquid-glass p-1.5 rounded-xl border border-white/10 flex items-center space-x-1 shadow-xl">
+        <div className="absolute top-20 right-4 z-30 liquid-glass p-1.5 rounded-xl border border-white/10 flex items-center space-x-1 shadow-xl max-w-full overflow-x-auto">
           {MAPBOX_STYLES.map((style) => (
             <button
               key={style.id}
-              onClick={() => handleStyleChange(style.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              onClick={() => onStyleChange && onStyleChange(style.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                 selectedStyleId === style.id
                   ? 'bg-cyan-500 text-black font-semibold shadow-md shadow-cyan-500/20'
                   : 'text-gray-300 hover:text-white hover:bg-white/10'

@@ -38,6 +38,9 @@ export default function Home() {
   const [activeClickMode, setActiveClickMode] = useState<'origin' | 'destination'>('destination');
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState<boolean>(true);
 
+  // Map Style Layer State (defaults to 'satellite' or 'dark')
+  const [selectedStyleId, setSelectedStyleId] = useState<string>('satellite');
+
   // 3D Driving Preview State
   const [isPreviewActive, setIsPreviewActive] = useState<boolean>(false);
   const [previewProgress, setPreviewProgress] = useState<number>(0);
@@ -216,13 +219,15 @@ export default function Home() {
         provider={routeData?.provider}
       />
 
-      {/* Mapbox Map Canvas with High-Performance 60 FPS Direct Loop */}
+      {/* Mapbox Map Canvas */}
       <Map
         token={token}
         origin={origin}
         destination={destination}
         routeData={routeData}
         activeClickMode={activeClickMode}
+        selectedStyleId={selectedStyleId}
+        onStyleChange={setSelectedStyleId}
         isPreviewActive={isPreviewActive}
         isPlayingPreview={isPlayingPreview}
         previewProgress={previewProgress}
@@ -317,6 +322,8 @@ export default function Home() {
           isPlaying={isPlayingPreview}
           speedMultiplier={speedMultiplier}
           bearing={currentBearing}
+          selectedStyleId={selectedStyleId}
+          onStyleChange={setSelectedStyleId}
           onTogglePlay={handleTogglePlayPreview}
           onSeek={handleSeekPreview}
           onChangeSpeedMultiplier={setSpeedMultiplier}

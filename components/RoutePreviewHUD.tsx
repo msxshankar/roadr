@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Play, Pause, X, FastForward, Navigation2, Gauge, MapPin } from 'lucide-react';
+import { Play, Pause, X, Navigation2, Gauge, Layers } from 'lucide-react';
 import { LocationPoint, RouteTelemetry } from '@/types';
 
 interface RoutePreviewHUDProps {
@@ -12,11 +12,20 @@ interface RoutePreviewHUDProps {
   isPlaying: boolean;
   speedMultiplier: number;
   bearing: number;
+  selectedStyleId?: string;
+  onStyleChange?: (styleId: string) => void;
   onTogglePlay: () => void;
   onSeek: (newProgress: number) => void;
   onChangeSpeedMultiplier: (speed: number) => void;
   onExitPreview: () => void;
 }
+
+const PREVIEW_MAP_STYLES = [
+  { id: 'satellite', name: '🛰️ 3D Satellite' },
+  { id: 'dark', name: '🌑 Dark Obsidian' },
+  { id: 'satellite-pure', name: '📷 Pure Satellite' },
+  { id: 'streets', name: '🗺️ Streets Nav' },
+];
 
 export default function RoutePreviewHUD({
   origin,
@@ -26,6 +35,8 @@ export default function RoutePreviewHUD({
   isPlaying,
   speedMultiplier,
   bearing,
+  selectedStyleId = 'satellite',
+  onStyleChange,
   onTogglePlay,
   onSeek,
   onChangeSpeedMultiplier,
@@ -38,11 +49,11 @@ export default function RoutePreviewHUD({
   const simulatedSpeed = Math.round(55 * speedMultiplier);
 
   return (
-    <div className="fixed inset-x-0 bottom-6 z-50 px-4 flex flex-col items-center pointer-events-none">
+    <div className="fixed inset-x-0 bottom-6 z-50 px-3 sm:px-4 flex flex-col items-center pointer-events-none">
       {/* 3D Drive HUD Main Glass Card */}
       <div className="w-full max-w-2xl bg-black/85 backdrop-blur-2xl border border-cyan-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl shadow-cyan-500/20 text-gray-100 pointer-events-auto space-y-4">
-        {/* Top Status Bar: Title, Live Speedometer & Heading */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-3 gap-2">
+        {/* Top Status Bar: Title, Map Style Selector & Speedometer */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-3 gap-2 flex-wrap sm:flex-nowrap">
           {/* Drive Route Title */}
           <div className="flex items-center space-x-2 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0">
@@ -53,7 +64,7 @@ export default function RoutePreviewHUD({
             </div>
             <div className="truncate">
               <div className="flex items-center space-x-1.5 text-xs font-semibold text-cyan-300">
-                <span>3D THIRD-PERSON DRIVE PREVIEW</span>
+                <span>3D DRIVE PREVIEW</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
               </div>
               <p className="text-xs text-gray-300 truncate">
@@ -62,9 +73,27 @@ export default function RoutePreviewHUD({
             </div>
           </div>
 
-          {/* Speedometer & Bearing HUD */}
-          <div className="flex items-center space-x-3 shrink-0">
-            <div className="flex items-center space-x-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+          {/* Map Layer Selector & Speedometer & Exit */}
+          <div className="flex items-center space-x-2 shrink-0">
+            {/* Satellite / Map Layer Toggle Pills */}
+            <div className="flex items-center bg-white/5 border border-white/10 p-1 rounded-xl space-x-1">
+              {PREVIEW_MAP_STYLES.map((style) => (
+                <button
+                  key={style.id}
+                  onClick={() => onStyleChange && onStyleChange(style.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                    selectedStyleId === style.id
+                      ? 'bg-cyan-500 text-black font-semibold shadow-sm'
+                      : 'text-gray-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  {style.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Speedometer HUD */}
+            <div className="flex items-center space-x-1.5 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded-xl">
               <Gauge className="w-4 h-4 text-amber-400 animate-pulse" />
               <div className="font-mono text-xs">
                 <span className="text-amber-300 font-bold text-sm">{simulatedSpeed}</span>
