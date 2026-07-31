@@ -1,0 +1,147 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { CarFront, Check, Fuel, Gauge, History, Save, X } from 'lucide-react';
+import { RecordedRoute, VehicleFuelType, VehicleProfile } from '@/types';
+import { vehicleLabel } from '@/lib/vehicle';
+
+interface VehicleGarageModalProps {
+  isOpen: boolean;
+  vehicle: VehicleProfile | null;
+  recordedRoutes: RecordedRoute[];
+  onSave: (vehicle: VehicleProfile) => void;
+  onClose: () => void;
+}
+
+const FUEL_OPTIONS: Array<{ value: VehicleFuelType; label: string }> = [
+  { value: 'petrol', label: 'Petrol' },
+  { value: 'diesel', label: 'Diesel' },
+  { value: 'hybrid', label: 'Hybrid' },
+  { value: 'electric', label: 'Electric' },
+];
+
+export default function VehicleGarageModal({
+  isOpen,
+  vehicle,
+  recordedRoutes,
+  onSave,
+  onClose,
+}: VehicleGarageModalProps) {
+  const [form, setForm] = useState<VehicleProfile>({
+    id: 'vehicle-1', nickname: 'My car', make: '', model: '', year: '', fuelType: 'petrol', mpg: 42, tankLiters: 50,
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setForm(vehicle || {
+      id: 'vehicle-1', nickname: 'My car', make: '', model: '', year: '', fuelType: 'petrol', mpg: 42, tankLiters: 50,
+    });
+  }, [isOpen, vehicle]);
+
+  if (!isOpen) return null;
+  const vehicleRoutes = vehicle ? recordedRoutes.filter((route) => route.vehicleId === vehicle.id) : [];
+  const update = <K extends keyof VehicleProfile>(key: K, value: VehicleProfile[K]) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 sm:p-6">
+      <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-3xl border border-cyan-500/30 bg-[#11151f] shadow-2xl shadow-black/60">
+        <div className="flex items-start justify-between border-b border-white/10 px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-500/15">
+              <CarFront className="h-5 w-5 text-cyan-300" />
+            </div>
+            <div>
+              <p className="font-display text-lg font-bold text-white">Car mode</p>
+              <p className="text-xs text-gray-400">Your car profile powers every fuel calculation.</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="rounded-xl p-2 text-gray-400 hover:bg-white/10 hover:text-white" title="Close car mode">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSave({ ...form, mpg: Math.min(Math.max(Number(form.mpg) || 1, 1), 200), tankLiters: Math.min(Math.max(Number(form.tankLiters) || 1, 1), 200) });
+          }}
+          className="space-y-5 p-5 sm:p-6"
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5 text-xs text-gray-300">
+              <span className="font-semibold text-cyan-300">Garage name</span>
+              <input value={form.nickname} onChange={(event) => update('nickname', event.target.value)} placeholder="My daily driver" className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-400" required />
+            </label>
+            <label className="space-y-1.5 text-xs text-gray-300">
+              <span className="font-semibold text-cyan-300">Fuel type</span>
+              <select value={form.fuelType} onChange={(event) => update('fuelType', event.target.value as VehicleFuelType)} className="w-full rounded-xl border border-white/10 bg-[#0b0f17] px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-400">
+                {FUEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1.5 text-xs text-gray-300">
+              <span>Make</span>
+              <input value={form.make} onChange={(event) => update('make', event.target.value)} placeholder="e.g. Mazda" className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-400" />
+            </label>
+            <label className="space-y-1.5 text-xs text-gray-300">
+              <span>Model</span>
+              <input value={form.model} onChange={(event) => update('model', event.target.value)} placeholder="e.g. MX-5" className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-400" />
+            </label>
+            <label className="space-y-1.5 text-xs text-gray-300">
+              <span>Year</span>
+              <input value={form.year} onChange={(event) => update('year', event.target.value)} placeholder="2024" inputMode="numeric" className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-400" />
+            </label>
+            <label className="space-y-1.5 text-xs text-gray-300">
+              <span className="flex items-center gap-1"><Gauge className="h-3.5 w-3.5 text-cyan-400" /> Real-world MPG</span>
+              <input type="number" min="1" max="200" step="0.1" value={form.mpg} onChange={(event) => update('mpg', Number(event.target.value))} className="w-full rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-2.5 text-sm font-bold text-cyan-200 outline-none focus:border-cyan-300" required />
+            </label>
+            <label className="space-y-1.5 text-xs text-gray-300 sm:col-span-2">
+              <span className="flex items-center gap-1"><Fuel className="h-3.5 w-3.5 text-amber-400" /> Tank capacity (litres)</span>
+              <input type="number" min="1" max="200" step="1" value={form.tankLiters} onChange={(event) => update('tankLiters', Number(event.target.value))} className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2.5 text-sm text-white outline-none focus:border-amber-400" required />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-950/20 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold text-cyan-200">Fuel calculations locked to this car</p>
+              <p className="mt-0.5 text-[10px] text-gray-400">Roadr will use {Number(form.mpg) || 0} MPG for route estimates and recorded drives.</p>
+            </div>
+            <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-emerald-400 px-4 py-2.5 text-xs font-extrabold text-black shadow-lg shadow-cyan-500/20 hover:brightness-110">
+              <Save className="h-4 w-4" /> Save car profile
+            </button>
+          </div>
+        </form>
+
+        <div className="border-t border-white/10 px-5 py-5 sm:px-6">
+          <div className="mb-3 flex items-center gap-2">
+            <History className="h-4 w-4 text-amber-400" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-200">Recorded drives</p>
+              <p className="text-[10px] text-gray-500">{vehicle ? vehicleLabel(vehicle) : 'Save a car profile to assign route records.'}</p>
+            </div>
+          </div>
+          {vehicleRoutes.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-white/10 bg-black/20 p-4 text-center text-xs text-gray-500">No drives recorded for this car yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {vehicleRoutes.map((route) => (
+                <div key={route.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-white">{route.name}</p>
+                    <p className="mt-0.5 text-[10px] text-gray-500">{new Date(route.recordedAt).toLocaleDateString()} · {route.distanceMiles.toFixed(1)} mi</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-bold text-emerald-300">£{route.fuelCostGbp.toFixed(2)}</p>
+                    <p className="text-[10px] text-gray-500">{route.fuelLiters.toFixed(1)} L</p>
+                  </div>
+                  <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

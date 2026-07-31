@@ -146,6 +146,15 @@ export default function LocationSearchInput({
             setQuery(e.target.value);
             setIsOpen(true);
           }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return;
+            const firstSaved = savedSuggestions[0];
+            const firstResult = suggestions[0];
+            if (!firstSaved && !firstResult) return;
+            e.preventDefault();
+            if (firstSaved) handleSelectSavedPlace(firstSaved);
+            else if (firstResult) handleSelect(firstResult);
+          }}
           onFocus={() => {
             if (savedSuggestions.length > 0 || suggestions.length > 0) setIsOpen(true);
           }}

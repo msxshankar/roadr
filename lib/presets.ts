@@ -1,17 +1,4 @@
-import { UKPresetRoute, LocationPoint } from '@/types';
-
-export const UK_LOCATION_PRESETS: LocationPoint[] = [
-  { name: 'London (Trafalgar Square)', lng: -0.1281, lat: 51.5080 },
-  { name: 'Manchester (City Centre)', lng: -2.2426, lat: 53.4808 },
-  { name: 'Edinburgh (Royal Mile)', lng: -3.1883, lat: 55.9533 },
-  { name: 'Cardiff (Castle)', lng: -3.1791, lat: 51.4816 },
-  { name: 'Lake District (Windermere)', lng: -2.9063, lat: 54.3781 },
-  { name: 'Scottish Highlands (Inverness)', lng: -4.2247, lat: 57.4778 },
-  { name: 'Snowdonia (Betws-y-Coed)', lng: -3.8016, lat: 53.0924 },
-  { name: 'Cornwall (St Ives)', lng: -5.4812, lat: 50.2114 },
-  { name: 'Peak District (Snake Pass)', lng: -1.7850, lat: 53.4320 },
-  { name: 'North Coast 500 (Ullapool)', lng: -5.1603, lat: 57.8967 },
-];
+import { UKPresetRoute } from '@/types';
 
 export const UK_SCENIC_ROUTES: UKPresetRoute[] = [
   {

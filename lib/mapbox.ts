@@ -1,37 +1,62 @@
-import { LocationPoint, RouteData, RouteTelemetry } from '@/types';
+import { LocationPoint, RouteData, RouteDetails, RouteSegment, RouteTelemetry } from '@/types';
 
 export const DEFAULT_MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
-// Default UK Market Averages
-export const DEFAULT_UK_PETROL_PRICE_PENCE = 159.4; // 159.4p per liter
-export const DEFAULT_UK_MPG = 42; // Average UK vehicle MPG
+// Default UK market averages. A saved vehicle profile replaces MPG everywhere in the app.
+export const DEFAULT_UK_PETROL_PRICE_PENCE = 159.4;
+export const DEFAULT_UK_MPG = 42;
+export const PREVIEW_BASE_DURATION_SECONDS = 48;
+export const MAX_PREVIEW_ZOOM = 19;
 
-const LITERS_PER_GALLON = 4.54609; // UK Imperial Gallon
+const LITERS_PER_GALLON = 4.54609;
 
-/**
- * Compute route telemetry including distance, duration, fuel volume (liters) and cost (GBP £)
- */
+export interface ElevationRouteSample {
+  distanceMeters: number;
+  elevationM: number;
+}
+
+export interface RouteStepHint {
+  startDistanceMeters: number;
+  endDistanceMeters: number;
+  roadName?: string;
+  speedLimitMph?: number;
+  speedLimitSource?: 'route data' | 'OSM' | 'estimated';
+  surface?: string;
+  widthMeters?: number;
+  camber?: string;
+  highway?: string;
+}
+
+/** Compute route telemetry including distance, duration, fuel volume and cost. */
 export function computeTelemetry(
   distanceMeters: number,
   durationSeconds: number,
   mpg: number = DEFAULT_UK_MPG,
   pricePerLiterPence: number = DEFAULT_UK_PETROL_PRICE_PENCE
 ): RouteTelemetry {
-  const miles = distanceMeters * 0.000621371;
-  const gallons = miles / Math.max(mpg, 1);
+  const safeDistance = Math.max(Number.isFinite(distanceMeters) ? distanceMeters : 0, 0);
+  const safeDuration = Math.max(Number.isFinite(durationSeconds) ? durationSeconds : 0, 0);
+  const safeMpg = Math.max(Number.isFinite(mpg) ? mpg : DEFAULT_UK_MPG, 1);
+  const safePrice = Math.max(
+    Number.isFinite(pricePerLiterPence) ? pricePerLiterPence : DEFAULT_UK_PETROL_PRICE_PENCE,
+    0
+  );
+
+  const miles = safeDistance * 0.000621371;
+  const gallons = miles / safeMpg;
   const liters = gallons * LITERS_PER_GALLON;
-  const costPounds = (liters * pricePerLiterPence) / 100;
-  const hours = durationSeconds / 3600;
+  const costPounds = (liters * safePrice) / 100;
+  const hours = safeDuration / 3600;
   const avgMph = hours > 0 ? Math.round(miles / hours) : 0;
 
   return {
-    distanceMeters,
-    distanceMiles: parseFloat(miles.toFixed(1)),
-    durationSeconds,
-    durationFormatted: formatDuration(durationSeconds),
+    distanceMeters: safeDistance,
+    distanceMiles: Number(miles.toFixed(1)),
+    durationSeconds: safeDuration,
+    durationFormatted: formatDuration(safeDuration),
     averageSpeedMph: avgMph,
-    estimatedFuelLiters: parseFloat(liters.toFixed(1)),
-    estimatedFuelCostGbp: parseFloat(costPounds.toFixed(2)),
+    estimatedFuelLiters: Number(liters.toFixed(1)),
+    estimatedFuelCostGbp: Number(costPounds.toFixed(2)),
     paceNotesSummary: {
       hairpins: Math.max(1, Math.round(miles * 0.4)),
       sweepingCurves: Math.max(2, Math.round(miles * 1.2)),
@@ -41,81 +66,87 @@ export function computeTelemetry(
 }
 
 export function formatDuration(seconds: number): string {
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.round((seconds % 3600) / 60);
-  if (hrs > 0) {
-    return `${hrs}h ${mins}m`;
-  }
+  const totalMinutes = Math.max(0, Math.round(seconds / 60));
+  const hrs = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (hrs > 0) return `${hrs}h ${mins}m`;
   return `${mins} min`;
 }
 
-/**
- * Compute Haversine distance in meters between two [lng, lat] coordinates
- */
+/** Compute Haversine distance in meters between two [lng, lat] coordinates. */
 export function haversineDistance(
   coord1: [number, number],
   coord2: [number, number]
 ): number {
-  const R = 6371000; // Earth radius in meters
+  const R = 6371000;
   const [lng1, lat1] = coord1.map((deg) => (deg * Math.PI) / 180);
   const [lng2, lat2] = coord2.map((deg) => (deg * Math.PI) / 180);
-
   const dLat = lat2 - lat1;
   const dLng = lng2 - lng1;
-
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/**
- * Precalculate cumulative distances (meters) along route polyline
- */
+/** Precalculate cumulative distances in meters along a route polyline. */
 export function computeCumulativeDistances(coordinates: [number, number][]): number[] {
   if (!coordinates || coordinates.length === 0) return [0];
   const cumulative = [0];
-  for (let i = 1; i < coordinates.length; i++) {
-    const dist = haversineDistance(coordinates[i - 1], coordinates[i]);
-    cumulative.push(cumulative[i - 1] + dist);
+  for (let i = 1; i < coordinates.length; i += 1) {
+    cumulative.push(cumulative[i - 1] + haversineDistance(coordinates[i - 1], coordinates[i]));
   }
   return cumulative;
 }
 
-/**
- * Calculate bearing angle in degrees between two coordinates [lng1, lat1] and [lng2, lat2]
- */
-export function calculateBearing(
-  coord1: [number, number],
-  coord2: [number, number]
-): number {
+/** Calculate a bearing angle in degrees between two coordinates. */
+export function calculateBearing(coord1: [number, number], coord2: [number, number]): number {
   const [lng1, lat1] = coord1.map((deg) => (deg * Math.PI) / 180);
   const [lng2, lat2] = coord2.map((deg) => (deg * Math.PI) / 180);
-
   const dLng = lng2 - lng1;
   const y = Math.sin(dLng) * Math.cos(lat2);
   const x =
     Math.cos(lat1) * Math.sin(lat2) -
     Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
-
-  let brng = (Math.atan2(y, x) * 180) / Math.PI;
-  return (brng + 360) % 360;
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
-/**
- * Shortest-path exponential angle interpolation (dampened lerp)
- * Prevents camera spin when crossing 0° / 360° boundary and smooths out sharp turn jerks
- */
+/** Shortest-path angle interpolation. */
 export function lerpAngle(currentAngle: number, targetAngle: number, alpha: number): number {
   const delta = ((targetAngle - currentAngle + 540) % 360) - 180;
   return (currentAngle + delta * Math.min(Math.max(alpha, 0), 1) + 360) % 360;
 }
 
-/**
- * Interpolate coordinate and bearing along route coordinates based on PHYSICAL METERS (Constant Speed)
- */
+function findDistanceIndex(cumulative: number[], targetMeters: number): number {
+  let low = 0;
+  let high = Math.max(cumulative.length - 2, 0);
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    if (cumulative[middle + 1] < targetMeters) low = middle + 1;
+    else high = middle - 1;
+  }
+  return Math.min(Math.max(low, 0), Math.max(cumulative.length - 2, 0));
+}
+
+function coordinateAtDistance(
+  coordinates: [number, number][],
+  cumulative: number[],
+  targetMeters: number
+): [number, number] {
+  if (coordinates.length === 0) return [-2.5, 54.5];
+  if (coordinates.length === 1) return coordinates[0];
+  const boundedTarget = Math.min(Math.max(targetMeters, 0), cumulative[cumulative.length - 1]);
+  const startIndex = findDistanceIndex(cumulative, boundedTarget);
+  const endIndex = Math.min(startIndex + 1, coordinates.length - 1);
+  const segmentLength = Math.max(cumulative[endIndex] - cumulative[startIndex], 0.001);
+  const ratio = (boundedTarget - cumulative[startIndex]) / segmentLength;
+  return [
+    coordinates[startIndex][0] + (coordinates[endIndex][0] - coordinates[startIndex][0]) * ratio,
+    coordinates[startIndex][1] + (coordinates[endIndex][1] - coordinates[startIndex][1]) * ratio,
+  ];
+}
+
+/** Interpolate coordinate and bearing at a physical distance along the route. */
 export function interpolateRoutePosition(
   coordinates: [number, number][],
   progress: number,
@@ -124,108 +155,398 @@ export function interpolateRoutePosition(
   if (!coordinates || coordinates.length === 0) {
     return { position: [-2.5, 54.5], bearing: 0, index: 0 };
   }
-  if (coordinates.length === 1) {
-    return { position: coordinates[0], bearing: 0, index: 0 };
-  }
+  if (coordinates.length === 1) return { position: coordinates[0], bearing: 0, index: 0 };
 
-  const cumulativeDistances =
+  const cumulative =
     cachedCumulativeDistances && cachedCumulativeDistances.length === coordinates.length
       ? cachedCumulativeDistances
       : computeCumulativeDistances(coordinates);
-
-  const totalDistanceMeters = cumulativeDistances[cumulativeDistances.length - 1];
-  const targetMeters = Math.min(Math.max(progress, 0), 1) * totalDistanceMeters;
-
-  // Find exact segment index by physical distance
-  let startIndex = 0;
-  while (
-    startIndex < cumulativeDistances.length - 2 &&
-    cumulativeDistances[startIndex + 1] < targetMeters
-  ) {
-    startIndex++;
-  }
-
+  const totalDistance = cumulative[cumulative.length - 1];
+  const targetMeters = Math.min(Math.max(progress, 0), 1) * totalDistance;
+  const startIndex = findDistanceIndex(cumulative, targetMeters);
   const endIndex = Math.min(startIndex + 1, coordinates.length - 1);
-  const segmentStartDist = cumulativeDistances[startIndex];
-  const segmentEndDist = cumulativeDistances[endIndex];
-  const segmentLen = Math.max(segmentEndDist - segmentStartDist, 0.001);
-
-  const segmentRatio = (targetMeters - segmentStartDist) / segmentLen;
-
+  const segmentLength = Math.max(cumulative[endIndex] - cumulative[startIndex], 0.001);
+  const ratio = (targetMeters - cumulative[startIndex]) / segmentLength;
   const startCoord = coordinates[startIndex];
   const endCoord = coordinates[endIndex];
+  const position: [number, number] = [
+    startCoord[0] + (endCoord[0] - startCoord[0]) * ratio,
+    startCoord[1] + (endCoord[1] - startCoord[1]) * ratio,
+  ];
 
-  // Physical distance interpolation
-  const lng = startCoord[0] + (endCoord[0] - startCoord[0]) * segmentRatio;
-  const lat = startCoord[1] + (endCoord[1] - startCoord[1]) * segmentRatio;
+  const lookAhead = coordinateAtDistance(coordinates, cumulative, targetMeters + 40);
+  return { position, bearing: calculateBearing(startCoord, lookAhead), index: startIndex };
+}
 
-  // Look ahead ~50 meters for smooth forward bearing
-  let lookAheadMeters = targetMeters + 40;
-  let lookAheadIndex = startIndex;
-  while (
-    lookAheadIndex < cumulativeDistances.length - 1 &&
-    cumulativeDistances[lookAheadIndex] < lookAheadMeters
-  ) {
-    lookAheadIndex++;
+function normaliseAngle(angle: number): number {
+  return Math.abs(((angle + 540) % 360) - 180);
+}
+
+function classifyTurn(angle: number): { rating: number; label: string } {
+  if (angle >= 120) return { rating: 1, label: 'Hairpin' };
+  if (angle >= 85) return { rating: 2, label: 'Very tight' };
+  if (angle >= 55) return { rating: 3, label: 'Technical' };
+  if (angle >= 35) return { rating: 4, label: 'Sweeping' };
+  if (angle >= 15) return { rating: 5, label: 'Fast bend' };
+  return { rating: 6, label: 'Slight / flat' };
+}
+
+function parseWidth(width: string | number | undefined): number | undefined {
+  if (typeof width === 'number' && Number.isFinite(width)) return width;
+  if (typeof width !== 'string') return undefined;
+  const match = width.replace(',', '.').match(/[0-9]+(?:\.[0-9]+)?/);
+  if (!match) return undefined;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function qualityFromSurface(surface: string): RouteSegment['surfaceQuality'] {
+  const value = surface.toLowerCase();
+  if (/(unpaved|gravel|ground|mud|sand|dirt)/.test(value)) return 'Poor';
+  if (/(cobblestone|sett|compacted|fine_gravel)/.test(value)) return 'Fair';
+  if (/(paved|asphalt|concrete|chipseal)/.test(value)) return 'Excellent';
+  return 'Good';
+}
+
+function inferWidth(highway?: string): number {
+  switch (highway) {
+    case 'motorway':
+    case 'trunk':
+      return 7.3;
+    case 'primary':
+    case 'secondary':
+      return 6.2;
+    case 'tertiary':
+      return 5.4;
+    case 'residential':
+      return 5.1;
+    case 'track':
+    case 'path':
+      return 3.2;
+    default:
+      return 5.5;
   }
-  const targetCoord = coordinates[lookAheadIndex] || endCoord;
-  const bearing = calculateBearing(startCoord, targetCoord);
+}
+
+function inferSpeedLimit(highway?: string): number | undefined {
+  switch (highway) {
+    case 'motorway':
+      return 70;
+    case 'trunk':
+      return 70;
+    case 'primary':
+    case 'secondary':
+    case 'tertiary':
+    case 'unclassified':
+      return 60;
+    case 'residential':
+    case 'living_street':
+      return 30;
+    default:
+      return undefined;
+  }
+}
+
+function elevationAtDistance(
+  distanceMeters: number,
+  samples: ElevationRouteSample[]
+): number {
+  if (samples.length === 0) return 0;
+  if (distanceMeters <= samples[0].distanceMeters) return samples[0].elevationM;
+  const last = samples[samples.length - 1];
+  if (distanceMeters >= last.distanceMeters) return last.elevationM;
+  let low = 0;
+  let high = samples.length - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    if (samples[middle].distanceMeters < distanceMeters) low = middle + 1;
+    else high = middle - 1;
+  }
+  const before = samples[Math.max(high, 0)];
+  const after = samples[Math.min(low, samples.length - 1)];
+  const distance = Math.max(after.distanceMeters - before.distanceMeters, 0.001);
+  const ratio = (distanceMeters - before.distanceMeters) / distance;
+  return before.elevationM + (after.elevationM - before.elevationM) * ratio;
+}
+
+function hintAtDistance(distanceMeters: number, hints: RouteStepHint[]): RouteStepHint | undefined {
+  return hints.find(
+    (hint) => distanceMeters >= hint.startDistanceMeters && distanceMeters <= hint.endDistanceMeters
+  );
+}
+
+function mostCommon(values: string[], fallback: string): string {
+  if (values.length === 0) return fallback;
+  const counts = new Map<string, number>();
+  values.forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || fallback;
+}
+
+/** Build road/elevation/turn details from route geometry and optional API metadata. */
+export function buildRouteDetails(
+  coordinates: [number, number][],
+  elevationSamples: ElevationRouteSample[] = [],
+  stepHints: RouteStepHint[] = []
+): RouteDetails {
+  if (coordinates.length < 2) {
+    return {
+      elevationProfile: [],
+      totalElevationGainM: 0,
+      minimumElevationM: 0,
+      maximumElevationM: 0,
+      maxGradientPercent: 0,
+      averageGradientPercent: 0,
+      averageRoadWidthMeters: 0,
+      narrowRoadSharePercent: 0,
+      surfaceQuality: 'Good',
+      surface: 'Paved',
+      camber: 'Unknown',
+      tightTurnCount: 0,
+      speedLimitCoveragePercent: 0,
+      segments: [],
+      hasElevationData: false,
+      source: 'Route geometry estimate',
+    };
+  }
+
+  const cumulative = computeCumulativeDistances(coordinates);
+  const segments: RouteSegment[] = [];
+  let elevationGain = 0;
+  let weightedGradient = 0;
+  let narrowCount = 0;
+  let speedLimitCount = 0;
+  let widthTotal = 0;
+
+  for (let index = 0; index < coordinates.length - 1; index += 1) {
+    const startDistance = cumulative[index];
+    const endDistance = cumulative[index + 1];
+    const distance = Math.max(endDistance - startDistance, 0.1);
+    const previousBearing =
+      index > 0 ? calculateBearing(coordinates[index - 1], coordinates[index]) : calculateBearing(coordinates[index], coordinates[index + 1]);
+    const nextBearing =
+      index < coordinates.length - 2
+        ? calculateBearing(coordinates[index], coordinates[index + 1])
+        : previousBearing;
+    const turn = classifyTurn(normaliseAngle(nextBearing - previousBearing));
+    const hint = hintAtDistance(startDistance + distance / 2, stepHints);
+    const elevationStart = elevationAtDistance(startDistance, elevationSamples);
+    const elevationEnd = elevationAtDistance(endDistance, elevationSamples);
+    const gradient = ((elevationEnd - elevationStart) / distance) * 100;
+    const widthMeters = hint?.widthMeters || inferWidth(hint?.highway);
+    const widthLabel: RouteSegment['widthLabel'] =
+      widthMeters < 4.5 ? 'Narrow' : widthMeters > 7 ? 'Wide' : 'Standard';
+    const surface = hint?.surface || 'Paved';
+    const speedLimit = hint?.speedLimitMph ?? inferSpeedLimit(hint?.highway);
+
+    if (elevationEnd > elevationStart) elevationGain += elevationEnd - elevationStart;
+    if (widthLabel === 'Narrow') narrowCount += 1;
+    if (speedLimit) speedLimitCount += 1;
+    widthTotal += widthMeters;
+    weightedGradient += Math.abs(gradient) * distance;
+
+    segments.push({
+      id: `segment-${index}`,
+      coordinates: [coordinates[index], coordinates[index + 1]],
+      startDistanceMeters: startDistance,
+      endDistanceMeters: endDistance,
+      distanceMeters: distance,
+      roadName: hint?.roadName || 'Unnamed road',
+      elevationStartM: Number(elevationStart.toFixed(1)),
+      elevationEndM: Number(elevationEnd.toFixed(1)),
+      gradientPercent: Number(gradient.toFixed(1)),
+      widthMeters: Number(widthMeters.toFixed(1)),
+      widthLabel,
+      camber: hint?.camber || (turn.rating <= 2 ? 'Variable on tight bend' : 'Typical road crown'),
+      surface,
+      surfaceQuality: qualityFromSurface(surface),
+      turnRating: turn.rating,
+      turnLabel: turn.label,
+      ...(speedLimit
+        ? {
+            speedLimitMph: speedLimit,
+            speedLimitSource: hint?.speedLimitSource || 'estimated',
+          }
+        : {}),
+    });
+  }
+
+  const elevations = coordinates.map((_, index) => elevationAtDistance(cumulative[index], elevationSamples));
+  const finiteElevations = elevations.filter((value) => Number.isFinite(value));
+  const minimumElevation = finiteElevations.length ? Math.min(...finiteElevations) : 0;
+  const maximumElevation = finiteElevations.length ? Math.max(...finiteElevations) : 0;
+  const totalDistance = Math.max(cumulative[cumulative.length - 1], 1);
+  const elevationProfile: RouteDetails['elevationProfile'] = [];
+  const profileStride = Math.max(1, Math.ceil((coordinates.length - 1) / 48));
+  for (let index = 0; index < coordinates.length; index += profileStride) {
+    const segment = segments[Math.min(index, segments.length - 1)];
+    elevationProfile.push({
+      distanceMeters: Number(cumulative[index].toFixed(1)),
+      elevationM: Number(elevations[index].toFixed(1)),
+      gradientPercent: segment?.gradientPercent || 0,
+    });
+  }
+  const lastProfile = elevationProfile[elevationProfile.length - 1];
+  if (lastProfile && lastProfile.distanceMeters !== cumulative[cumulative.length - 1]) {
+    lastProfile.distanceMeters = Number(totalDistance.toFixed(1));
+    lastProfile.elevationM = Number(elevations[elevations.length - 1].toFixed(1));
+  }
+
+  const quality = mostCommon(segments.map((segment) => segment.surfaceQuality), 'Good') as RouteDetails['surfaceQuality'];
+  const sourceParts = [];
+  if (elevationSamples.length > 1) sourceParts.push('terrain');
+  if (stepHints.length > 0) sourceParts.push('route hints');
+  const source = sourceParts.length ? sourceParts.join(' + ') : 'Route geometry estimate';
 
   return {
-    position: [lng, lat],
-    bearing,
-    index: startIndex,
+    elevationProfile,
+    totalElevationGainM: Number(elevationGain.toFixed(0)),
+    minimumElevationM: Number(minimumElevation.toFixed(0)),
+    maximumElevationM: Number(maximumElevation.toFixed(0)),
+    maxGradientPercent: Number(
+      Math.max(...segments.map((segment) => Math.abs(segment.gradientPercent)), 0).toFixed(1)
+    ),
+    averageGradientPercent: Number((weightedGradient / totalDistance).toFixed(1)),
+    averageRoadWidthMeters: Number((widthTotal / Math.max(segments.length, 1)).toFixed(1)),
+    narrowRoadSharePercent: Number(((narrowCount / Math.max(segments.length, 1)) * 100).toFixed(0)),
+    surfaceQuality: quality,
+    surface: mostCommon(segments.map((segment) => segment.surface), 'Paved'),
+    camber: mostCommon(segments.map((segment) => segment.camber), 'Typical road crown'),
+    tightTurnCount: segments.filter((segment) => segment.turnRating <= 2).length,
+    speedLimitCoveragePercent: Number(
+      ((speedLimitCount / Math.max(segments.length, 1)) * 100).toFixed(0)
+    ),
+    segments,
+    hasElevationData: elevationSamples.length > 1,
+    source,
   };
 }
 
-/**
- * Fetch directions route from Mapbox Directions API with OSRM fallback
- */
+function parseSpeedLimit(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value > 100 ? value * 0.621371 : value;
+  if (typeof value !== 'string') return undefined;
+  if (/national/i.test(value)) return undefined;
+  const match = value.match(/[0-9]+(?:\.[0-9]+)?/);
+  if (!match) return undefined;
+  const parsed = Number(match[0]);
+  if (!Number.isFinite(parsed)) return undefined;
+  return /km/i.test(value) ? parsed * 0.621371 : parsed;
+}
+
+function extractStepSpeed(step: any): number | undefined {
+  const direct = parseSpeedLimit(step?.maxspeed);
+  if (direct) return direct;
+  const intersection = step?.intersections?.find((item: any) => item?.maxspeed);
+  return parseSpeedLimit(intersection?.maxspeed);
+}
+
+/** Convert Mapbox/OSRM step metadata into distance-addressable hints. */
+export function extractRouteStepHints(route: any): RouteStepHint[] {
+  const hints: RouteStepHint[] = [];
+  let cumulative = 0;
+  for (const leg of route?.legs || []) {
+    for (const step of leg.steps || []) {
+      const distance = Math.max(Number(step.distance) || 0, 0);
+      const speedLimit = extractStepSpeed(step);
+      const roadName = [step.name, step.ref].filter(Boolean).join(' · ');
+      hints.push({
+        startDistanceMeters: cumulative,
+        endDistanceMeters: cumulative + distance,
+        roadName: roadName || undefined,
+        speedLimitMph: speedLimit,
+        speedLimitSource: speedLimit ? 'route data' : undefined,
+      });
+      cumulative += distance;
+    }
+  }
+  return hints;
+}
+
+/** Sample a long route without flooding terrain/OSM services with requests. */
+export function sampleRouteCoordinates(
+  coordinates: [number, number][],
+  maxSamples = 48
+): Array<{ coordinate: [number, number]; distanceMeters: number }> {
+  if (coordinates.length === 0) return [];
+  const cumulative = computeCumulativeDistances(coordinates);
+  const total = cumulative[cumulative.length - 1];
+  const sampleCount = Math.min(Math.max(maxSamples, 2), coordinates.length);
+  return Array.from({ length: sampleCount }, (_, index) => {
+    const progress = sampleCount === 1 ? 0 : index / (sampleCount - 1);
+    const distanceMeters = total * progress;
+    return {
+      coordinate: coordinateAtDistance(coordinates, cumulative, distanceMeters),
+      distanceMeters,
+    };
+  });
+}
+
+async function readJson(response: Response): Promise<any> {
+  if (!response.ok) throw new Error(`Route service returned ${response.status}`);
+  return response.json();
+}
+
+/** Fetch a route through Mapbox when configured, with an OSRM fallback. */
 export async function fetchRoute(
   origin: LocationPoint,
   destination: LocationPoint,
   token?: string,
   mpg: number = DEFAULT_UK_MPG,
-  pricePerLiterPence: number = DEFAULT_UK_PETROL_PRICE_PENCE
+  pricePerLiterPence: number = DEFAULT_UK_PETROL_PRICE_PENCE,
+  stops: LocationPoint[] = []
 ): Promise<RouteData> {
+  const points = [origin, ...stops, destination];
+  const coordinateString = points.map((point) => `${point.lng},${point.lat}`).join(';');
   const hasValidToken = Boolean(token && token.trim().startsWith('pk.'));
 
   if (hasValidToken) {
     try {
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson&steps=true&access_token=${token?.trim()}`;
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.routes && data.routes.length > 0) {
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinateString}?overview=full&geometries=geojson&steps=true&language=en-GB&access_token=${token?.trim()}`;
+      const data = await readJson(await fetch(url));
+      if (data.routes?.length > 0) {
         const route = data.routes[0];
+        const coordinates = route.geometry.coordinates as [number, number][];
         return {
           origin,
           destination,
+          stops,
           geometry: route.geometry,
           telemetry: computeTelemetry(route.distance, route.duration, mpg, pricePerLiterPence),
+          details: buildRouteDetails(coordinates, [], extractRouteStepHints(route)),
           provider: 'mapbox',
         };
       }
-    } catch (err) {
-      console.warn('Mapbox Directions API failed, attempting OSRM fallback...', err);
+    } catch (error) {
+      console.warn('Mapbox Directions API failed, attempting OSRM fallback.', error);
     }
   }
 
-  // OSRM Public Routing Fallback
-  const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson`;
-  const osrmResponse = await fetch(osrmUrl);
-  const osrmData = await osrmResponse.json();
-
-  if (osrmData.routes && osrmData.routes.length > 0) {
+  const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordinateString}?overview=full&geometries=geojson&steps=true&annotations=true`
+  const osrmData = await readJson(await fetch(osrmUrl));
+  if (osrmData.routes?.length > 0) {
     const route = osrmData.routes[0];
+    const coordinates = route.geometry.coordinates as [number, number][];
     return {
       origin,
       destination,
+      stops,
       geometry: route.geometry,
       telemetry: computeTelemetry(route.distance, route.duration, mpg, pricePerLiterPence),
+      details: buildRouteDetails(coordinates, [], extractRouteStepHints(route)),
       provider: 'osrm',
     };
   }
 
-  throw new Error('Unable to compute route between the selected locations.');
+  throw new Error('Unable to compute a route between the selected locations.');
+}
+
+/** Enrich the fast geometry estimate with terrain and road tags from the app API route. */
+export async function fetchRouteDetails(
+  coordinates: [number, number][]
+): Promise<RouteDetails> {
+  const response = await fetch('/api/route-details', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ coordinates }),
+  });
+  return readJson(response);
 }

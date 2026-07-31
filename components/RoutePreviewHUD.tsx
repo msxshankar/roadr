@@ -1,21 +1,26 @@
 'use client';
 
 import React from 'react';
-import { Play, Pause, X, Navigation2, Gauge, Eye } from 'lucide-react';
-import { LocationPoint, RouteTelemetry } from '@/types';
+import { Eye, Gauge, Layers3, MousePointer2, Navigation2, Pause, Play, RotateCcw, X } from 'lucide-react';
+import { LocationPoint, RouteDetails, RouteTelemetry } from '@/types';
 
 interface RoutePreviewHUDProps {
   origin: LocationPoint;
   destination: LocationPoint;
   telemetry: RouteTelemetry;
-  progress: number; // 0 to 1
+  details: RouteDetails;
+  progress: number;
   isPlaying: boolean;
   speedMultiplier: number;
   bearing: number;
-  cameraZoom?: number; // 14.0 (High Aerial) to 17.8 (Close Ground Crisp)
+  cameraZoom?: number;
   selectedStyleId?: string;
+  orientationMode: 'follow' | 'manual';
+  showRouteDetails: boolean;
   onStyleChange?: (styleId: string) => void;
   onChangeCameraZoom?: (zoom: number) => void;
+  onChangeOrientationMode: (mode: 'follow' | 'manual') => void;
+  onToggleRouteDetails: () => void;
   onTogglePlay: () => void;
   onSeek: (newProgress: number) => void;
   onChangeSpeedMultiplier: (speed: number) => void;
@@ -23,32 +28,36 @@ interface RoutePreviewHUDProps {
 }
 
 const PREVIEW_MAP_STYLES = [
-  { id: 'satellite', name: '🛰️ 3D Satellite' },
-  { id: 'satellite-pure', name: '📷 Pure Satellite' },
-  { id: 'streets', name: '🗺️ Streets Nav' },
-  { id: 'outdoors', name: '🏔️ Outdoors Topo' },
+  { id: 'satellite', name: '🛰️ Satellite' },
+  { id: 'satellite-pure', name: '📷 Pure' },
+  { id: 'streets', name: '🗺️ Streets' },
+  { id: 'outdoors', name: '🏔️ Topo' },
 ];
 
-const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4, 8];
-
+const SPEED_OPTIONS = [0.5, 1, 2, 4, 8, 16];
 const HEIGHT_PRESETS = [
-  { label: '🔍 Ground', zoom: 17.8 },
-  { label: '🏎️ Balanced', zoom: 16.2 },
-  { label: '🦅 High Aerial', zoom: 14.5 },
+  { label: 'Ground', zoom: 18.8 },
+  { label: 'Balanced', zoom: 16.8 },
+  { label: 'Aerial', zoom: 14.5 },
 ];
 
 export default function RoutePreviewHUD({
   origin,
   destination,
   telemetry,
+  details,
   progress,
   isPlaying,
   speedMultiplier,
   bearing,
-  cameraZoom = 16.2,
+  cameraZoom = 16.8,
   selectedStyleId = 'satellite',
+  orientationMode,
+  showRouteDetails,
   onStyleChange,
   onChangeCameraZoom,
+  onChangeOrientationMode,
+  onToggleRouteDetails,
   onTogglePlay,
   onSeek,
   onChangeSpeedMultiplier,
@@ -56,185 +65,47 @@ export default function RoutePreviewHUD({
 }: RoutePreviewHUDProps) {
   const currentMiles = (telemetry.distanceMiles * progress).toFixed(1);
   const remainingMiles = (telemetry.distanceMiles * (1 - progress)).toFixed(1);
-
-  // Show the route's average speed at the selected playback multiplier.
   const simulatedSpeed = Math.round(telemetry.averageSpeedMph * speedMultiplier);
-
-  // Friendly camera height label
-  const getAltitudeLabel = (zoom: number) => {
-    if (zoom >= 17.2) return 'Crisp Ground View';
-    if (zoom >= 15.8) return '3D Follow-Along';
-    return 'High Aerial View';
-  };
+  const currentDistance = telemetry.distanceMeters * progress;
+  const currentSegmentIndex = details.segments.findIndex((segment) => currentDistance >= segment.startDistanceMeters && currentDistance <= segment.endDistanceMeters);
+  const currentSegment = currentSegmentIndex >= 0 ? details.segments[currentSegmentIndex] : undefined;
+  const currentGradient = currentSegment?.gradientPercent || 0;
+  const altitudeLabel = cameraZoom >= 18 ? 'Ground detail' : cameraZoom >= 16 ? 'Follow along' : 'High aerial';
 
   return (
-    <div className="fixed inset-x-0 bottom-4 z-50 px-3 sm:px-4 flex flex-col items-center pointer-events-none">
-      {/* 3D Drive HUD Main Glass Card */}
-      <div className="w-full max-w-2xl bg-black/85 backdrop-blur-2xl border border-cyan-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl shadow-cyan-500/20 text-gray-100 pointer-events-auto space-y-3.5">
-        {/* Top Status Bar: Title, Map Style Selector & Speedometer */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-3 gap-2 flex-wrap sm:flex-nowrap">
-          {/* Drive Route Title */}
-          <div className="flex items-center space-x-2 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center shrink-0">
-              <Navigation2
-                className="w-4 h-4 text-cyan-400 transition-transform duration-300"
-                style={{ transform: `rotate(${bearing}deg)` }}
-              />
-            </div>
-            <div className="truncate">
-              <div className="flex items-center space-x-1.5 text-xs font-semibold text-cyan-300">
-                <span>3D DRIVE PREVIEW</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              </div>
-              <p className="text-xs text-gray-300 truncate">
-                {origin.name.split(',')[0]} → {destination.name.split(',')[0]}
-              </p>
-            </div>
-          </div>
-
-          {/* Map Layer Selector & Speedometer & Exit */}
-          <div className="flex items-center space-x-2 shrink-0">
-            {/* Satellite / Map Layer Toggle Pills */}
-            <div className="flex items-center bg-white/5 border border-white/10 p-1 rounded-xl space-x-1">
-              {PREVIEW_MAP_STYLES.map((style) => (
-                <button
-                  key={style.id}
-                  onClick={() => onStyleChange && onStyleChange(style.id)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                    selectedStyleId === style.id
-                      ? 'bg-cyan-500 text-black font-semibold shadow-sm'
-                      : 'text-gray-300 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {style.name}
-                </button>
-              ))}
-            </div>
-
-            {/* Speedometer HUD */}
-            <div className="flex items-center space-x-1.5 bg-white/5 border border-white/10 px-2.5 py-1.5 rounded-xl">
-              <Gauge className="w-4 h-4 text-amber-400 animate-pulse" />
-              <div className="font-mono text-xs">
-                <span className="text-amber-300 font-bold text-sm">{simulatedSpeed}</span>
-                <span className="text-gray-400 text-[10px] ml-1">MPH</span>
-              </div>
-            </div>
-
-            {/* Exit 3D Preview Button */}
-            <button
-              onClick={onExitPreview}
-              className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 transition-all active:scale-95 flex items-center space-x-1 text-xs font-medium"
-              title="Exit 3D Route Drive Preview"
-            >
-              <X className="w-4 h-4" />
-              <span className="hidden sm:inline">Exit 3D</span>
-            </button>
+    <div className="fixed inset-x-0 bottom-4 z-50 flex flex-col items-center px-3 sm:px-4 pointer-events-none">
+      <div className="w-full max-w-3xl space-y-3 rounded-3xl border border-cyan-500/40 bg-[#080c13]/95 p-4 text-gray-100 shadow-2xl shadow-cyan-500/20 pointer-events-auto sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+          <div className="flex min-w-0 items-center space-x-2"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-cyan-500/40 bg-cyan-500/20"><Navigation2 className="h-4 w-4 text-cyan-400" style={{ transform: `rotate(${bearing}deg)` }} /></div><div className="truncate"><div className="flex items-center space-x-1.5 text-xs font-semibold text-cyan-300"><span>3D DRIVE PREVIEW</span><span className="h-2 w-2 animate-ping rounded-full bg-emerald-400" /></div><p className="truncate text-xs text-gray-300">{origin.name.split(',')[0]} → {destination.name.split(',')[0]}</p></div></div>
+          <div className="flex max-w-full items-center gap-2 overflow-x-auto">
+            <div className="flex shrink-0 items-center rounded-xl border border-white/10 bg-white/5 p-1">{PREVIEW_MAP_STYLES.map((style) => <button key={style.id} onClick={() => onStyleChange?.(style.id)} className={`rounded-lg px-2 py-1 text-[10px] font-medium transition-all ${selectedStyleId === style.id ? 'bg-cyan-500 text-black font-bold' : 'text-gray-300 hover:bg-white/10 hover:text-white'}`}>{style.name}</button>)}</div>
+            <div className="flex shrink-0 items-center space-x-1.5 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5"><Gauge className="h-4 w-4 animate-pulse text-amber-400" /><div className="font-mono text-xs"><span className="text-sm font-bold text-amber-300">{simulatedSpeed}</span><span className="ml-1 text-[10px] text-gray-400">MPH SIM</span></div></div>
+            <button onClick={onExitPreview} className="flex shrink-0 items-center space-x-1 rounded-xl border border-red-500/40 bg-red-500/20 p-2 text-xs font-medium text-red-300 transition-all hover:bg-red-500/30" title="Exit drive preview"><X className="h-4 w-4" /><span className="hidden sm:inline">Exit</span></button>
           </div>
         </div>
 
-        {/* Camera Height & Follow Altitude Slider */}
-        <div className="bg-white/5 border border-white/10 p-2.5 rounded-2xl space-y-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center space-x-1.5 text-cyan-300 font-medium">
-              <Eye className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Camera Altitude & Zoom</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-[11px] font-mono text-cyan-400 font-semibold">
-                {getAltitudeLabel(cameraZoom)} ({cameraZoom.toFixed(1)}x)
-              </span>
-              <div className="hidden sm:flex items-center space-x-1">
-                {HEIGHT_PRESETS.map((preset) => (
-                  <button
-                    key={preset.label}
-                    onClick={() => onChangeCameraZoom && onChangeCameraZoom(preset.zoom)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
-                      Math.abs(cameraZoom - preset.zoom) < 0.3
-                        ? 'bg-cyan-500 text-black font-bold'
-                        : 'bg-white/10 hover:bg-white/20 text-gray-300'
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
+            <div className="flex items-center justify-between gap-2 text-xs"><div className="flex items-center gap-1.5 text-cyan-300"><Eye className="h-3.5 w-3.5 text-cyan-400" /><span>{altitudeLabel} · {cameraZoom.toFixed(1)}x</span></div><div className="hidden items-center gap-1 sm:flex">{HEIGHT_PRESETS.map((preset) => <button key={preset.label} onClick={() => onChangeCameraZoom?.(preset.zoom)} className={`rounded px-2 py-0.5 text-[10px] ${Math.abs(cameraZoom - preset.zoom) < 0.25 ? 'bg-cyan-500 font-bold text-black' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}>{preset.label}</button>)}</div></div>
+            <div className="mt-2 flex items-center space-x-3"><span className="shrink-0 text-[10px] font-mono text-gray-500">Aerial</span><input type="range" min={14} max={18.8} step={0.1} value={cameraZoom} onChange={(event) => onChangeCameraZoom?.(parseFloat(event.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-cyan-400" /><span className="shrink-0 text-[10px] font-mono text-cyan-300">Road detail</span></div>
           </div>
-
-          <div className="flex items-center space-x-3">
-            <span className="text-[10px] text-gray-400 font-mono shrink-0">High Aerial (14.0x)</span>
-            <input
-              type="range"
-              min={14.0}
-              max={17.8}
-              step={0.1}
-              value={cameraZoom}
-              onChange={(e) => onChangeCameraZoom && onChangeCameraZoom(parseFloat(e.target.value))}
-              className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-300 transition-all"
-            />
-            <span className="text-[10px] text-gray-400 font-mono shrink-0">Crisp Ground (17.8x)</span>
+          <div className="flex items-stretch gap-2">
+            <button onClick={() => onChangeOrientationMode('follow')} className={`flex min-w-[105px] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-[10px] transition-all ${orientationMode === 'follow' ? 'border-cyan-400/50 bg-cyan-500/20 text-cyan-200' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`}><RotateCcw className="mb-1 h-4 w-4" />Follow road</button>
+            <button onClick={() => onChangeOrientationMode('manual')} className={`flex min-w-[105px] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-[10px] transition-all ${orientationMode === 'manual' ? 'border-amber-400/50 bg-amber-500/20 text-amber-200' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`}><MousePointer2 className="mb-1 h-4 w-4" />Mouse turn</button>
           </div>
         </div>
 
-        {/* Interactive Progress Scrubber Slider */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-[11px] font-mono text-gray-400">
-            <span className="text-cyan-400 font-medium">Driven: {currentMiles} mi</span>
-            <span className="text-gray-200 font-semibold">{Math.round(progress * 100)}%</span>
-            <span className="text-amber-400 font-medium">Remaining: {remainingMiles} mi</span>
-          </div>
-
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={0.1}
-            value={progress * 100}
-            onChange={(e) => onSeek(parseFloat(e.target.value) / 100)}
-            className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-300 transition-all"
-          />
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2">
+          <div className="flex items-center gap-2"><Layers3 className="h-4 w-4 text-emerald-400" /><div><p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-200">Road detail mode</p><p className="text-[10px] text-gray-500">Gradient and terrain colour along the route</p></div></div>
+          <button onClick={onToggleRouteDetails} className={`rounded-lg px-3 py-1.5 text-[10px] font-bold transition-all ${showRouteDetails ? 'bg-emerald-400 text-black' : 'border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'}`}>{showRouteDetails ? 'ON · Gradient map' : 'OFF · Clean route'}</button>
+          <div className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-mono ${currentGradient >= 0 ? 'border-amber-400/25 bg-amber-500/10 text-amber-200' : 'border-cyan-400/25 bg-cyan-500/10 text-cyan-200'}`}>Current grade: {currentGradient > 0 ? '+' : ''}{currentGradient.toFixed(1)}%</div>
+          <div className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-mono text-gray-300">{currentSegment?.speedLimitMph ? `${currentSegment.speedLimitMph} mph limit` : 'Limit unavailable'}</div>
+          <div className="w-full truncate border-t border-white/10 pt-1.5 text-[10px] font-mono text-gray-400 sm:border-t-0 sm:pt-0">Section {currentSegment ? `${currentSegmentIndex + 1}/${details.segments.length}` : '—'} · {currentSegment?.roadName || 'Route section'} · {currentSegment ? `${currentSegment.widthMeters}m ${currentSegment.surface.toLowerCase()} · ${currentSegment.camber.toLowerCase()}` : 'road data loading'}</div>
         </div>
 
-        {/* Bottom Playback & Speed Controls */}
-        <div className="flex items-center justify-between pt-0.5">
-          {/* Speed Multipliers */}
-          <div className="flex items-center space-x-1 overflow-x-auto">
-            <span className="text-[11px] font-mono text-gray-400 hidden sm:inline mr-1 shrink-0">
-              Sim Speed:
-            </span>
-            {SPEED_OPTIONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => onChangeSpeedMultiplier(s)}
-                className={`px-2 py-1 rounded-lg text-xs font-mono transition-all shrink-0 ${
-                  speedMultiplier === s
-                    ? 'bg-cyan-500 text-black font-bold shadow-md shadow-cyan-500/20'
-                    : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10'
-                }`}
-              >
-                {s}x
-              </button>
-            ))}
-          </div>
+        <div className="space-y-1.5"><div className="flex justify-between text-[11px] font-mono text-gray-400"><span className="font-medium text-cyan-400">Driven: {currentMiles} mi</span><span className="font-semibold text-gray-200">{Math.round(progress * 100)}%</span><span className="font-medium text-amber-400">Remaining: {remainingMiles} mi</span></div><input aria-label="Preview progress" type="range" min={0} max={100} step={0.1} value={progress * 100} onChange={(event) => onSeek(parseFloat(event.target.value) / 100)} className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-cyan-400" /></div>
 
-          {/* Play / Pause Toggle Button */}
-          <button
-            onClick={onTogglePlay}
-            className="flex items-center space-x-2 px-5 py-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-amber-500 text-black font-bold text-xs tracking-wider shadow-lg shadow-cyan-500/30 hover:brightness-110 active:scale-95 transition-all shrink-0"
-          >
-            {isPlaying ? (
-              <>
-                <Pause className="w-4 h-4 fill-black" />
-                <span>PAUSE DRIVE</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4 fill-black" />
-                <span>{progress >= 1 ? 'REPLAY DRIVE' : 'RESUME DRIVE'}</span>
-              </>
-            )}
-          </button>
-        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5"><div className="flex items-center space-x-1 overflow-x-auto"><span className="mr-1 hidden shrink-0 text-[11px] font-mono text-gray-400 sm:inline">Sim speed</span>{SPEED_OPTIONS.map((speed) => <button key={speed} onClick={() => onChangeSpeedMultiplier(speed)} className={`shrink-0 rounded-lg px-2 py-1 text-xs font-mono transition-all ${speedMultiplier === speed ? 'bg-cyan-500 font-bold text-black shadow-md shadow-cyan-500/20' : 'border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'}`}>{speed}x</button>)}</div><button onClick={onTogglePlay} className="flex shrink-0 items-center space-x-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-amber-500 px-5 py-2 text-xs font-bold tracking-wider text-black shadow-lg shadow-cyan-500/30 transition-all hover:brightness-110 active:scale-95">{isPlaying ? <><Pause className="h-4 w-4 fill-black" /><span>Pause drive</span></> : <><Play className="h-4 w-4 fill-black" /><span>{progress >= 1 ? 'Replay drive' : 'Resume drive'}</span></>}</button></div>
       </div>
     </div>
   );

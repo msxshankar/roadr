@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Compass, Key, MapPin } from 'lucide-react';
+import { CarFront, Compass, Key, MapPin } from 'lucide-react';
 import { UK_SCENIC_ROUTES } from '@/lib/presets';
-import { UKPresetRoute } from '@/types';
+import { UKPresetRoute, VehicleProfile } from '@/types';
+import { vehicleLabel } from '@/lib/vehicle';
 
 interface HeaderProps {
   token: string;
@@ -11,6 +12,8 @@ interface HeaderProps {
   onSelectPreset: (preset: UKPresetRoute) => void;
   onRecenterUK: () => void;
   provider?: 'mapbox' | 'osrm';
+  vehicle: VehicleProfile | null;
+  onOpenGarage: () => void;
 }
 
 export default function Header({
@@ -19,6 +22,8 @@ export default function Header({
   onSelectPreset,
   onRecenterUK,
   provider,
+  vehicle,
+  onOpenGarage,
 }: HeaderProps) {
   return (
     <header className="fixed top-0 left-0 right-0 z-40 liquid-glass-header px-3 sm:px-4 py-2.5 sm:py-3 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
@@ -98,6 +103,19 @@ export default function Header({
               {provider}
             </span>
           )}
+        </button>
+
+        <button
+          onClick={onOpenGarage}
+          className={`flex items-center space-x-1.5 text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border transition-all active:scale-95 shrink-0 ${
+            vehicle
+              ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/20'
+              : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white'
+          }`}
+          title="Open car mode"
+        >
+          <CarFront className="w-3.5 h-3.5" />
+          <span className="font-medium hidden sm:inline">{vehicle ? vehicleLabel(vehicle).split(' · ')[0] : 'Car mode'}</span>
         </button>
       </div>
     </header>
