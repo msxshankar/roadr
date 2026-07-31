@@ -57,8 +57,8 @@ export default function RoutePreviewHUD({
   const currentMiles = (telemetry.distanceMiles * progress).toFixed(1);
   const remainingMiles = (telemetry.distanceMiles * (1 - progress)).toFixed(1);
 
-  // Simulated speed calculation based on speed multiplier
-  const simulatedSpeed = Math.round(55 * speedMultiplier);
+  // Show the route's average speed at the selected playback multiplier.
+  const simulatedSpeed = Math.round(telemetry.averageSpeedMph * speedMultiplier);
 
   // Friendly camera height label
   const getAltitudeLabel = (zoom: number) => {

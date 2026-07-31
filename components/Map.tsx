@@ -78,6 +78,15 @@ export const MAPBOX_STYLES = [
   { id: 'outdoors', name: 'Outdoors Topo', url: 'mapbox://styles/mapbox/outdoors-v12', fallback: FREE_OSM_STREETS },
 ];
 
+const MAX_PREVIEW_ZOOM = 17.8;
+const CAMERA_UPDATE_INTERVAL_MS = 1000 / 30;
+const TILE_PREFETCH_INTERVAL_MS = 1500;
+const TILE_PREFETCH_LOOKAHEAD = 0.035;
+
+function getPreviewPitch(zoom: number): number {
+  return 30 + Math.min(Math.max((zoom - 14.0) * 8.5, 0), 40);
+}
+
 export default function Map({
   token,
   origin,
@@ -150,18 +159,25 @@ export default function Map({
         pitch: 25,
         bearing: 0,
         attributionControl: false,
+        minTileCacheSize: 256,
+        maxTileCacheSize: 1500,
+        refreshExpiredTiles: true,
       });
 
-      // ADAPTIVE HIGH-CAPACITY TILE CACHING ENGINE:
-      // Expand RAM/VRAM tile cache to 1500 tiles (~750 MB - 1 GB VRAM) on 16GB laptops to hold the entire route
-      if (typeof (map as any).setTileCacheSize === 'function') {
-        (map as any).setTileCacheSize(1500);
-      }
+      const applyRasterQualitySettings = () => {
+        if (!map.isStyleLoaded()) return;
 
-      // Set prefetch zoom delta = 4 (pre-renders parent zoom levels 13, 14, 15, 16 under level 17 ground tiles)
-      if (typeof (map as any).setPrefetchZoomDelta === 'function') {
-        (map as any).setPrefetchZoomDelta(4);
-      }
+        for (const layer of map.getStyle().layers || []) {
+          if (layer.type !== 'raster' || !map.getLayer(layer.id)) continue;
+          map.setPaintProperty(layer.id, 'raster-fade-duration', 0);
+          map.setPaintProperty(layer.id, 'raster-resampling', 'linear');
+        }
+      };
+
+      map.on('style.load', applyRasterQualitySettings);
+      map.on('error', (event) => {
+        console.warn('Mapbox map or tile error:', event.error);
+      });
 
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
@@ -192,30 +208,6 @@ export default function Map({
     const newStyle = hasValidToken ? config.url : config.fallback;
     mapRef.current.setStyle(newStyle);
   }, [selectedStyleId, token]);
-
-  // Ultra-Aggressive Route Polyline Tile Pre-Warming Scan on 3D Preview Start
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !isPreviewActive || !routeData || !routeData.geometry) return;
-
-    const coords = routeData.geometry.coordinates as [number, number][];
-    if (coords.length < 4) return;
-
-    // Sample 12 points along route line to pre-fetch satellite tiles into VRAM
-    const sampleCount = 12;
-    const sampleStep = Math.floor(coords.length / sampleCount);
-
-    for (let i = 0; i < sampleCount; i++) {
-      const idx = Math.min(i * sampleStep, coords.length - 1);
-      const coord = coords[idx];
-      setTimeout(() => {
-        if (mapRef.current && isPreviewActive) {
-          // Force Mapbox tile engine to request surrounding tiles at level 16 & 17
-          (mapRef.current as any)._transform && (mapRef.current as any)._transform.center;
-        }
-      }, i * 80);
-    }
-  }, [isPreviewActive, routeData]);
 
   // Update Origin Pin (Point A)
   useEffect(() => {
@@ -382,6 +374,33 @@ export default function Map({
     }
 
     let lastTime = performance.now();
+    let lastCameraUpdateTime = 0;
+    let lastTilePrefetchTime = -Infinity;
+    const routeDurationSeconds = Math.max(routeData.telemetry.durationSeconds, 1);
+
+    const prefetchUpcomingTiles = (progress: number) => {
+      if (!map.isStyleLoaded()) return;
+
+      const lookaheadProgress = Math.min(progress + TILE_PREFETCH_LOOKAHEAD, 1);
+      if (lookaheadProgress <= progress) return;
+
+      const lookahead = interpolateRoutePosition(
+        coords,
+        lookaheadProgress,
+        cumulativeDistancesRef.current
+      );
+      const effectiveZoom = Math.min(cameraZoom, MAX_PREVIEW_ZOOM);
+
+      // Mapbox's preloadOnly camera path requests tiles without moving the visible camera.
+      map.flyTo({
+        center: lookahead.position,
+        zoom: effectiveZoom,
+        pitch: getPreviewPitch(effectiveZoom),
+        bearing: lookahead.bearing,
+        duration: 1200,
+        preloadOnly: true,
+      });
+    };
 
     const loop = (now: number) => {
       const deltaMs = now - lastTime;
@@ -390,8 +409,16 @@ export default function Map({
       if (isPlayingPreview) {
         // Cap ground speed slightly at close zoom levels to ensure satellite tiles download effortlessly
         const zoomSpeedFactor = cameraZoom > 17.2 ? 0.75 : 1.0;
-        const step = (deltaMs / 1000) * 0.012 * speedMultiplier * zoomSpeedFactor;
+        // Advance by route time, rather than a fixed percentage of the route.
+        // This keeps the simulated ground speed independent of route length.
+        const step =
+          (deltaMs / 1000) * (speedMultiplier / routeDurationSeconds) * zoomSpeedFactor;
         progressRef.current = Math.min(progressRef.current + step, 1);
+
+        if (now - lastTilePrefetchTime >= TILE_PREFETCH_INTERVAL_MS) {
+          lastTilePrefetchTime = now;
+          prefetchUpcomingTiles(progressRef.current);
+        }
       }
 
       // Compute raw target position and raw target bearing
@@ -422,17 +449,18 @@ export default function Map({
         vehicleMarkerRef.current.setRotation(currentBearingRef.current);
       }
 
-      // Cap maximum ground zoom to 17.8 for crisp 1:1 pixel satellite resolution without stretching
-      const effectiveZoom = Math.min(cameraZoom, 17.8);
-      const dynamicPitch = 30 + Math.min(Math.max((effectiveZoom - 14.0) * 8.5, 0), 40);
-
-      // 60 FPS Camera Update
-      map.jumpTo({
-        center: currentPositionRef.current,
-        zoom: effectiveZoom,
-        pitch: dynamicPitch,
-        bearing: currentBearingRef.current,
-      });
+      // Cap maximum ground zoom to 17.8 for crisp 1:1 pixel satellite resolution without stretching.
+      // Keep camera updates at 30 FPS so tile requests are not cancelled every render frame.
+      const effectiveZoom = Math.min(cameraZoom, MAX_PREVIEW_ZOOM);
+      if (now - lastCameraUpdateTime >= CAMERA_UPDATE_INTERVAL_MS) {
+        map.jumpTo({
+          center: currentPositionRef.current,
+          zoom: effectiveZoom,
+          pitch: getPreviewPitch(effectiveZoom),
+          bearing: currentBearingRef.current,
+        });
+        lastCameraUpdateTime = now;
+      }
 
       if (onProgressTick && now - lastTickTimeRef.current > 100) {
         lastTickTimeRef.current = now;
