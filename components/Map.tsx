@@ -37,6 +37,9 @@ interface MapProps {
   orientationMode?: 'follow' | 'manual';
   manualBearing?: number;
   onManualBearingChange?: (bearing: number) => void;
+  onDisengageFollow?: () => void;
+  isSidebarOpen?: boolean;
+  sidebarWidth?: number;
   onProgressTick?: (progress: number, bearing: number) => void;
   onOpenTokenModal: () => void;
 }
@@ -59,7 +62,7 @@ const FREE_CARTO_DARK: mapboxgl.Style = {
   layers: [{ id: 'carto-dark-layer', type: 'raster', source: 'carto-dark', minzoom: 0, maxzoom: 19 }],
 };
 
-const FREE_OSM_STREETS: mapboxgl.Style = {
+const FREE_OSM_BASEMAP: mapboxgl.Style = {
   version: 8,
   sources: {
     'osm-tiles': {
@@ -87,8 +90,7 @@ const FREE_SATELLITE: mapboxgl.Style = {
 
 export const MAPBOX_STYLES = [
   { id: 'satellite', name: '3D Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12', fallback: FREE_SATELLITE },
-  { id: 'streets', name: 'Streets Nav', url: 'mapbox://styles/mapbox/navigation-dark-v1', fallback: FREE_OSM_STREETS },
-  { id: 'outdoors', name: 'Outdoors Topo', url: 'mapbox://styles/mapbox/outdoors-v12', fallback: FREE_OSM_STREETS },
+  { id: 'outdoors', name: 'Outdoors Topo', url: 'mapbox://styles/mapbox/outdoors-v12', fallback: FREE_OSM_BASEMAP },
 ];
 
 function getPreviewPitch(zoom: number): number {
@@ -140,8 +142,8 @@ const MiniMap = React.memo(forwardRef<MiniMapHandle, { routeData: RouteData; tok
       if (!miniMap.isStyleLoaded()) return;
       if (miniMap.getSource('mini-route-source')) return;
       miniMap.addSource('mini-route-source', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: routeData.geometry } });
-      miniMap.addLayer({ id: 'mini-route-glow', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#0f172a', 'line-width': 7, 'line-opacity': 0.8 } });
-      miniMap.addLayer({ id: 'mini-route-line', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#75b8ae', 'line-width': 3, 'line-opacity': 0.95 } });
+      miniMap.addLayer({ id: 'mini-route-glow', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#2f80ff', 'line-width': 9, 'line-opacity': 0.45, 'line-blur': 2 } });
+      miniMap.addLayer({ id: 'mini-route-line', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#f8fbff', 'line-width': 3.5, 'line-opacity': 0.98 } });
       const bounds = new mapboxgl.LngLatBounds(geometry[0], geometry[0]);
       geometry.forEach((coordinate) => bounds.extend(coordinate));
       miniMap.fitBounds(bounds, { padding: 24, maxZoom: 13, duration: 0 });
@@ -270,9 +272,12 @@ export default function Map({
   speedMultiplier = 1,
   cameraZoom = 16.8,
   onCameraZoomChange,
-  orientationMode = 'follow',
+  orientationMode = 'manual',
   manualBearing = 0,
   onManualBearingChange,
+  onDisengageFollow,
+  isSidebarOpen = true,
+  sidebarWidth = 420,
   onProgressTick,
   onOpenTokenModal,
 }: MapProps) {
@@ -297,6 +302,7 @@ export default function Map({
   const cameraPitchRef = useRef(getPreviewPitch(cameraZoom));
   const onProgressTickRef = useRef(onProgressTick);
   const onManualBearingChangeRef = useRef(onManualBearingChange);
+  const onDisengageFollowRef = useRef(onDisengageFollow);
   const onCameraZoomChangeRef = useRef(onCameraZoomChange);
   const currentPositionRef = useRef<[number, number] | null>(null);
   const lastTickTimeRef = useRef(0);
@@ -310,6 +316,7 @@ export default function Map({
   const [isUsingMapboxKey, setIsUsingMapboxKey] = useState(false);
   const [isPreviewDataExpanded, setIsPreviewDataExpanded] = useState(true);
   const [isMiniMapExpanded, setIsMiniMapExpanded] = useState(true);
+  const [isManualHintVisible, setIsManualHintVisible] = useState(false);
 
   const routeGeometry = routeData?.geometry;
 
@@ -353,6 +360,10 @@ export default function Map({
   }, [onManualBearingChange]);
 
   useEffect(() => {
+    onDisengageFollowRef.current = onDisengageFollow;
+  }, [onDisengageFollow]);
+
+  useEffect(() => {
     onCameraZoomChangeRef.current = onCameraZoomChange;
   }, [onCameraZoomChange]);
 
@@ -372,6 +383,16 @@ export default function Map({
     mediaQuery.addEventListener?.('change', updateForViewport);
     return () => mediaQuery.removeEventListener?.('change', updateForViewport);
   }, [isPreviewActive]);
+
+  useEffect(() => {
+    if (!isPreviewActive || orientationMode !== 'manual') {
+      setIsManualHintVisible(false);
+      return;
+    }
+    setIsManualHintVisible(true);
+    const timer = window.setTimeout(() => setIsManualHintVisible(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [isPreviewActive, orientationMode]);
 
   // The animation owns progress while playing. React state is only a UI mirror;
   // ignoring tiny mirror differences prevents the marker from being snapped back
@@ -559,14 +580,14 @@ export default function Map({
         type: 'line',
         source: sourceId,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#326e6a', 'line-width': 9, 'line-opacity': 0.34, 'line-blur': 2 },
+        paint: { 'line-color': '#2f80ff', 'line-width': 12, 'line-opacity': 0.45, 'line-blur': 2 },
       });
       map.addLayer({
         id: lineId,
         type: 'line',
         source: sourceId,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#dce9e7', 'line-width': 3.5, 'line-opacity': 0.92 },
+        paint: { 'line-color': '#f8fbff', 'line-width': 4, 'line-opacity': 0.98 },
       });
 
       if (!isPreviewActive && routeGeometry.coordinates.length > 0) {
@@ -574,14 +595,28 @@ export default function Map({
         const bounds = new mapboxgl.LngLatBounds(coordinates[0] as [number, number], coordinates[0] as [number, number]);
         coordinates.forEach((coordinate) => bounds.extend(coordinate as [number, number]));
         const isCompactViewport = window.innerWidth < 640;
-        map.fitBounds(bounds, { padding: { top: isCompactViewport ? 120 : 120, bottom: isCompactViewport ? 120 : 120, left: isCompactViewport ? 28 : 450, right: isCompactViewport ? 28 : 120 }, maxZoom: 13, duration: 700 });
+        map.fitBounds(bounds, { padding: { top: isCompactViewport ? 120 : 120, bottom: isCompactViewport ? 120 : 120, left: isCompactViewport ? 28 : (isSidebarOpen ? sidebarWidth + 30 : 120), right: isCompactViewport ? 28 : 120 }, maxZoom: 13, duration: 700 });
       }
     };
 
     if (map.isStyleLoaded()) updateLayer();
     else map.once('style.load', updateLayer);
     return () => { map.off('style.load', updateLayer); };
-  }, [routeGeometry, selectedStyleId, token, isPreviewActive]);
+  }, [routeGeometry, selectedStyleId, token, isPreviewActive, isSidebarOpen, sidebarWidth]);
+
+  // Native Mapbox gestures are still available in follow mode. The first user
+  // gesture changes the camera contract to manual mode so playback never snaps
+  // the map back under their finger.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isPreviewActive) return;
+    const disengage = () => {
+      if (orientationModeRef.current === 'follow') onDisengageFollowRef.current?.();
+    };
+    const events: Array<'dragstart' | 'rotatestart' | 'pitchstart' | 'zoomstart'> = ['dragstart', 'rotatestart', 'pitchstart', 'zoomstart'];
+    events.forEach((eventName) => map.on(eventName, disengage));
+    return () => events.forEach((eventName) => map.off(eventName, disengage));
+  }, [isPreviewActive]);
 
   // Manual turning uses pointer events directly on the canvas. One finger/mouse
   // drags turn and tilt the camera; two fingers pinch the same camera zoom on a
@@ -620,6 +655,7 @@ export default function Map({
 
     const onPointerDown = (event: PointerEvent) => {
       if (!isManual || (event.pointerType === 'mouse' && event.button !== 0)) return;
+      setIsManualHintVisible(false);
       event.preventDefault();
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (pointers.size === 2) {
@@ -669,6 +705,7 @@ export default function Map({
     };
 
     const onWheel = (event: WheelEvent) => {
+      if (!isManual) onDisengageFollowRef.current?.();
       event.preventDefault();
       const previousZoom = cameraZoomRef.current;
       const zoomDelta = event.deltaY * (event.ctrlKey ? 0.014 : 0.009);
@@ -768,7 +805,7 @@ export default function Map({
 
       const target = interpolateRoutePosition(coordinates, progressRef.current, cumulativeDistancesRef.current);
       // The camera and marker use the exact same interpolated position. This keeps
-      // the arrow pinned in the view even at 16x and removes the old chase lag.
+      // the arrow pinned in the view even at fast playback rates.
       currentPositionRef.current = target.position;
       const bearingAlpha = 1 - Math.exp(-(deltaMs / 1000) * 12);
       currentBearingRef.current = lerpAngle(currentBearingRef.current, target.bearing, bearingAlpha);
@@ -810,7 +847,7 @@ export default function Map({
   }, [isPreviewActive, routeGeometry]);
 
   return (
-    <div className="relative h-full min-h-[100dvh] w-full bg-[#090a0f]">
+    <div className="relative h-full min-h-[100dvh] w-full bg-[var(--bg-obsidian)]">
       <div ref={mapContainerRef} className="h-full min-h-[100dvh] w-full" />
 
       {!isPreviewActive && (
@@ -849,7 +886,7 @@ export default function Map({
           </div>
           <MiniMap ref={miniMapRef} routeData={routeData} token={token} selectedStyleId={selectedStyleId} expanded={isMiniMapExpanded} onToggleExpanded={() => setIsMiniMapExpanded((expanded) => !expanded)} />
           {orientationMode === 'manual' && (
-            <div className="theme-scope flighty-map-card pointer-events-none absolute left-2 top-[10rem] z-30 flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-xl border border-cyan-400/40 px-3 py-2 text-[10px] text-cyan-200 shadow-xl sm:left-4 sm:top-[14.2rem] sm:max-w-[232px]">
+            <div className={`theme-scope flighty-map-card pointer-events-none absolute left-2 top-[10rem] z-30 flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-xl border border-cyan-400/40 px-3 py-2 text-[10px] text-cyan-200 shadow-xl transition-opacity duration-700 sm:left-4 sm:top-[14.2rem] sm:max-w-[232px] ${isManualHintVisible ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!isManualHintVisible}>
               <MousePointer2 className="h-3.5 w-3.5 shrink-0 text-cyan-400" /> Drag or swipe to turn / tilt · pinch to zoom
             </div>
           )}

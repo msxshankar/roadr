@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, GripVertical, Navigation, Plus, Route as RouteIcon, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical, Navigation, Plus, Route as RouteIcon, Trash2, X } from 'lucide-react';
 import { LocationPoint } from '@/types';
 import LocationSearchInput from './LocationSearchInput';
 import GoogleMapsImport from './GoogleMapsImport';
@@ -17,7 +17,6 @@ interface RouteControlsProps {
   onAddStop: (location: LocationPoint) => void;
   onRemoveStop: (index: number) => void;
   onReorderStops: (fromIndex: number, toIndex: number) => void;
-  onRemoveSavedPlace: (location: LocationPoint) => void;
   onClearOrigin: () => void;
   onClearDestination: () => void;
   onSwapLocations: () => void;
@@ -39,7 +38,6 @@ export default function RouteControls({
   onAddStop,
   onRemoveStop,
   onReorderStops,
-  onRemoveSavedPlace,
   onClearOrigin,
   onClearDestination,
   onSwapLocations,
@@ -50,8 +48,6 @@ export default function RouteControls({
   isLoadingRoute,
 }: RouteControlsProps) {
   const [isAddingStop, setIsAddingStop] = useState(false);
-  const [savedTarget, setSavedTarget] = useState<'origin' | 'destination'>('origin');
-  const [isSavedPlacesExpanded, setIsSavedPlacesExpanded] = useState(false);
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
 
   return (
@@ -166,33 +162,6 @@ export default function RouteControls({
         <button type="button" onClick={onSwapLocations} disabled={!origin || !destination} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-[#12141d] px-3 py-1.5 text-[10px] text-gray-400 shadow-md transition-all hover:border-teal-300/50 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30" title="Swap origin and destination">
           <ArrowUpDown className="h-3.5 w-3.5" /> Swap route
         </button>
-      </div>
-
-      <div className="theme-section rounded-xl border border-white/10 bg-black/20 p-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <button type="button" onClick={() => setIsSavedPlacesExpanded((expanded) => !expanded)} className="flex min-w-0 items-center gap-1.5 text-left">
-            <Bookmark className="h-3.5 w-3.5 shrink-0 text-violet-300" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-200">Saved places</span>
-            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-mono text-gray-400">{savedPlaces.length}</span>
-          </button>
-          <div className="flex items-center gap-1 rounded-lg bg-white/5 p-0.5">
-            <button type="button" onClick={() => setSavedTarget('origin')} className={`rounded-md px-1.5 py-0.5 text-[10px] ${savedTarget === 'origin' ? 'bg-teal-400 font-bold text-black' : 'text-gray-400 hover:text-white'}`}>Origin</button>
-            <button type="button" onClick={() => setSavedTarget('destination')} className={`rounded-md px-1.5 py-0.5 text-[10px] ${savedTarget === 'destination' ? 'bg-rose-400 font-bold text-black' : 'text-gray-400 hover:text-white'}`}>Destination</button>
-          </div>
-        </div>
-        {isSavedPlacesExpanded && (savedPlaces.length === 0 ? (
-          <p className="mt-2 text-[10px] text-gray-500">Places you search for are saved here automatically.</p>
-        ) : (
-          <div className="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1">
-            {savedPlaces.map((place) => (
-              <div key={`${place.lng}-${place.lat}`} className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-2 py-1">
-                <button type="button" onClick={() => (savedTarget === 'origin' ? onSelectOrigin(place) : onSelectDestination(place))} className="min-w-0 flex-1 truncate text-left text-xs text-gray-200 hover:text-teal-200">{place.name}</button>
-                <button type="button" onClick={() => onRemoveSavedPlace(place)} className="rounded-md p-1 text-gray-500 hover:bg-red-500/10 hover:text-red-300" title="Remove saved place" aria-label={`Remove ${place.name} from saved places`}><X className="h-3.5 w-3.5" /></button>
-              </div>
-            ))}
-          </div>
-        ))}
-        {savedPlaces.length > 0 && <button type="button" onClick={() => setIsSavedPlacesExpanded((expanded) => !expanded)} className="mt-1 text-[10px] text-gray-500 hover:text-violet-200">{isSavedPlacesExpanded ? 'Collapse' : 'Show saved places'}</button>}
       </div>
 
       <div className="flex items-center space-x-2 pt-0.5">

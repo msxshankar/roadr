@@ -1,4 +1,4 @@
-import { LocationPoint, RouteData, RouteDetails, RouteSegment, RouteTelemetry } from '@/types';
+import { LocationPoint, RouteData, RouteDetails, RouteOption, RouteSegment, RouteTelemetry } from '@/types';
 
 export const DEFAULT_MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -637,6 +637,29 @@ async function readJson(response: Response): Promise<any> {
   return response.json();
 }
 
+function buildRouteOption(
+  route: any,
+  index: number,
+  origin: LocationPoint,
+  destination: LocationPoint,
+  stops: LocationPoint[],
+  mpg: number,
+  pricePerLiterPence: number,
+  provider: 'mapbox' | 'osrm'
+): RouteOption {
+  const coordinates = route.geometry.coordinates as [number, number][];
+  return {
+    id: `${provider}-route-${index + 1}`,
+    origin,
+    destination,
+    stops,
+    geometry: route.geometry,
+    telemetry: computeTelemetry(route.distance, route.duration, mpg, pricePerLiterPence),
+    details: buildRouteDetails(coordinates, [], extractRouteStepHints(route)),
+    provider,
+  };
+}
+
 /** Fetch a route through Mapbox when configured, with an OSRM fallback. */
 export async function fetchRoute(
   origin: LocationPoint,
@@ -652,19 +675,14 @@ export async function fetchRoute(
 
   if (hasValidToken) {
     try {
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinateString}?overview=full&geometries=geojson&steps=true&annotations=maxspeed&language=en-GB&access_token=${token?.trim()}`;
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinateString}?alternatives=true&overview=full&geometries=geojson&steps=true&annotations=maxspeed&language=en-GB&access_token=${token?.trim()}`;
       const data = await readJson(await fetch(url));
       if (data.routes?.length > 0) {
-        const route = data.routes[0];
-        const coordinates = route.geometry.coordinates as [number, number][];
+        const options = data.routes.slice(0, 4).map((route: any, index: number) => buildRouteOption(route, index, origin, destination, stops, mpg, pricePerLiterPence, 'mapbox')) as RouteOption[];
+        const [primary, ...alternatives] = options;
         return {
-          origin,
-          destination,
-          stops,
-          geometry: route.geometry,
-          telemetry: computeTelemetry(route.distance, route.duration, mpg, pricePerLiterPence),
-          details: buildRouteDetails(coordinates, [], extractRouteStepHints(route)),
-          provider: 'mapbox',
+          ...primary,
+          alternatives,
         };
       }
     } catch (error) {
@@ -672,19 +690,14 @@ export async function fetchRoute(
     }
   }
 
-  const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordinateString}?overview=full&geometries=geojson&steps=true&annotations=true`
+  const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordinateString}?alternatives=true&overview=full&geometries=geojson&steps=true&annotations=true`
   const osrmData = await readJson(await fetch(osrmUrl));
   if (osrmData.routes?.length > 0) {
-    const route = osrmData.routes[0];
-    const coordinates = route.geometry.coordinates as [number, number][];
+    const options = osrmData.routes.slice(0, 4).map((route: any, index: number) => buildRouteOption(route, index, origin, destination, stops, mpg, pricePerLiterPence, 'osrm')) as RouteOption[];
+    const [primary, ...alternatives] = options;
     return {
-      origin,
-      destination,
-      stops,
-      geometry: route.geometry,
-      telemetry: computeTelemetry(route.distance, route.duration, mpg, pricePerLiterPence),
-      details: buildRouteDetails(coordinates, [], extractRouteStepHints(route)),
-      provider: 'osrm',
+      ...primary,
+      alternatives,
     };
   }
 

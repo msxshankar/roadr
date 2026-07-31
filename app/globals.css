@@ -8,17 +8,17 @@
 :root {
   --font-sans: 'Inter', sans-serif;
   --font-display: 'Outfit', sans-serif;
-  --bg-obsidian: #07111f;
+  --bg-obsidian: #050505;
   --app-text: #f2f5f7;
   --app-strong: #ffffff;
   --app-muted: #a7b5c3;
-  --app-panel: #101d31;
-  --app-panel-strong: #172842;
-  --app-field: #0b1728;
-  --app-border: #2a405c;
+  --app-panel: #101011;
+  --app-panel-strong: #181819;
+  --app-field: #09090a;
+  --app-border: #303033;
   --app-accent: #78a9ff;
   --app-accent-strong: #3b73d1;
-  --app-accent-soft: #1e385d;
+  --app-accent-soft: #1f3151;
   --app-secondary: #9b91c9;
   --app-secondary-strong: #665a9a;
   --app-secondary-soft: #3c3a5d;
@@ -29,7 +29,7 @@
   --app-success-soft: #27483a;
   --app-danger: #d17b83;
   --app-danger-soft: #4e2e38;
-  --app-shadow: rgba(3, 10, 18, 0.35);
+  --app-shadow: rgba(0, 0, 0, 0.62);
 }
 
 html[data-theme='light'] {
@@ -155,6 +155,34 @@ body,
   border-color: var(--app-border) !important;
 }
 
+.route-sidebar-resizer {
+  position: absolute;
+  top: 0.75rem;
+  right: -0.45rem;
+  bottom: 0.75rem;
+  width: 0.9rem;
+  cursor: col-resize;
+  border-radius: 999px;
+  background: transparent;
+  transition: background-color 160ms ease;
+}
+
+.route-sidebar-resizer:hover,
+.route-sidebar-resizer:active {
+  background: var(--app-accent);
+}
+
+.route-sidebar {
+  scrollbar-color: var(--app-border) transparent;
+  scrollbar-width: thin;
+}
+
+@media (min-width: 640px) {
+  .route-sidebar {
+    width: min(var(--sidebar-width, 26.25rem), calc(100vw - 2rem));
+  }
+}
+
 .theme-scope,
 .theme-panel,
 .theme-modal,
@@ -166,6 +194,15 @@ body,
   background: var(--app-field) !important;
   border-color: var(--app-border) !important;
   color: var(--app-text) !important;
+}
+
+.header-car-select {
+  color: inherit;
+}
+
+.header-car-select option {
+  background: #101011;
+  color: #f2f5f7;
 }
 
 .theme-section {
@@ -475,6 +512,10 @@ body,
     display: none;
   }
 
+  .flighty-header .header-car-select {
+    max-width: 5.5rem;
+  }
+
   .mobile-route-sheet {
     top: max(5.5rem, calc(env(safe-area-inset-top) + 4.75rem));
     bottom: max(4.5rem, calc(env(safe-area-inset-bottom) + 4.25rem));
@@ -493,6 +534,11 @@ body,
   .mapboxgl-ctrl-group button {
     width: 2.5rem !important;
     height: 2.5rem !important;
+  }
+
+  .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-zoom-in,
+  .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-zoom-out {
+    display: none !important;
   }
 }
 

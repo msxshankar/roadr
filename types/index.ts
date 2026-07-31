@@ -91,6 +91,18 @@ export interface RouteData {
   telemetry: RouteTelemetry;
   details: RouteDetails;
   provider: 'mapbox' | 'osrm';
+  alternatives?: RouteOption[];
+}
+
+export interface RouteOption {
+  id: string;
+  origin: LocationPoint;
+  destination: LocationPoint;
+  stops: LocationPoint[];
+  geometry: GeoJSON.LineString;
+  telemetry: RouteTelemetry;
+  details: RouteDetails;
+  provider: 'mapbox' | 'osrm';
 }
 
 export interface RecordedRoute {
@@ -105,4 +117,11 @@ export interface RecordedRoute {
   fuelLiters: number;
   fuelCostGbp: number;
   durationSeconds: number;
+}
+
+export interface RoadrAppState {
+  vehicles: VehicleProfile[];
+  activeVehicleId: string | null;
+  savedPlaces: LocationPoint[];
+  recordedRoutes: RecordedRoute[];
 }

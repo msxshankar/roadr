@@ -32,6 +32,7 @@ export default function LocationSearchInput({
   const [suggestions, setSuggestions] = useState<GeocodeResult[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const savedSuggestions = useMemo(() => {
@@ -53,6 +54,10 @@ export default function LocationSearchInput({
     }
   }, [value]);
 
+  useEffect(() => {
+    setActiveSuggestionIndex(0);
+  }, [query]);
+
   // Debounced autocomplete search
   useEffect(() => {
     if (!query.trim() || isCommittedValue) {
@@ -69,6 +74,7 @@ export default function LocationSearchInput({
 
       setSuggestions(results);
       setIsLoading(false);
+      setActiveSuggestionIndex(0);
       setIsOpen(savedSuggestions.length > 0 || results.length > 0);
     }, 250);
 
@@ -91,11 +97,11 @@ export default function LocationSearchInput({
 
   const handleSelect = (item: GeocodeResult) => {
     const location: LocationPoint = {
-      name: item.name,
+      name: item.fullName || item.name,
       lng: item.lng,
       lat: item.lat,
     };
-    setQuery(item.name);
+    setQuery(location.name);
     setIsOpen(false);
     onSelectLocation(location);
   };
@@ -151,21 +157,36 @@ export default function LocationSearchInput({
             setIsOpen(true);
           }}
           onKeyDown={(e) => {
-            if (e.key !== 'Enter') return;
-            const firstSaved = savedSuggestions[0];
-            const firstResult = suggestions[0];
-            if (!firstSaved && !firstResult) return;
+            const totalSuggestions = savedSuggestions.length + suggestions.length;
+            if (e.key === 'ArrowDown' && totalSuggestions > 0) {
+              e.preventDefault();
+              setIsOpen(true);
+              setActiveSuggestionIndex((current) => Math.min(current + 1, totalSuggestions - 1));
+              return;
+            }
+            if (e.key === 'ArrowUp' && totalSuggestions > 0) {
+              e.preventDefault();
+              setActiveSuggestionIndex((current) => Math.max(current - 1, 0));
+              return;
+            }
+            if (e.key === 'Escape') {
+              setIsOpen(false);
+              return;
+            }
+            if (e.key !== 'Enter' || totalSuggestions === 0) return;
             e.preventDefault();
-            if (firstSaved) handleSelectSavedPlace(firstSaved);
-            else if (firstResult) handleSelect(firstResult);
+            if (activeSuggestionIndex < savedSuggestions.length) handleSelectSavedPlace(savedSuggestions[activeSuggestionIndex]);
+            else handleSelect(suggestions[activeSuggestionIndex - savedSuggestions.length]);
           }}
           onFocus={() => {
+            setActiveSuggestionIndex(0);
             if (savedSuggestions.length > 0 || suggestions.length > 0) setIsOpen(true);
           }}
           placeholder={placeholder}
           aria-autocomplete="list"
           aria-expanded={isOpen}
           aria-controls={suggestionsId}
+          aria-activedescendant={isOpen ? `${suggestionsId}-${activeSuggestionIndex}` : undefined}
           className={`theme-field w-full rounded-xl border pl-9 pr-8 py-2.5 text-xs placeholder:text-gray-500 transition-all font-medium ${
             badgeColor === 'cyan'
               ? 'border-white/10 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400'
@@ -197,14 +218,15 @@ export default function LocationSearchInput({
                   Saved places
                 </span>
               </div>
-              {savedSuggestions.map((item) => (
+              {savedSuggestions.map((item, index) => (
                 <button
                   key={`saved-${item.lng}-${item.lat}`}
+                  id={`${suggestionsId}-${index}`}
                   type="button"
                   role="option"
-                  aria-selected="false"
+                  aria-selected={activeSuggestionIndex === index}
                   onClick={() => handleSelectSavedPlace(item)}
-                  className="w-full text-left px-3.5 py-2.5 hover:bg-white/10 transition-colors border-b border-white/5 last:border-none flex items-start space-x-2.5 group"
+                  className={`w-full text-left px-3.5 py-2.5 transition-colors border-b border-white/5 last:border-none flex items-start space-x-2.5 group ${activeSuggestionIndex === index ? 'bg-white/10' : 'hover:bg-white/10'}`}
                 >
                   <Bookmark className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${badgeColor === 'cyan' ? 'text-cyan-400' : 'text-amber-400'}`} />
                   <div className="flex-1 min-w-0">
@@ -230,14 +252,17 @@ export default function LocationSearchInput({
                   </span>
                 </div>
               )}
-              {suggestions.map((item, index) => (
+              {suggestions.map((item, index) => {
+                const optionIndex = savedSuggestions.length + index;
+                return (
                 <button
                   key={`${item.lng}-${item.lat}-${index}`}
+                  id={`${suggestionsId}-${optionIndex}`}
                   type="button"
                   role="option"
-                  aria-selected="false"
+                  aria-selected={activeSuggestionIndex === optionIndex}
                   onClick={() => handleSelect(item)}
-                  className="w-full text-left px-3.5 py-2.5 hover:bg-white/10 transition-colors border-b border-white/5 last:border-none flex items-start space-x-2.5 group"
+                  className={`w-full text-left px-3.5 py-2.5 transition-colors border-b border-white/5 last:border-none flex items-start space-x-2.5 group ${activeSuggestionIndex === optionIndex ? 'bg-white/10' : 'hover:bg-white/10'}`}
                 >
                   <MapPin className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${badgeColor === 'cyan' ? 'text-cyan-400' : 'text-amber-400'}`} />
                   <div className="flex-1 min-w-0">
@@ -256,7 +281,8 @@ export default function LocationSearchInput({
                     </p>
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </>
           )}
         </div>

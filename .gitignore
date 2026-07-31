@@ -28,3 +28,7 @@ yarn-error.log*
 
 # vercel
 .vercel
+.next
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal

@@ -15,7 +15,7 @@ function cleanResult(result: GeocodeResult): GeocodeResult | null {
 
 async function searchMapbox(query: string, token: string): Promise<GeocodeResult[]> {
   const encoded = encodeURIComponent(query);
-  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encoded}.json?autocomplete=true&language=en-GB&country=gb&proximity=-2.5,54.5&types=poi,address,postcode,place,locality,neighborhood,district&limit=8&access_token=${encodeURIComponent(token.trim())}`;
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encoded}.json?autocomplete=true&fuzzyMatch=true&routing=true&language=en-GB&country=gb&proximity=-2.5,54.5&types=poi,address,postcode,place,locality,neighborhood,district&limit=10&access_token=${encodeURIComponent(token.trim())}`;
   const response = await fetch(url);
   if (!response.ok) return [];
   const data = await response.json();
@@ -36,7 +36,7 @@ async function searchNominatim(query: string): Promise<GeocodeResult[]> {
   const variants = [query, `${query}, United Kingdom`];
   for (const variant of variants) {
     const encoded = encodeURIComponent(variant);
-    const url = `https://nominatim.openstreetmap.org/search?q=${encoded}&countrycodes=gb&format=jsonv2&addressdetails=1&namedetails=1&dedupe=1&limit=8`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${encoded}&countrycodes=gb&format=jsonv2&addressdetails=1&namedetails=1&dedupe=1&extratags=1&limit=10`;
     const response = await fetch(url, {
       headers: {
         Accept: 'application/json',
@@ -65,7 +65,7 @@ async function searchNominatim(query: string): Promise<GeocodeResult[]> {
 async function searchPhoton(query: string): Promise<GeocodeResult[]> {
   const encoded = encodeURIComponent(query);
   const response = await fetch(
-    `https://photon.komoot.io/api/?q=${encoded}&lat=54.5&lon=-2.5&limit=8&lang=en`
+    `https://photon.komoot.io/api/?q=${encoded}&lat=54.5&lon=-2.5&limit=10&lang=en`
   );
   if (!response.ok) return [];
   const data = await response.json();
