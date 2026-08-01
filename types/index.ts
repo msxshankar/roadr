@@ -125,3 +125,26 @@ export interface RoadrAppState {
   savedPlaces: LocationPoint[];
   recordedRoutes: RecordedRoute[];
 }
+
+export type UserRole = 'user' | 'admin';
+
+export interface User {
+  id: string;
+  username: string;
+  role: UserRole;
+  createdAt?: string;
+}
+
+export interface AuthSession {
+  id: string;
+  userId: string;
+  expiresAt: string;
+}
+
+export interface AdminMetrics {
+  userCount: number;
+  vehicleCount: number;
+  routeCount: number;
+  savedPlaceCount: number;
+  dbStatus: 'healthy' | 'unhealthy';
+}

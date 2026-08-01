@@ -201,6 +201,18 @@ body,
   min-width: 0;
 }
 
+.header-control-strip {
+  scrollbar-width: none;
+}
+
+.header-control-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.header-profile {
+  border-color: var(--app-accent);
+}
+
 .header-car-select,
 .theme-scope .header-car-select {
   width: 100%;
@@ -501,6 +513,7 @@ body,
     border-bottom: 0;
     background: transparent;
     box-shadow: none;
+    align-items: flex-start;
   }
 
   .flighty-header::before {
@@ -517,6 +530,14 @@ body,
     min-width: 2.5rem;
     justify-content: center;
     padding: 0.625rem;
+  }
+
+  .flighty-header .header-control-strip {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 0.125rem;
   }
 
   .flighty-header .header-action span {

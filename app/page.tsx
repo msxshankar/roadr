@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Header from '@/components/Header';
 import RouteControls from '@/components/RouteControls';
@@ -9,7 +9,8 @@ import TokenModal from '@/components/TokenModal';
 import RoutePreviewHUD from '@/components/RoutePreviewHUD';
 import VehicleGarageModal from '@/components/VehicleGarageModal';
 import RecordRouteModal from '@/components/RecordRouteModal';
-import { LocationPoint, RecordedRoute, RouteData, RoadrAppState, VehicleProfile } from '@/types';
+import AuthModal from '@/components/AuthModal';
+import { LocationPoint, RecordedRoute, RouteData, RoadrAppState, User, VehicleProfile } from '@/types';
 import { DEFAULT_DESTINATION, DEFAULT_ORIGIN } from '@/lib/defaultRoute';
 import { parseSavedPlaces, upsertSavedPlace } from '@/lib/savedPlaces';
 import {
@@ -44,6 +45,10 @@ export default function Home() {
   const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
   const [recordedRoutes, setRecordedRoutes] = useState<RecordedRoute[]>([]);
   const [hasLoadedAppState, setHasLoadedAppState] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authStatus, setAuthStatus] = useState<'loading' | 'anonymous' | 'authenticated'>('loading');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [allowLegacyState, setAllowLegacyState] = useState(true);
 
   const [mpg, setMpg] = useState(DEFAULT_UK_MPG);
   const [pricePerLiterPence, setPricePerLiterPence] = useState(DEFAULT_UK_PETROL_PRICE_PENCE);
@@ -76,6 +81,37 @@ export default function Home() {
   const vehicle = vehicles.find((item) => item.id === activeVehicleId) || null;
   const selectedAlternative = routeData?.alternatives?.find((alternative) => alternative.id === selectedRouteId) || null;
   const activeRouteData = selectedAlternative || routeData;
+
+  const handleCloseAuth = useCallback(() => setIsAuthModalOpen(false), []);
+
+  const handleAuthenticated = (nextUser: User) => {
+    setUser(nextUser);
+    setAuthStatus('authenticated');
+    setAllowLegacyState(false);
+    setHasLoadedAppState(false);
+    setVehicles([]);
+    setActiveVehicleId(null);
+    setSavedPlaces([]);
+    setRecordedRoutes([]);
+    setIsAuthModalOpen(false);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.warn('Unable to sign out cleanly:', error);
+    } finally {
+      setUser(null);
+      setAuthStatus('anonymous');
+      setAllowLegacyState(false);
+      setHasLoadedAppState(false);
+      setVehicles([]);
+      setActiveVehicleId(null);
+      setSavedPlaces([]);
+      setRecordedRoutes([]);
+    }
+  };
 
   const handleExitPreview = () => {
     setIsPreviewActive(false);
@@ -328,13 +364,41 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
-    async function loadAppState() {
-      let legacyState: RoadrAppState = {
-        vehicles: [],
-        activeVehicleId: null,
-        savedPlaces: [],
-        recordedRoutes: [],
-      };
+    async function hydrateSession() {
+      try {
+        const response = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Auth API returned ${response.status}`);
+        const payload = await response.json() as { user?: User | null };
+        if (!cancelled) {
+          setUser(payload.user || null);
+          setAuthStatus(payload.user ? 'authenticated' : 'anonymous');
+          if (payload.user) setAllowLegacyState(false);
+          if (window.location.search.includes('auth=required')) {
+            setIsAuthModalOpen(true);
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        }
+      } catch (error) {
+        console.warn('Unable to restore Roadr session:', error);
+        if (!cancelled) setAuthStatus('anonymous');
+      }
+    }
+    void hydrateSession();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (authStatus === 'loading') return;
+    let cancelled = false;
+
+    const emptyState: RoadrAppState = {
+      vehicles: [],
+      activeVehicleId: null,
+      savedPlaces: [],
+      recordedRoutes: [],
+    };
+    let legacyState = emptyState;
+    if (authStatus === 'anonymous' && allowLegacyState) {
       try {
         const legacyVehicle = parseVehicleProfile(window.localStorage.getItem('roadr:vehicle-profile:v1'));
         legacyState = {
@@ -346,13 +410,23 @@ export default function Home() {
       } catch (error) {
         console.warn('Unable to read legacy Roadr data:', error);
       }
+    }
 
+    async function loadAppState() {
       try {
-        const response = await fetch('/api/state', { cache: 'no-store' });
-        if (!response.ok) throw new Error(`State API returned ${response.status}`);
-        const stored = await response.json() as RoadrAppState;
-        const hasStoredData = stored.vehicles.length > 0 || stored.savedPlaces.length > 0 || stored.recordedRoutes.length > 0;
-        const state = hasStoredData ? stored : legacyState;
+        const state = authStatus === 'authenticated'
+          ? await (async () => {
+            const response = await fetch('/api/state', { cache: 'no-store' });
+            if (!response.ok) {
+              if (response.status === 401) {
+                setAllowLegacyState(false);
+                setAuthStatus('anonymous');
+              }
+              throw new Error(`State API returned ${response.status}`);
+            }
+            return await response.json() as RoadrAppState;
+          })()
+          : legacyState;
         if (!cancelled) {
           setVehicles(state.vehicles);
           setActiveVehicleId(state.activeVehicleId || state.vehicles[0]?.id || null);
@@ -362,24 +436,22 @@ export default function Home() {
           if (nextVehicle) setMpg(nextVehicle.mpg);
           setHasLoadedAppState(true);
         }
-        if (!hasStoredData && (legacyState.vehicles.length > 0 || legacyState.savedPlaces.length > 0 || legacyState.recordedRoutes.length > 0)) {
-          await fetch('/api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(legacyState) });
-        }
       } catch (error) {
-        console.warn('Unable to load Roadr local database; using browser fallback:', error);
+        console.warn('Unable to load Roadr state:', error);
         if (!cancelled) {
-          setVehicles(legacyState.vehicles);
-          setActiveVehicleId(legacyState.activeVehicleId || legacyState.vehicles[0]?.id || null);
-          setSavedPlaces(legacyState.savedPlaces);
-          setRecordedRoutes(legacyState.recordedRoutes);
-          if (legacyState.vehicles[0]) setMpg(legacyState.vehicles[0].mpg);
+          const fallback = authStatus === 'anonymous' && allowLegacyState ? legacyState : emptyState;
+          setVehicles(fallback.vehicles);
+          setActiveVehicleId(fallback.activeVehicleId || fallback.vehicles[0]?.id || null);
+          setSavedPlaces(fallback.savedPlaces);
+          setRecordedRoutes(fallback.recordedRoutes);
+          if (fallback.vehicles[0]) setMpg(fallback.vehicles[0].mpg);
           setHasLoadedAppState(true);
         }
       }
     }
     void loadAppState();
     return () => { cancelled = true; };
-  }, []);
+  }, [allowLegacyState, authStatus]);
 
   useEffect(() => {
     try {
@@ -400,7 +472,7 @@ export default function Home() {
   }, [theme]);
 
   useEffect(() => {
-    if (!hasLoadedAppState) return;
+    if (!hasLoadedAppState || authStatus !== 'authenticated') return;
     const payload: RoadrAppState = { vehicles, activeVehicleId, savedPlaces, recordedRoutes };
     const timer = window.setTimeout(() => {
       void fetch('/api/state', {
@@ -410,7 +482,7 @@ export default function Home() {
       }).catch((error) => console.warn('Unable to persist Roadr state:', error));
     }, 180);
     return () => window.clearTimeout(timer);
-  }, [activeVehicleId, hasLoadedAppState, recordedRoutes, savedPlaces, vehicles]);
+  }, [activeVehicleId, authStatus, hasLoadedAppState, recordedRoutes, savedPlaces, vehicles]);
 
   // Calculate the initial route even if the live fuel feed is unavailable.
   useEffect(() => {
@@ -520,7 +592,7 @@ export default function Home() {
 
   return (
     <main className="app-shell flighty-shell relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[var(--bg-obsidian)] text-gray-100">
-      {!isPreviewActive && <Header token={token} onOpenTokenModal={() => setIsTokenModalOpen(true)} onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} vehicles={vehicles} activeVehicleId={activeVehicleId} onSelectVehicle={handleSelectVehicle} onOpenGarage={() => setIsGarageOpen(true)} />}
+      {!isPreviewActive && <Header token={token} onOpenTokenModal={() => setIsTokenModalOpen(true)} onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} vehicles={vehicles} activeVehicleId={activeVehicleId} onSelectVehicle={handleSelectVehicle} onOpenGarage={() => setIsGarageOpen(true)} user={user} onOpenAuth={() => setIsAuthModalOpen(true)} onSignOut={() => { void handleSignOut(); }} />}
 
       <Map
         token={token}
@@ -571,6 +643,7 @@ export default function Home() {
       {activeRouteData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={activeRouteData} vehicle={vehicle} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
       <VehicleGarageModal isOpen={isGarageOpen} vehicles={vehicles} activeVehicleId={activeVehicleId} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onSelectVehicle={handleSelectVehicle} onDeleteVehicle={handleDeleteVehicle} onSelectRecordedRoute={handleLoadRecordedRoute} onDeleteRecordedRoute={handleDeleteRecordedRoute} onClose={() => setIsGarageOpen(false)} />
       <TokenModal isOpen={isTokenModalOpen} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsTokenModalOpen(false)} />
+      <AuthModal isOpen={isAuthModalOpen} onClose={handleCloseAuth} onAuthenticated={handleAuthenticated} />
     </main>
   );
 }
