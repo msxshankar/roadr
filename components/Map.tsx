@@ -580,12 +580,12 @@ export default function Map({
       const showRouteComparison = Boolean(selectedRouteId && primaryRouteGeometry);
       const routes = showRouteComparison && primaryRouteGeometry
         ? [
-          { sourceId: 'uk-route-primary-source', glowId: 'uk-route-primary-glow', lineId: 'uk-route-primary-line', geometry: primaryRouteGeometry, glowColor: '#6f94b6', lineColor: '#d7e3ed', glowOpacity: 0.28, lineOpacity: 0.62 },
-          { sourceId: 'uk-route-source', glowId: 'uk-route-glow', lineId: 'uk-route-line', geometry: routeGeometry, glowColor: '#2f80ff', lineColor: '#f8fbff', glowOpacity: 0.45, lineOpacity: 0.98 },
+          { sourceId: 'uk-route-primary-source', glowId: 'uk-route-primary-glow', lineId: 'uk-route-primary-line', geometry: primaryRouteGeometry, glowColor: '#6f94b6', lineColor: '#d7e3ed', glowOpacity: 0.35, lineOpacity: 0.7, glowWidth: 10, lineWidth: 3 },
+          { sourceId: 'uk-route-source', glowId: 'uk-route-glow', lineId: 'uk-route-line', geometry: routeGeometry, glowColor: isPreviewActive ? '#00f2ff' : '#2f80ff', lineColor: isPreviewActive ? '#00f2ff' : '#ffffff', glowOpacity: isPreviewActive ? 0.85 : 0.45, lineOpacity: 1.0, glowWidth: isPreviewActive ? 18 : 12, lineWidth: isPreviewActive ? 6 : 4 },
         ]
-        : [{ sourceId: 'uk-route-source', glowId: 'uk-route-glow', lineId: 'uk-route-line', geometry: routeGeometry, glowColor: '#2f80ff', lineColor: '#f8fbff', glowOpacity: 0.45, lineOpacity: 0.98 }];
+        : [{ sourceId: 'uk-route-source', glowId: 'uk-route-glow', lineId: 'uk-route-line', geometry: routeGeometry, glowColor: isPreviewActive ? '#00f2ff' : '#2f80ff', lineColor: isPreviewActive ? '#00f2ff' : '#ffffff', glowOpacity: isPreviewActive ? 0.85 : 0.45, lineOpacity: 1.0, glowWidth: isPreviewActive ? 18 : 12, lineWidth: isPreviewActive ? 6 : 4 }];
 
-      routes.forEach(({ sourceId, glowId, lineId, geometry, glowColor, lineColor, glowOpacity, lineOpacity }) => {
+      routes.forEach(({ sourceId, glowId, lineId, geometry, glowColor, lineColor, glowOpacity, lineOpacity, glowWidth, lineWidth }) => {
         map.addSource(sourceId, {
           type: 'geojson',
           data: { type: 'Feature', properties: {}, geometry },
@@ -595,14 +595,14 @@ export default function Map({
           type: 'line',
           source: sourceId,
           layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': glowColor, 'line-width': showRouteComparison && sourceId === 'uk-route-primary-source' ? 9 : 12, 'line-opacity': glowOpacity, 'line-blur': 2 },
+          paint: { 'line-color': glowColor, 'line-width': glowWidth, 'line-opacity': glowOpacity, 'line-blur': isPreviewActive ? 4 : 2 },
         });
         map.addLayer({
           id: lineId,
           type: 'line',
           source: sourceId,
           layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': lineColor, 'line-width': showRouteComparison && sourceId === 'uk-route-primary-source' ? 3 : 4, 'line-opacity': lineOpacity },
+          paint: { 'line-color': lineColor, 'line-width': lineWidth, 'line-opacity': lineOpacity },
         });
       });
 

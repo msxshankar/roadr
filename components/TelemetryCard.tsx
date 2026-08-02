@@ -94,8 +94,13 @@ export default function TelemetryCard({
   onRecordRoute,
 }: TelemetryCardProps) {
   const [showIntelligenceInfo, setShowIntelligenceInfo] = React.useState(false);
-  const [showAlternatives, setShowAlternatives] = React.useState(false);
+  const [openSection, setOpenSection] = React.useState<'alternatives' | 'pace' | 'intelligence' | 'fuel' | null>(null);
   const [hasCopiedUrl, setHasCopiedUrl] = React.useState(false);
+
+  const toggleSection = (section: 'alternatives' | 'pace' | 'intelligence' | 'fuel') => {
+    setOpenSection((current) => (current === section ? null : section));
+  };
+
   const maxSpeed = Math.max(...details.segments.map((segment) => segment.speedLimitMph || 0), 0);
   const profileValues = details.elevationProfile.map((sample) => sample.elevationM);
   const minProfile = profileValues.length ? Math.min(...profileValues) : 0;
@@ -123,16 +128,16 @@ export default function TelemetryCard({
   };
 
   return (
-    <div className="theme-scope theme-panel flighty-card liquid-glass rounded-3xl border border-white/12 p-4 text-gray-100 shadow-2xl animate-fade-in space-y-4 sm:p-5">
+    <div className="theme-scope theme-panel flighty-card liquid-glass rounded-3xl border border-white/12 p-3.5 text-gray-100 shadow-2xl animate-fade-in space-y-3 max-w-full overflow-hidden sm:p-5">
       {/* Flighty Status Header */}
-      <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-        <div className="flex items-center gap-2">
-          <span className="flighty-pulse-dot" />
-          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-teal-300">
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5 max-w-full overflow-hidden">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="flighty-pulse-dot shrink-0" />
+          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-teal-300 truncate">
             Route Active · Telemetry Live
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={handleCopyUrl}
@@ -151,201 +156,278 @@ export default function TelemetryCard({
           >
             <ExternalLink className="h-3 w-3 text-cyan-300" />
           </a>
-          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-mono uppercase text-gray-400">{provider}</span>
-          <button type="button" onClick={() => setShowAlternatives((visible) => !visible)} disabled={alternatives.length === 0} aria-expanded={showAlternatives} className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-cyan-100 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-45" title={alternatives.length > 0 ? 'Compare up to three alternative routes' : 'No alternative routes were returned for this journey'}><GitBranch className="h-3 w-3" /> Alternatives{alternatives.length > 0 && <span className="rounded-full bg-cyan-400/20 px-1.5 text-cyan-200">{Math.min(alternatives.length, 3)}</span>}</button>
+          <span className="rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono uppercase text-gray-400">{provider}</span>
         </div>
       </div>
 
-      {/* Flighty Departure -> Arrival Airport Board Header */}
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-        <div className="flex items-center justify-between gap-4">
+      {/* Departure -> Arrival Airport Board Header */}
+      <div className="rounded-2xl border border-white/10 bg-black/40 p-3 max-w-full overflow-hidden">
+        <div className="flex items-center justify-between gap-2">
           {/* Origin */}
-          <div className="min-w-0">
-            <div className="font-mono text-2xl font-black tracking-tight text-white">{originCode}</div>
-            <p className="mt-0.5 truncate text-xs text-gray-400">{origin.name}</p>
+          <div className="min-w-0 max-w-[35%]">
+            <div className="font-mono text-xl font-black tracking-tight text-white sm:text-2xl">{originCode}</div>
+            <p className="mt-0.5 truncate text-[11px] text-gray-400">{origin.name}</p>
           </div>
 
           {/* Flight Route Indicator Line */}
-          <div className="flex flex-1 flex-col items-center px-2">
+          <div className="flex min-w-0 flex-1 flex-col items-center px-1">
             <div className="flex items-center gap-1 text-[9px] font-mono text-cyan-300">
-              <Zap className="h-3 w-3 text-cyan-400" />
-              <span>DIRECT</span>
+              <Zap className="h-3 w-3 text-cyan-400 shrink-0" />
+              <span className="truncate">{stops.length > 0 ? `${stops.length} STOPS` : 'DIRECT'}</span>
             </div>
-            <div className="relative my-1.5 w-full border-t border-dashed border-cyan-400/40">
+            <div className="relative my-1 w-full border-t border-dashed border-cyan-400/40">
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-400/40 bg-black p-1 text-cyan-300">
                 <Navigation2 className="h-3 w-3 rotate-90" />
               </div>
             </div>
-            <span className="text-[10px] font-mono text-gray-400">{telemetry.distanceMiles.toFixed(1)} mi</span>
+            <span className="text-[10px] font-mono text-gray-400 font-mono-tabular">{telemetry.distanceMiles.toFixed(1)} mi</span>
           </div>
 
           {/* Destination */}
-          <div className="min-w-0 text-right">
-            <div className="font-mono text-2xl font-black tracking-tight text-white">{destinationCode}</div>
-            <p className="mt-0.5 truncate text-xs text-gray-400">{destination.name}</p>
+          <div className="min-w-0 max-w-[35%] text-right">
+            <div className="font-mono text-xl font-black tracking-tight text-white sm:text-2xl">{destinationCode}</div>
+            <p className="mt-0.5 truncate text-[11px] text-gray-400">{destination.name}</p>
           </div>
         </div>
       </div>
 
-      {/* Alternative Routes Selector */}
-      {showAlternatives && alternatives.length > 0 && <div className="theme-section space-y-1.5 rounded-xl border border-cyan-400/25 p-2.5" aria-label="Route options">
-        <button type="button" onClick={() => onSelectRoute(null)} aria-pressed={selectedRouteId === null} className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${selectedRouteId === null ? 'border-cyan-300/55 bg-cyan-400/15' : 'border-white/10 bg-white/5 hover:border-cyan-300/45 hover:bg-cyan-400/10'}`}>
-          <span className="min-w-0"><span className="block text-[11px] font-semibold text-gray-200">Original route</span><span className="block text-[10px] text-gray-500">{selectedRouteId === null ? 'Showing this route' : 'Use the primary route again'}</span></span>
-          <span className="shrink-0 text-right text-[10px] font-mono-tabular text-gray-300">{originalRoute.telemetry.distanceMiles.toFixed(1)} mi · {originalRoute.telemetry.durationFormatted}</span>
-        </button>
-        {alternatives.slice(0, 3).map((alternative, index) => <button type="button" key={alternative.id} onClick={() => onSelectRoute(alternative.id)} aria-pressed={selectedRouteId === alternative.id} className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${selectedRouteId === alternative.id ? 'border-cyan-300/55 bg-cyan-400/15' : 'border-white/10 bg-white/5 hover:border-cyan-300/45 hover:bg-cyan-400/10'}`}>
-          <span className="min-w-0"><span className="block text-[11px] font-semibold text-gray-200">Alternative {index + 1}</span><span className="block text-[10px] text-gray-500">{selectedRouteId === alternative.id ? 'Showing with original route' : alternative.details.source}</span></span>
-          <span className="shrink-0 text-right text-[10px] font-mono-tabular text-gray-300">{alternative.telemetry.distanceMiles.toFixed(1)} mi · {alternative.telemetry.durationFormatted}</span>
-        </button>)}
-      </div>}
-
-      {/* Main Telemetry Grid */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex items-center space-x-3 rounded-2xl border border-white/10 bg-white/5 p-3.5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/20 text-cyan-400">
-            <MapPin className="h-5 w-5" />
+      {/* Distance & Est Duration Grid */}
+      <div className="grid grid-cols-2 gap-2 max-w-full overflow-hidden">
+        <div className="flex items-center space-x-2.5 rounded-2xl border border-white/10 bg-white/5 p-3 min-w-0">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/20 text-cyan-400">
+            <MapPin className="h-4 w-4" />
           </div>
-          <div>
-            <div className="text-[10px] font-mono uppercase tracking-wider text-gray-400">Total Distance</div>
-            <div className="font-display text-lg font-black text-cyan-300 font-mono-tabular sm:text-xl">{telemetry.distanceMiles} <span className="text-xs font-normal text-gray-400">mi</span></div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[9px] font-mono uppercase tracking-wider text-gray-400 truncate">Distance</div>
+            <div className="font-display text-base font-black text-cyan-300 font-mono-tabular truncate sm:text-lg">{telemetry.distanceMiles} <span className="text-[10px] font-normal text-gray-400">mi</span></div>
           </div>
         </div>
-        <div className="flex items-center space-x-3 rounded-2xl border border-white/10 bg-white/5 p-3.5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/20 text-amber-400">
-            <Compass className="h-5 w-5" />
+        <div className="flex items-center space-x-2.5 rounded-2xl border border-white/10 bg-white/5 p-3 min-w-0">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/20 text-amber-400">
+            <Compass className="h-4 w-4" />
           </div>
-          <div>
-            <div className="text-[10px] font-mono uppercase tracking-wider text-gray-400">Est. Duration</div>
-            <div className="font-display text-lg font-black text-amber-300 font-mono-tabular sm:text-xl">{telemetry.durationFormatted}</div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[9px] font-mono uppercase tracking-wider text-gray-400 truncate">Est. Time</div>
+            <div className="font-display text-base font-black text-amber-300 font-mono-tabular truncate sm:text-lg">{telemetry.durationFormatted}</div>
           </div>
         </div>
       </div>
 
-      {/* Pace Notes Summary */}
-      {paceNotes && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-          <div className="mb-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-gray-400">
-            <span className="flex items-center gap-1 text-teal-300"><RouteIcon className="h-3.5 w-3.5" /> Pace Notes Telemetry</span>
-            <span>{paceNotes.hairpins} Hairpins</span>
+      {/* 3D Drive Preview HUD Action */}
+      {onStartPreview && (
+        <div className="theme-section flex items-center justify-between gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-3 max-w-full overflow-hidden">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-cyan-300">3D Cockpit Preview</p>
+            <p className="mt-0.5 truncate text-[11px] font-semibold text-gray-200">Interactive flight camera</p>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-2">
-              <span className="block font-mono font-bold text-amber-300">{paceNotes.hairpins}</span>
-              <span className="text-[9px] text-gray-400">Hairpins</span>
-            </div>
-            <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-2">
-              <span className="block font-mono font-bold text-cyan-300">{paceNotes.sweepingCurves}</span>
-              <span className="text-[9px] text-gray-400">Sweepers</span>
-            </div>
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-2">
-              <span className="block font-mono font-bold text-emerald-300">{paceNotes.fastStraights}</span>
-              <span className="text-[9px] text-gray-400">Straights</span>
+          <button type="button" onClick={onStartPreview} aria-label="Start 3D drive preview" className="theme-primary-button inline-flex shrink-0 items-center gap-1 rounded-xl px-3 py-2 text-xs font-extrabold tracking-wide transition-all hover:brightness-110 active:scale-[.98]">
+            <Video className="h-3.5 w-3.5" />
+            <span>Launch 3D</span>
+          </button>
+        </div>
+      )}
+
+      {/* ACCORDION SECTION 1: Alternative Routes */}
+      {alternatives.length > 0 && (
+        <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => toggleSection('alternatives')}
+            className="flex w-full items-center justify-between gap-2 px-3.5 py-3 text-left transition-colors hover:bg-white/5"
+            aria-expanded={openSection === 'alternatives'}
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <GitBranch className="h-4 w-4 text-cyan-300 shrink-0" />
+              <span className="text-xs font-semibold text-gray-100 truncate">Alternative Routes ({alternatives.length})</span>
+            </span>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform duration-200 ${openSection === 'alternatives' ? 'rotate-180' : ''}`} />
+          </button>
+
+          <div className="accordion-content" data-open={openSection === 'alternatives'}>
+            <div className="accordion-inner p-3 pt-0 space-y-1.5 border-t border-white/5 mt-1">
+              <button
+                type="button"
+                onClick={() => onSelectRoute(null)}
+                aria-pressed={selectedRouteId === null}
+                className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${selectedRouteId === null ? 'border-cyan-300/55 bg-cyan-400/15' : 'border-white/10 bg-white/5 hover:border-cyan-300/45'}`}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-semibold text-gray-200">Original Route</span>
+                  <span className="block text-[9px] text-gray-400">{selectedRouteId === null ? 'Active' : 'Select'}</span>
+                </span>
+                <span className="shrink-0 text-right text-[10px] font-mono-tabular text-cyan-200">{originalRoute.telemetry.distanceMiles.toFixed(1)} mi · {originalRoute.telemetry.durationFormatted}</span>
+              </button>
+              {alternatives.slice(0, 3).map((alternative, index) => (
+                <button
+                  type="button"
+                  key={alternative.id}
+                  onClick={() => onSelectRoute(alternative.id)}
+                  aria-pressed={selectedRouteId === alternative.id}
+                  className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${selectedRouteId === alternative.id ? 'border-cyan-300/55 bg-cyan-400/15' : 'border-white/10 bg-white/5 hover:border-cyan-300/45'}`}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-semibold text-gray-200">Alternative {index + 1}</span>
+                    <span className="block text-[9px] text-gray-400">{alternative.details.source}</span>
+                  </span>
+                  <span className="shrink-0 text-right text-[10px] font-mono-tabular text-cyan-200">{alternative.telemetry.distanceMiles.toFixed(1)} mi · {alternative.telemetry.durationFormatted}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Single-Tank Range Warning */}
-      <div className={`flex items-center justify-between gap-3 rounded-2xl border p-3.5 ${rangeStatus.isBeyondRange ? 'border-rose-400/35 bg-rose-950/25' : 'border-teal-400/25 bg-teal-950/20'}`}>
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${rangeStatus.isBeyondRange ? 'bg-rose-400/15 text-rose-300' : 'bg-teal-400/15 text-teal-300'}`}>
-            <Fuel className="h-4 w-4" />
+      {/* ACCORDION SECTION 2: Pace Notes & Driving Specs */}
+      <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => toggleSection('pace')}
+          className="flex w-full items-center justify-between gap-2 px-3.5 py-3 text-left transition-colors hover:bg-white/5"
+          aria-expanded={openSection === 'pace'}
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <RouteIcon className="h-4 w-4 text-teal-300 shrink-0" />
+            <span className="text-xs font-semibold text-gray-100 truncate">Pace Notes &amp; Range Specs</span>
+          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[9px] font-mono text-teal-300">{paceNotes.hairpins} Hairpins</span>
+            <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSection === 'pace' ? 'rotate-180' : ''}`} />
           </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">Single-tank range</p>
-            <p className={`mt-0.5 truncate text-sm font-bold ${rangeStatus.isBeyondRange ? 'text-rose-200' : 'text-teal-200'}`}>{vehicle ? `${rangeStatus.rangeMiles} mi · ${rangeMessage}` : rangeMessage}</p>
-          </div>
-        </div>
-        <span className="shrink-0 text-right text-[9px] font-mono text-gray-400">{vehicle ? `${vehicle.tankLiters} L tank` : 'Tank capacity needed'}</span>
-      </div>
-
-      {/* 3D Drive Preview HUD Action */}
-      {onStartPreview && <div className="theme-section flex items-center justify-between gap-3 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-3.5">
-        <div className="min-w-0">
-          <p className="text-[10px] font-mono uppercase tracking-wider text-cyan-300">3D Flight Preview</p>
-          <p className="mt-0.5 truncate text-xs font-semibold text-gray-200">Interactive cockpit camera with road lock</p>
-        </div>
-        <button type="button" onClick={onStartPreview} aria-label="Start 3D drive preview" className="theme-primary-button inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-xs font-extrabold tracking-wide transition-all hover:brightness-110 active:scale-[.98]">
-          <Video className="h-4 w-4" />
-          <span>Launch 3D Preview</span>
         </button>
-      </div>}
 
-      {/* Road Intelligence Telemetry */}
-      <div className="theme-section space-y-3 rounded-2xl border border-cyan-500/25 bg-cyan-950/20 p-3.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-teal-300" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-teal-200">Road intelligence</span>
-          </div>
-          <span className="text-right text-[9px] font-mono text-gray-500">{details.source} · {details.speedLimitCoveragePercent}% speed tags</span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <DetailMetric icon={<Mountain className="h-3.5 w-3.5" />} label="Elevation gain" value={details.hasElevationData ? `${details.totalElevationGainM} m` : 'Terrain pending'} />
-          <DetailMetric icon={<Navigation2 className="h-3.5 w-3.5" />} label="Max gradient" value={details.hasElevationData ? `${details.maxGradientPercent}%` : 'Terrain pending'} tone="amber" />
-          <DetailMetric icon={<Ruler className="h-3.5 w-3.5" />} label="Road width" value={`${details.averageRoadWidthMeters} m · ${details.narrowRoadSharePercent}% narrow`} tone="emerald" />
-          <DetailMetric icon={<Waves className="h-3.5 w-3.5" />} label="Camber" value={details.camber} />
-          <DetailMetric icon={<RouteIcon className="h-3.5 w-3.5" />} label="Surface" value={`${details.surface} · ${details.surfaceQuality}`} tone="emerald" />
-          <DetailMetric icon={<Gauge className="h-3.5 w-3.5" />} label="Tight turns" value={`${details.tightTurnCount} · ${maxSpeed ? `${maxSpeed} mph max` : 'speed data pending'}`} tone="amber" />
-        </div>
-        {details.hasElevationData && details.elevationProfile.length > 1 && (
-          <div className="rounded-xl border border-white/10 bg-black/25 p-2.5">
-            <div className="mb-1 flex items-center justify-between text-[9px] font-mono text-gray-500"><span>Elevation / gradient profile</span><span>{details.minimumElevationM}–{details.maximumElevationM} m</span></div>
-            <div className="flex h-12 items-end gap-px">
-              {details.elevationProfile.map((sample, index) => <span key={`${sample.distanceMeters}-${index}`} title={`${sample.elevationM}m · ${sample.gradientPercent}%`} className="flex-1 rounded-t bg-teal-500" style={{ height: `${Math.max(8, ((sample.elevationM - minProfile) / profileRange) * 100)}%` }} />)}
+        <div className="accordion-content" data-open={openSection === 'pace'}>
+          <div className="accordion-inner p-3 pt-0 space-y-2.5 border-t border-white/5 mt-1">
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-2">
+                <span className="block font-mono font-bold text-amber-300">{paceNotes.hairpins}</span>
+                <span className="text-[9px] text-gray-400">Hairpins</span>
+              </div>
+              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-2">
+                <span className="block font-mono font-bold text-cyan-300">{paceNotes.sweepingCurves}</span>
+                <span className="text-[9px] text-gray-400">Sweepers</span>
+              </div>
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-2">
+                <span className="block font-mono font-bold text-emerald-300">{paceNotes.fastStraights}</span>
+                <span className="text-[9px] text-gray-400">Straights</span>
+              </div>
             </div>
-          </div>
-        )}
-        <button type="button" onClick={() => setShowIntelligenceInfo((visible) => !visible)} className="flex w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-[10px] text-gray-300 transition-colors hover:bg-white/10"><span className="flex items-center gap-1.5"><Info className="h-3.5 w-3.5 text-violet-300" />How this data is measured</span><ChevronDown className={`h-3.5 w-3.5 transition-transform ${showIntelligenceInfo ? 'rotate-180' : ''}`} /></button>
-        {showIntelligenceInfo && <div className="rounded-xl border border-violet-400/20 bg-violet-950/15 p-3 text-[10px] leading-relaxed text-violet-100"><p><strong className="text-violet-200">Route shape:</strong> Mapbox Directions or the open OSRM fallback supplies the driving geometry. <strong className="text-teal-200">Terrain:</strong> the server samples Open-Elevation along the line and calculates elevation delta divided by road distance; it is useful for planning, not a survey-grade measurement.</p><p className="mt-2"><strong className="text-amber-200">Road intelligence:</strong> nearby OpenStreetMap road tags provide speed limits, names, surface, width and camber where mapped. Coverage varies by road and tags can be out of date, so an “estimated” value is clearly labelled.</p></div>}
-      </div>
 
-      {/* Fuel & Cost Telemetry */}
-      <div className="theme-section space-y-3 rounded-2xl border border-cyan-500/25 bg-cyan-950/30 p-3.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Fuel className="h-4 w-4 text-cyan-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-cyan-200">Fuel & cost estimate</span>
-          </div>
-          <div className="flex items-center space-x-1 rounded-full border border-emerald-500/30 bg-emerald-950/60 px-2 py-0.5 text-[10px] text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            <span className="font-mono">{isLiveFuelFetching ? 'Loading price' : `${liveFuelSource}: ${liveFuelPricePence}p/L`}</span>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/5 bg-black/40 p-2.5 text-center">
-          <div>
-            <div className="text-[10px] font-mono text-gray-400">Est. fuel volume</div>
-            <div className="text-sm font-bold text-gray-200 font-mono-tabular">{telemetry.estimatedFuelLiters} L</div>
-          </div>
-          <div>
-            <div className="text-[10px] font-mono text-gray-400">Est. trip cost</div>
-            <div className="font-mono text-base font-extrabold text-emerald-400 font-mono-tabular">£{telemetry.estimatedFuelCostGbp.toFixed(2)}</div>
-          </div>
-        </div>
-        <div className="space-y-3 pt-1">
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs font-mono">
-              <span className="flex items-center gap-1.5 text-gray-300"><SlidersHorizontal className="h-3 w-3" />{vehicle ? `${vehicle.nickname} MPG` : 'Vehicle MPG'}</span>
-              <span className="font-bold text-gray-200 font-mono-tabular">{mpg} MPG</span>
+            <div className={`flex items-center justify-between gap-2 rounded-xl border p-3 ${rangeStatus.isBeyondRange ? 'border-rose-400/35 bg-rose-950/25' : 'border-teal-400/25 bg-teal-950/20'}`}>
+              <div className="flex min-w-0 items-center gap-2">
+                <Fuel className={`h-4 w-4 shrink-0 ${rangeStatus.isBeyondRange ? 'text-rose-300' : 'text-teal-300'}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] font-mono uppercase text-gray-400">Single-tank range</p>
+                  <p className={`truncate text-xs font-bold ${rangeStatus.isBeyondRange ? 'text-rose-200' : 'text-teal-200'}`}>{vehicle ? `${rangeStatus.rangeMiles} mi · ${rangeMessage}` : rangeMessage}</p>
+                </div>
+              </div>
+              <span className="shrink-0 text-[9px] font-mono text-gray-400">{vehicle ? `${vehicle.tankLiters} L` : 'Need car'}</span>
             </div>
-            <input aria-label={`${vehicle?.nickname || 'Vehicle'} MPG`} type="range" min={15} max={120} step={1} value={mpg} onChange={(event) => onChangeMpg(parseInt(event.target.value, 10))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-cyan-400" />
-          </div>
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs font-mono">
-              <span className="text-gray-300">Fuel rate</span>
-              <span className="font-bold text-amber-400 font-mono-tabular">{pricePerLiterPence.toFixed(1)}p / L</span>
-            </div>
-            <input type="range" min={110} max={220} step={0.5} value={pricePerLiterPence} onChange={(event) => onChangePricePerLiterPence(parseFloat(event.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-amber-400" />
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <button onClick={onResetFuelDefaults} className="flex items-center space-x-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-mono text-cyan-400 transition-all hover:bg-cyan-500/20"><span>Reset live rate</span></button>
-            <button type="button" onClick={onOpenGarage} className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-gray-300 hover:text-white"><CarFront className="h-3 w-3 text-cyan-400" />{vehicle ? 'Edit car' : 'Set up car mode'}</button>
           </div>
         </div>
       </div>
 
-      <button type="button" onClick={onRecordRoute} className="theme-warm-button flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-xs font-bold transition-all hover:brightness-110 active:scale-[.99]"><RouteIcon className="h-4 w-4" /> Record route to car log</button>
+      {/* ACCORDION SECTION 3: Road Intelligence */}
+      <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => toggleSection('intelligence')}
+          className="flex w-full items-center justify-between gap-2 px-3.5 py-3 text-left transition-colors hover:bg-white/5"
+          aria-expanded={openSection === 'intelligence'}
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <Sparkles className="h-4 w-4 text-violet-300 shrink-0" />
+            <span className="text-xs font-semibold text-gray-100 truncate">Road Intelligence &amp; Terrain</span>
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform duration-200 ${openSection === 'intelligence' ? 'rotate-180' : ''}`} />
+        </button>
+
+        <div className="accordion-content" data-open={openSection === 'intelligence'}>
+          <div className="accordion-inner p-3 pt-0 space-y-2.5 border-t border-white/5 mt-1">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <DetailMetric icon={<Mountain className="h-3.5 w-3.5" />} label="Elevation gain" value={details.hasElevationData ? `${details.totalElevationGainM} m` : 'Terrain pending'} />
+              <DetailMetric icon={<Navigation2 className="h-3.5 w-3.5" />} label="Max gradient" value={details.hasElevationData ? `${details.maxGradientPercent}%` : 'Terrain pending'} tone="amber" />
+              <DetailMetric icon={<Ruler className="h-3.5 w-3.5" />} label="Road width" value={`${details.averageRoadWidthMeters} m · ${details.narrowRoadSharePercent}% narrow`} tone="emerald" />
+              <DetailMetric icon={<Waves className="h-3.5 w-3.5" />} label="Camber" value={details.camber} />
+              <DetailMetric icon={<RouteIcon className="h-3.5 w-3.5" />} label="Surface" value={`${details.surface} · ${details.surfaceQuality}`} tone="emerald" />
+              <DetailMetric icon={<Gauge className="h-3.5 w-3.5" />} label="Tight turns" value={`${details.tightTurnCount} · ${maxSpeed ? `${maxSpeed} mph` : 'speed pending'}`} tone="amber" />
+            </div>
+
+            {details.hasElevationData && details.elevationProfile.length > 1 && (
+              <div className="rounded-xl border border-white/10 bg-black/25 p-2.5">
+                <div className="mb-1 flex items-center justify-between text-[9px] font-mono text-gray-500"><span>Elevation profile</span><span>{details.minimumElevationM}–{details.maximumElevationM} m</span></div>
+                <div className="flex h-10 items-end gap-px">
+                  {details.elevationProfile.map((sample, index) => <span key={`${sample.distanceMeters}-${index}`} title={`${sample.elevationM}m · ${sample.gradientPercent}%`} className="flex-1 rounded-t bg-teal-500" style={{ height: `${Math.max(8, ((sample.elevationM - minProfile) / profileRange) * 100)}%` }} />)}
+                </div>
+              </div>
+            )}
+
+            <button type="button" onClick={() => setShowIntelligenceInfo((visible) => !visible)} className="flex w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-left text-[10px] text-gray-300 transition-colors hover:bg-white/10"><span className="flex items-center gap-1.5"><Info className="h-3.5 w-3.5 text-violet-300" />Data methodology</span><ChevronDown className={`h-3.5 w-3.5 transition-transform ${showIntelligenceInfo ? 'rotate-180' : ''}`} /></button>
+            {showIntelligenceInfo && <div className="rounded-xl border border-violet-400/20 bg-violet-950/15 p-2.5 text-[10px] leading-relaxed text-violet-100"><p><strong className="text-violet-200">Route shape:</strong> Mapbox Directions / OSRM. <strong className="text-teal-200">Terrain:</strong> Open-Elevation samples. <strong className="text-amber-200">Road tags:</strong> OpenStreetMap road attributes.</p></div>}
+          </div>
+        </div>
+      </div>
+
+      {/* ACCORDION SECTION 4: Fuel & Trip Cost */}
+      <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => toggleSection('fuel')}
+          className="flex w-full items-center justify-between gap-2 px-3.5 py-3 text-left transition-colors hover:bg-white/5"
+          aria-expanded={openSection === 'fuel'}
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <Fuel className="h-4 w-4 text-cyan-400 shrink-0" />
+            <span className="text-xs font-semibold text-gray-100 truncate">Fuel &amp; Trip Cost</span>
+          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] font-mono font-bold text-emerald-400">£{telemetry.estimatedFuelCostGbp.toFixed(2)}</span>
+            <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${openSection === 'fuel' ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
+
+        <div className="accordion-content" data-open={openSection === 'fuel'}>
+          <div className="accordion-inner p-3 pt-0 space-y-2.5 border-t border-white/5 mt-1">
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/5 bg-black/40 p-2 text-center">
+              <div>
+                <div className="text-[9px] font-mono text-gray-400">Est. fuel</div>
+                <div className="text-xs font-bold text-gray-200 font-mono-tabular">{telemetry.estimatedFuelLiters} L</div>
+              </div>
+              <div>
+                <div className="text-[9px] font-mono text-gray-400">Est. trip cost</div>
+                <div className="font-mono text-sm font-extrabold text-emerald-400 font-mono-tabular">£{telemetry.estimatedFuelCostGbp.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] font-mono">
+                  <span className="flex items-center gap-1 text-gray-300"><SlidersHorizontal className="h-3 w-3" />{vehicle ? vehicle.nickname : 'MPG'}</span>
+                  <span className="font-bold text-gray-200 font-mono-tabular">{mpg} MPG</span>
+                </div>
+                <input aria-label={`${vehicle?.nickname || 'Vehicle'} MPG`} type="range" min={15} max={120} step={1} value={mpg} onChange={(event) => onChangeMpg(parseInt(event.target.value, 10))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-cyan-400" />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] font-mono">
+                  <span className="text-gray-300">Fuel rate</span>
+                  <span className="font-bold text-amber-400 font-mono-tabular">{pricePerLiterPence.toFixed(1)}p / L</span>
+                </div>
+                <input type="range" min={110} max={220} step={0.5} value={pricePerLiterPence} onChange={(event) => onChangePricePerLiterPence(parseFloat(event.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-amber-400" />
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <button onClick={onResetFuelDefaults} className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-mono text-cyan-400 hover:bg-cyan-500/20">Reset rate</button>
+                <button type="button" onClick={onOpenGarage} className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-gray-300 hover:text-white"><CarFront className="h-3 w-3 text-cyan-400" />{vehicle ? 'Garage' : 'Set up car'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Record Route to Car Log */}
+      <button type="button" onClick={onRecordRoute} className="theme-warm-button flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition-all hover:brightness-110 active:scale-[.99]"><RouteIcon className="h-4 w-4" /> Record route to car log</button>
     </div>
   );
 }
+
 
