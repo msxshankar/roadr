@@ -186,7 +186,7 @@ html[data-theme='light'] .theme-modal {
 }
 
 .map-control-safe {
-  top: max(4.5rem, calc(env(safe-area-inset-top) + 3.75rem));
+  top: max(4.75rem, calc(env(safe-area-inset-top) + 4.25rem));
 }
 
 .mobile-dock {
@@ -237,7 +237,7 @@ html[data-theme='light'] .theme-modal {
 }
 
 .header-car-picker {
-  width: min(11rem, 22vw);
+  width: min(10.5rem, 20vw);
   min-width: 0;
 }
 

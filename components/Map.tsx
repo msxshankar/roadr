@@ -914,8 +914,8 @@ export default function Map({
   }, [isPreviewActive, routeGeometry]);
 
   return (
-    <div className="relative h-full min-h-[100dvh] w-full bg-[var(--bg-obsidian)]">
-      <div ref={mapContainerRef} className="h-full min-h-[100dvh] w-full" />
+    <div className="fixed inset-0 h-full w-full bg-[var(--bg-obsidian)]">
+      <div ref={mapContainerRef} className="h-full w-full" />
 
       {isPickingMapLocation && (
         <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border border-amber-400/50 bg-black/90 px-4 py-2.5 shadow-2xl backdrop-blur-md">
