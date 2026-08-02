@@ -122,7 +122,7 @@ export default function RouteControls({
                   <button type="button" disabled={index === 0} onClick={() => onReorderStops(index, index - 1)} className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-teal-200 disabled:opacity-25" title="Move stop earlier" aria-label={`Move ${stop.name} earlier`}><ArrowUp className="h-3 w-3" /></button>
                   <button type="button" disabled={index === stops.length - 1} onClick={() => onReorderStops(index, index + 1)} className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-teal-200 disabled:opacity-25" title="Move stop later" aria-label={`Move ${stop.name} later`}><ArrowDown className="h-3 w-3" /></button>
                 </div>
-                <button type="button" onClick={() => onRemoveStop(index)} className="rounded-md p-1 text-gray-500 hover:bg-red-500/10 hover:text-red-300" title={`Remove stop ${index + 1}`} aria-label={`Remove stop ${index + 1}`}>
+                <button type="button" onClick={() => onRemoveStop(index)} className="rounded-md p-1 text-red-200/70 hover:bg-red-500/20 hover:text-red-100" title={`Remove stop ${index + 1}`} aria-label={`Remove stop ${index + 1}`}>
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -142,7 +142,7 @@ export default function RouteControls({
               onSelectLocation={(location) => { onAddStop(location); setIsAddingStop(false); }}
               onClear={() => setIsAddingStop(false)}
             />
-            <button type="button" onClick={() => setIsAddingStop(false)} className="mt-2 text-[10px] text-gray-500 hover:text-white">Cancel adding stop</button>
+            <button type="button" onClick={() => setIsAddingStop(false)} className="mt-2 text-[10px] text-teal-200/70 hover:text-white">Cancel adding stop</button>
           </div>
         )}
       </div>
@@ -159,7 +159,7 @@ export default function RouteControls({
       />
 
       <div className="flex justify-center">
-        <button type="button" onClick={onSwapLocations} disabled={!origin || !destination} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-[#12141d] px-3 py-1.5 text-[10px] text-gray-400 shadow-md transition-all hover:border-teal-300/50 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30" title="Swap origin and destination">
+        <button type="button" onClick={onSwapLocations} disabled={!origin || !destination} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-[#12141d] px-3 py-1.5 text-[10px] text-teal-200/70 shadow-md transition-all hover:border-teal-300/50 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30" title="Swap origin and destination">
           <ArrowUpDown className="h-3.5 w-3.5" /> Swap route
         </button>
       </div>
@@ -168,7 +168,7 @@ export default function RouteControls({
         <button type="button" onClick={onCalculateRoute} disabled={!origin || !destination || isLoadingRoute} className="theme-primary-button flex flex-1 items-center justify-center space-x-2 rounded-xl px-4 py-2.5 text-xs font-extrabold transition-all hover:brightness-110 active:scale-95 disabled:pointer-events-none disabled:opacity-40">
           {isLoadingRoute ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" /><span>Calculating route...</span></> : <><Navigation className="h-4 w-4 fill-current" /><span>Calculate route</span></>}
         </button>
-        <button type="button" onClick={onClearRoute} disabled={!origin && !destination && stops.length === 0} className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-gray-400 transition-all hover:border-red-500/30 hover:bg-red-500/20 hover:text-red-400 disabled:pointer-events-none disabled:opacity-30" title="Clear journey"><Trash2 className="h-4 w-4" /></button>
+        <button type="button" onClick={onClearRoute} disabled={!origin && !destination && stops.length === 0} className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-red-200/70 transition-all hover:border-red-500/40 hover:bg-red-500/20 hover:text-red-100 disabled:pointer-events-none disabled:opacity-30" title="Clear journey" aria-label="Clear journey"><Trash2 className="h-4 w-4" /></button>
       </div>
     </div>
   );

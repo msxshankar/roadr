@@ -20,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="app-body bg-[#090a0f] text-gray-100 antialiased min-h-screen selection:bg-teal-300 selection:text-slate-950">
+    <html lang="en" suppressHydrationWarning className="selection:bg-teal-400 selection:text-black">
+      <body className="app-body bg-[#090a0f] text-slate-100 antialiased min-h-screen">
         {children}
         <SpeedInsights />
       </body>

@@ -886,7 +886,7 @@ export default function Map({
               onClick={() => onStyleChange?.(style.id)}
               type="button"
               aria-pressed={selectedStyleId === style.id}
-              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${selectedStyleId === style.id ? 'bg-cyan-500 font-semibold text-black shadow-md shadow-cyan-500/20' : 'text-gray-300 hover:bg-white/10 hover:text-white'}`}
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${selectedStyleId === style.id ? 'bg-cyan-500 font-semibold text-black shadow-md shadow-cyan-500/20' : 'text-cyan-100/80 hover:bg-white/10 hover:text-white'}`}
             >
               {style.name}
             </button>

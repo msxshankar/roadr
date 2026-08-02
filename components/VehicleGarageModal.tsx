@@ -220,7 +220,7 @@ export default function VehicleGarageModal({
                       <div className="min-w-0"><p className="truncate text-xs font-semibold text-white">{route.name}</p><p className="mt-0.5 text-[10px] text-gray-500">{new Date(route.recordedAt).toLocaleDateString()} · {route.distanceMiles.toFixed(1)} mi</p></div>
                       <div className="shrink-0 text-right"><p className="text-xs font-bold text-emerald-300">£{route.fuelCostGbp.toFixed(2)}</p><p className="text-[10px] text-gray-500">{route.fuelLiters.toFixed(1)} L</p></div>
                       <button type="button" onClick={(event) => { event.stopPropagation(); onSelectRecordedRoute(route); }} className="rounded-lg p-1.5 text-teal-300 opacity-70 transition-opacity hover:bg-teal-400/20 hover:opacity-100" title="Load this drive into the route planner" aria-label={`Load ${route.name}`}><ArrowRight className="h-4 w-4" /></button>
-                      <button type="button" onClick={(event) => { event.stopPropagation(); onDeleteRecordedRoute(route.id); }} className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-500/15 hover:text-red-300" title="Delete recorded drive" aria-label={`Delete ${route.name}`}><Trash2 className="h-4 w-4" /></button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDeleteRecordedRoute(route.id); }} className="rounded-lg p-1.5 text-red-200/70 transition-colors hover:bg-red-500/20 hover:text-red-100" title="Delete recorded drive" aria-label={`Delete ${route.name}`}><Trash2 className="h-4 w-4" /></button>
                     </div>
                   ))}
                 </div>
