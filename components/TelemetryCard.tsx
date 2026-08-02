@@ -54,7 +54,7 @@ interface TelemetryCardProps {
   onStartPreview?: () => void;
   onSelectRoute: (routeId: string | null) => void;
   onOpenGarage: () => void;
-  onRecordRoute: () => void;
+  onRecordRoute: (evCostGbp?: number, evKwRatePence?: number) => void;
 }
 
 function getCityCode(name: string): string {
@@ -544,7 +544,7 @@ export default function TelemetryCard({
       )}
 
       {/* Record Route to Car Log */}
-      <button type="button" onClick={onRecordRoute} className="theme-warm-button flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition-all hover:brightness-110 active:scale-[.99]"><RouteIcon className="h-4 w-4" /> Record route to car log</button>
+      <button type="button" onClick={() => onRecordRoute(isElectric ? activeEvCost : undefined, isElectric ? activeKwRatePence : undefined)} className="theme-warm-button flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition-all hover:brightness-110 active:scale-[.99]"><RouteIcon className="h-4 w-4" /> Record route to car log</button>
     </div>
   );
 }

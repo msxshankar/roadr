@@ -10,12 +10,13 @@ interface RecordRouteModalProps {
   routeData: RouteData;
   vehicle: VehicleProfile | null;
   homeStandardPence?: number;
+  customEvCostGbp?: number;
   onSave: (name: string) => void;
   onOpenGarage: () => void;
   onClose: () => void;
 }
 
-export default function RecordRouteModal({ isOpen, routeData, vehicle, homeStandardPence = 26.1, onSave, onOpenGarage, onClose }: RecordRouteModalProps) {
+export default function RecordRouteModal({ isOpen, routeData, vehicle, homeStandardPence = 26.1, customEvCostGbp, onSave, onOpenGarage, onClose }: RecordRouteModalProps) {
   const [name, setName] = useState('');
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export default function RecordRouteModal({ isOpen, routeData, vehicle, homeStand
   const isElectric = vehicle?.fuelType === 'electric';
   const energyKwhNum = routeData.telemetry.distanceMiles / 3.8;
   const energyKwh = energyKwhNum.toFixed(1);
-  const evCostGbp = (energyKwhNum * homeStandardPence) / 100;
+  const evCostGbp = customEvCostGbp !== undefined ? customEvCostGbp : (energyKwhNum * homeStandardPence) / 100;
   const displayCost = isElectric ? evCostGbp.toFixed(2) : routeData.telemetry.estimatedFuelCostGbp.toFixed(2);
 
   return (

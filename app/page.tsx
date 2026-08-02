@@ -487,11 +487,14 @@ export default function Home() {
     }
   }, [authStatus]);
 
+  const [activeEvCostGbp, setActiveEvCostGbp] = useState<number | null>(null);
+
   const handleRecordRoute = (name: string) => {
     if (!activeRouteData || !vehicle) return;
     const isElectric = vehicle.fuelType === 'electric';
     const energyKwh = activeRouteData.telemetry.distanceMiles / 3.8;
-    const evCostGbp = (energyKwh * (homeStandardPence || 26.1)) / 100;
+    const fallbackEvCostGbp = (energyKwh * (homeStandardPence || 26.1)) / 100;
+    const evCostGbp = activeEvCostGbp !== null ? activeEvCostGbp : fallbackEvCostGbp;
     const record: RecordedRoute = {
       id: `drive-${Date.now()}`,
       name,
@@ -838,13 +841,13 @@ export default function Home() {
           routingErrorDetail={routingErrorDetail}
           onApplySuggestedLocation={handleApplySuggestedLocation}
         />
-        {activeRouteData && origin && destination && routeData && <TelemetryCard telemetry={activeRouteData.telemetry} details={activeRouteData.details} originalRoute={routeData} selectedRouteId={selectedRouteId} alternatives={routeData.alternatives || []} origin={origin} destination={destination} stops={stops} provider={activeRouteData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} homeOffPeakPence={homeOffPeakPence} homeStandardPence={homeStandardPence} rapidChargerPence={rapidChargerPence} evSource={evSource} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectRoute={handleSelectRoute} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={() => setIsRecordModalOpen(true)} />}
+        {activeRouteData && origin && destination && routeData && <TelemetryCard telemetry={activeRouteData.telemetry} details={activeRouteData.details} originalRoute={routeData} selectedRouteId={selectedRouteId} alternatives={routeData.alternatives || []} origin={origin} destination={destination} stops={stops} provider={activeRouteData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} homeOffPeakPence={homeOffPeakPence} homeStandardPence={homeStandardPence} rapidChargerPence={rapidChargerPence} evSource={evSource} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectRoute={handleSelectRoute} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={(evCost) => { setActiveEvCostGbp(evCost ?? null); setIsRecordModalOpen(true); }} />}
         <div className="route-sidebar-resizer hidden md:block" role="separator" aria-label="Resize route planner sidebar" aria-orientation="vertical" onPointerDown={handleSidebarResizeStart} />
       </div>}
 
       {isPreviewActive && origin && destination && activeRouteData && <RoutePreviewHUD origin={origin} destination={destination} telemetry={activeRouteData.telemetry} progress={previewProgress} isPlaying={isPlayingPreview} speedMultiplier={speedMultiplier} bearing={currentBearing} cameraZoom={cameraZoom} selectedStyleId={selectedStyleId} orientationMode={orientationMode} onStyleChange={setSelectedStyleId} onChangeCameraZoom={setCameraZoom} onChangeOrientationMode={(mode) => { setOrientationMode(mode); if (mode === 'manual') setManualBearing(currentBearing); }} onTogglePlay={handleTogglePlayPreview} onSeek={setPreviewProgress} onChangeSpeedMultiplier={setSpeedMultiplier} onExitPreview={handleExitPreview} />}
 
-      {activeRouteData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={activeRouteData} vehicle={vehicle} homeStandardPence={homeStandardPence} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
+      {activeRouteData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={activeRouteData} vehicle={vehicle} homeStandardPence={homeStandardPence} customEvCostGbp={activeEvCostGbp !== null ? activeEvCostGbp : undefined} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
       <VehicleGarageModal isOpen={isGarageOpen} vehicles={vehicles} activeVehicleId={activeVehicleId} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onSelectVehicle={handleSelectVehicle} onDeleteVehicle={handleDeleteVehicle} onSelectRecordedRoute={handleLoadRecordedRoute} onDeleteRecordedRoute={handleDeleteRecordedRoute} onClose={() => setIsGarageOpen(false)} />
       <TokenModal isOpen={isTokenModalOpen} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); try { window.localStorage.setItem('roadr:mapbox-token:v1', newToken); } catch {} if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsTokenModalOpen(false)} />
       <AuthModal isOpen={isAuthModalOpen} onClose={handleCloseAuth} onAuthenticated={handleAuthenticated} />
