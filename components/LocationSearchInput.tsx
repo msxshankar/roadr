@@ -14,6 +14,13 @@ interface LocationSearchInputProps {
   savedPlaces: LocationPoint[];
   onSelectLocation: (location: LocationPoint) => void;
   onClear: () => void;
+  isPickingOnMap?: boolean;
+  onStartMapPick?: () => void;
+  routingError?: {
+    message: string;
+    suggestedLocation?: LocationPoint;
+  } | null;
+  onApplySuggestedLocation?: (location: LocationPoint) => void;
 }
 
 export default function LocationSearchInput({
@@ -25,6 +32,10 @@ export default function LocationSearchInput({
   savedPlaces,
   onSelectLocation,
   onClear,
+  isPickingOnMap,
+  onStartMapPick,
+  routingError,
+  onApplySuggestedLocation,
 }: LocationSearchInputProps) {
   const inputId = useId();
   const suggestionsId = `${inputId}-suggestions`;
@@ -131,15 +142,32 @@ export default function LocationSearchInput({
     <div className="relative space-y-1.5" ref={dropdownRef}>
       {/* Input Label Header */}
       <div className="flex items-center justify-between text-xs">
-          <label htmlFor={inputId} className={`flex items-center space-x-1.5 ${badgeColor === 'cyan' ? 'text-cyan-400' : 'text-amber-400'}`}>
+        <label htmlFor={inputId} className={`flex items-center space-x-1.5 ${badgeColor === 'cyan' ? 'text-cyan-400' : 'text-amber-400'}`}>
           <span className={`w-2.5 h-2.5 rounded-full ${dotStyles} shadow-sm`} />
           <span className="font-extrabold uppercase tracking-wide">{label}</span>
         </label>
-        {value && (
-          <span className="font-mono text-[10px] text-gray-400">
-            {value.lat.toFixed(3)}°, {value.lng.toFixed(3)}°
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {onStartMapPick && (
+            <button
+              type="button"
+              onClick={onStartMapPick}
+              className={`inline-flex items-center gap-1 rounded-lg border px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
+                isPickingOnMap
+                  ? 'border-amber-400 bg-amber-400/20 text-amber-200 animate-pulse'
+                  : 'border-white/10 bg-white/5 text-gray-300 hover:border-cyan-400/40 hover:bg-cyan-400/15 hover:text-cyan-200'
+              }`}
+              title={`Pick ${label} on map`}
+            >
+              <MapPin className="h-3 w-3" />
+              {isPickingOnMap ? 'Click map...' : 'Pick on map'}
+            </button>
+          )}
+          {value && (
+            <span className="font-mono text-[10px] text-gray-400 hidden sm:inline">
+              {value.lat.toFixed(3)}°, {value.lng.toFixed(3)}°
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Input Field with Search Icon */}
@@ -193,9 +221,11 @@ export default function LocationSearchInput({
           aria-controls={suggestionsId}
           aria-activedescendant={isOpen ? `${suggestionsId}-${activeSuggestionIndex}` : undefined}
           className={`theme-field w-full rounded-xl border pl-9 pr-8 py-2.5 text-xs placeholder:text-gray-500 transition-all font-medium ${
-            badgeColor === 'cyan'
-              ? 'border-white/10 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400'
-              : 'border-white/10 focus:border-amber-400 focus:ring-1 focus:ring-amber-400'
+            routingError
+              ? 'border-red-500/80 bg-red-950/20 ring-2 ring-red-500/40 text-red-100'
+              : badgeColor === 'cyan'
+                ? 'border-white/10 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400'
+                : 'border-white/10 focus:border-amber-400 focus:ring-1 focus:ring-amber-400'
           }`}
         />
 
@@ -211,6 +241,30 @@ export default function LocationSearchInput({
           </button>
         )}
       </div>
+
+      {/* Routing Error and Suggested Road Card */}
+      {routingError && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold text-red-300 flex items-center gap-1">
+            <span>⚠️</span> {routingError.message}
+          </p>
+          {routingError.suggestedLocation && onApplySuggestedLocation && (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-amber-500/40 bg-amber-950/40 p-2 text-xs text-amber-200">
+              <div className="min-w-0">
+                <p className="text-[9px] font-mono uppercase tracking-wider text-amber-400 font-semibold">Suggested road location</p>
+                <p className="truncate text-xs font-bold text-white">{routingError.suggestedLocation.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onApplySuggestedLocation(routingError.suggestedLocation!)}
+                className="shrink-0 rounded-lg bg-amber-400 px-2.5 py-1 text-[10px] font-extrabold text-black hover:bg-amber-300 transition-colors"
+              >
+                Use suggested
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Autocomplete Dropdown List */}
       {isOpen && (savedSuggestions.length > 0 || suggestions.length > 0) && (

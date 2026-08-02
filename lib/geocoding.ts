@@ -117,3 +117,69 @@ export async function searchLocations(query: string, token?: string): Promise<Ge
     return [];
   }
 }
+
+/** Snap arbitrary coordinates to the nearest driveable road node and reverse geocode a location name. */
+export async function snapToNearestRoad(
+  lng: number,
+  lat: number,
+  token?: string
+): Promise<{ name: string; lng: number; lat: number }> {
+  const activeToken = token || process.env.NEXT_PUBLIC_MAPBOX_TOKEN || DEFAULT_MAPBOX_TOKEN;
+  let snappedLng = lng;
+  let snappedLat = lat;
+  let roadName = '';
+
+  // 1. Try OSRM Nearest Service for precise road node snapping
+  try {
+    const osrmUrl = `https://router.project-osrm.org/nearest/v1/driving/${lng},${lat}?number=1`;
+    const response = await fetch(osrmUrl);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.waypoints && data.waypoints.length > 0) {
+        const wp = data.waypoints[0];
+        if (Array.isArray(wp.location) && wp.location.length >= 2) {
+          snappedLng = Number(wp.location[0]);
+          snappedLat = Number(wp.location[1]);
+        }
+        if (wp.name) roadName = wp.name;
+      }
+    }
+  } catch (error) {
+    console.warn('OSRM nearest road snapping error:', error);
+  }
+
+  // 2. Reverse geocode location name
+  if (!roadName && activeToken && activeToken.trim().startsWith('pk.')) {
+    try {
+      const mbUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${snappedLng},${snappedLat}.json?types=address,street,place&access_token=${encodeURIComponent(activeToken.trim())}`;
+      const res = await fetch(mbUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.features?.[0]) {
+          roadName = data.features[0].text || data.features[0].place_name?.split(',')[0] || '';
+        }
+      }
+    } catch {}
+  }
+
+  if (!roadName) {
+    try {
+      const nomUrl = `https://nominatim.openstreetmap.org/reverse?lon=${snappedLng}&lat=${snappedLat}&format=jsonv2`;
+      const res = await fetch(nomUrl, { headers: { 'User-Agent': 'Roadr UK route planner' } });
+      if (res.ok) {
+        const data = await res.json();
+        roadName = data.address?.road || data.address?.suburb || data.display_name?.split(',')[0] || '';
+      }
+    } catch {}
+  }
+
+  const displayName = roadName
+    ? `${roadName} (${snappedLat.toFixed(4)}, ${snappedLng.toFixed(4)})`
+    : `Road location (${snappedLat.toFixed(4)}, ${snappedLng.toFixed(4)})`;
+
+  return {
+    name: displayName,
+    lng: snappedLng,
+    lat: snappedLat,
+  };
+}

@@ -15,6 +15,7 @@ import AccountModal from '@/components/AccountModal';
 import { LocationPoint, RecordedRoute, RouteData, RoadrAppState, User, VehicleProfile } from '@/types';
 import { DEFAULT_DESTINATION, DEFAULT_ORIGIN } from '@/lib/defaultRoute';
 import { parseSavedPlaces, upsertSavedPlace } from '@/lib/savedPlaces';
+import { snapToNearestRoad } from '@/lib/geocoding';
 import {
   fetchRoute,
   fetchRouteDetails,
@@ -24,6 +25,7 @@ import {
   DEFAULT_UK_PETROL_PRICE_PENCE,
   computeTelemetry,
   mergeRouteDetails,
+  RoutingErrorDetail,
 } from '@/lib/mapbox';
 import { DEFAULT_VEHICLE, parseRecordedRoutes, parseVehicleProfile } from '@/lib/vehicle';
 import { AlertCircle, ChevronDown, ChevronUp, MapPinned, PanelLeft, PanelLeftClose, Sliders } from 'lucide-react';
@@ -135,6 +137,9 @@ export default function Home() {
     setIsAccountModalOpen(false);
   };
 
+  const [pickingTarget, setPickingTarget] = useState<'origin' | 'destination' | { type: 'stop'; index: number } | null>(null);
+  const [routingErrorDetail, setRoutingErrorDetail] = useState<RoutingErrorDetail | null>(null);
+
   const handleExitPreview = () => {
     setIsPreviewActive(false);
     setIsPlayingPreview(false);
@@ -154,6 +159,7 @@ export default function Home() {
     setIsLoadingRoute(true);
     setErrorMsg(null);
     try {
+      setRoutingErrorDetail(null);
       const data = await fetchRoute(startPoint, endPoint, currentToken, currentMpg, currentPricePence, currentStops);
       if (requestId !== routeRequestIdRef.current) return;
       terrainGeometryRef.current = null;
@@ -163,9 +169,63 @@ export default function Home() {
     } catch (error: any) {
       if (requestId !== routeRequestIdRef.current) return;
       console.error(error);
+      if (error?.routingErrorDetail) {
+        setRoutingErrorDetail(error.routingErrorDetail);
+      } else {
+        setRoutingErrorDetail(null);
+      }
       setErrorMsg(error?.message || 'Unable to calculate route.');
     } finally {
       if (requestId === routeRequestIdRef.current) setIsLoadingRoute(false);
+    }
+  };
+
+  const handleMapClick = async ({ lng, lat }: { lng: number; lat: number }) => {
+    if (!pickingTarget) return;
+    try {
+      const location = await snapToNearestRoad(lng, lat, token);
+      rememberPlace(location);
+      setRoutingErrorDetail(null);
+      if (pickingTarget === 'origin') {
+        setOrigin(location);
+        setPickingTarget(null);
+        if (destination) void handleCalculateRoute(location, destination, mpg, pricePerLiterPence, stops);
+      } else if (pickingTarget === 'destination') {
+        setDestination(location);
+        setPickingTarget(null);
+        if (origin) void handleCalculateRoute(origin, location, mpg, pricePerLiterPence, stops);
+      } else if (typeof pickingTarget === 'object' && pickingTarget.type === 'stop') {
+        const index = pickingTarget.index;
+        const nextStops = [...stops];
+        if (index < nextStops.length) {
+          nextStops[index] = location;
+        } else {
+          nextStops.push(location);
+        }
+        setStops(nextStops);
+        setPickingTarget(null);
+        if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, nextStops);
+      }
+    } catch (error) {
+      console.warn('Failed to snap map click to road:', error);
+      setPickingTarget(null);
+    }
+  };
+
+  const handleApplySuggestedLocation = (target: 'origin' | 'destination' | number, location: LocationPoint) => {
+    rememberPlace(location);
+    setRoutingErrorDetail(null);
+    if (target === 'origin') {
+      setOrigin(location);
+      if (destination) void handleCalculateRoute(location, destination, mpg, pricePerLiterPence, stops);
+    } else if (target === 'destination') {
+      setDestination(location);
+      if (origin) void handleCalculateRoute(origin, location, mpg, pricePerLiterPence, stops);
+    } else if (typeof target === 'number') {
+      const nextStops = [...stops];
+      nextStops[target] = location;
+      setStops(nextStops);
+      if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, nextStops);
     }
   };
 
@@ -716,6 +776,18 @@ export default function Home() {
         sidebarWidth={sidebarWidth}
         onProgressTick={handleProgressTick}
         onOpenTokenModal={() => { if (user) setIsAccountModalOpen(true); else setIsTokenModalOpen(true); }}
+        isPickingMapLocation={Boolean(pickingTarget)}
+        pickingTargetName={
+          pickingTarget === 'origin'
+            ? 'Origin'
+            : pickingTarget === 'destination'
+              ? 'Destination'
+              : typeof pickingTarget === 'object'
+                ? `Stop ${pickingTarget.index + 1}`
+                : 'location'
+        }
+        onMapClick={handleMapClick}
+        onCancelMapPick={() => setPickingTarget(null)}
       />
 
       {!isPreviewActive && <button type="button" onClick={() => setIsSidebarOpen((open) => !open)} className="theme-scope sidebar-toggle fixed top-24 z-40 hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/80 text-gray-300 shadow-xl transition-all hover:text-white md:flex" style={{ left: isSidebarOpen ? `calc(1rem + ${sidebarWidth}px)` : '0.75rem' }} aria-expanded={isSidebarOpen} aria-controls="mobile-route-panel" title={isSidebarOpen ? 'Hide route planner' : 'Show route planner'} aria-label={isSidebarOpen ? 'Hide route planner' : 'Show route planner'}>
@@ -731,7 +803,30 @@ export default function Home() {
 
       {!isPreviewActive && <div id="mobile-route-panel" data-mobile-panel-open={isMobilePanelOpen} className={`theme-scope route-sidebar mobile-route-sheet fixed inset-x-2 bottom-16 top-16 z-30 flex max-h-[calc(100dvh-8rem)] w-auto max-w-none flex-col space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1 transition-all duration-300 md:absolute md:bottom-auto md:left-4 md:right-auto md:top-20 md:max-h-[calc(100dvh-6rem)] md:pb-6 ${isMobilePanelOpen ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0 md:pointer-events-auto md:translate-y-0 md:opacity-100'} ${isSidebarOpen ? 'md:translate-x-0' : 'md:pointer-events-none md:-translate-x-[calc(100%+1.5rem)] md:opacity-0'}`} style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
         {errorMsg && <div className="theme-section flex items-start space-x-2 rounded-2xl border border-red-500/30 bg-red-950/80 p-3 text-xs text-red-200 shadow-xl"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" /><div><strong className="block font-semibold">Route error</strong><span>{errorMsg}</span></div></div>}
-        <RouteControls origin={origin} destination={destination} token={token} savedPlaces={savedPlaces} stops={stops} onSelectOrigin={handleSelectOrigin} onSelectDestination={handleSelectDestination} onAddStop={handleAddStop} onRemoveStop={handleRemoveStop} onReorderStops={handleReorderStops} onClearOrigin={() => { setOrigin(null); setRouteData(null); setSelectedRouteId(null); }} onClearDestination={() => { setDestination(null); setRouteData(null); setSelectedRouteId(null); }} onSwapLocations={handleSwapLocations} onClearRoute={handleClearRoute} onCalculateRoute={() => void handleCalculateRoute()} onImportGoogleRoute={handleImportGoogleRoute} onCloseMobilePanel={() => setIsMobilePanelOpen(false)} isLoadingRoute={isLoadingRoute} />
+        <RouteControls
+          origin={origin}
+          destination={destination}
+          token={token}
+          savedPlaces={savedPlaces}
+          stops={stops}
+          onSelectOrigin={handleSelectOrigin}
+          onSelectDestination={handleSelectDestination}
+          onAddStop={handleAddStop}
+          onRemoveStop={handleRemoveStop}
+          onReorderStops={handleReorderStops}
+          onClearOrigin={() => { setOrigin(null); setRouteData(null); setSelectedRouteId(null); setRoutingErrorDetail(null); }}
+          onClearDestination={() => { setDestination(null); setRouteData(null); setSelectedRouteId(null); setRoutingErrorDetail(null); }}
+          onSwapLocations={handleSwapLocations}
+          onClearRoute={handleClearRoute}
+          onCalculateRoute={() => void handleCalculateRoute()}
+          onImportGoogleRoute={handleImportGoogleRoute}
+          onCloseMobilePanel={() => setIsMobilePanelOpen(false)}
+          isLoadingRoute={isLoadingRoute}
+          pickingTarget={pickingTarget}
+          onStartMapPick={(target) => setPickingTarget(target)}
+          routingErrorDetail={routingErrorDetail}
+          onApplySuggestedLocation={handleApplySuggestedLocation}
+        />
         {activeRouteData && origin && destination && routeData && <TelemetryCard telemetry={activeRouteData.telemetry} details={activeRouteData.details} originalRoute={routeData} selectedRouteId={selectedRouteId} alternatives={routeData.alternatives || []} origin={origin} destination={destination} stops={stops} provider={activeRouteData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectRoute={handleSelectRoute} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={() => setIsRecordModalOpen(true)} />}
         <div className="route-sidebar-resizer hidden md:block" role="separator" aria-label="Resize route planner sidebar" aria-orientation="vertical" onPointerDown={handleSidebarResizeStart} />
       </div>}

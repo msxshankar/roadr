@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, Check, Copy, ExternalLink, GripVertical, Navigation, Plus, Route as RouteIcon, Share2, Trash2, X } from 'lucide-react';
 import { LocationPoint } from '@/types';
+import { RoutingErrorDetail } from '@/lib/mapbox';
 import LocationSearchInput from './LocationSearchInput';
 import GoogleMapsImport from './GoogleMapsImport';
 import { exportGoogleMapsRouteUrl } from '@/lib/googleMaps';
@@ -26,6 +27,10 @@ interface RouteControlsProps {
   onImportGoogleRoute: (points: LocationPoint[]) => void;
   onCloseMobilePanel?: () => void;
   isLoadingRoute: boolean;
+  pickingTarget?: 'origin' | 'destination' | { type: 'stop'; index: number } | null;
+  onStartMapPick?: (target: 'origin' | 'destination' | { type: 'stop'; index: number }) => void;
+  routingErrorDetail?: RoutingErrorDetail | null;
+  onApplySuggestedLocation?: (target: 'origin' | 'destination' | number, location: LocationPoint) => void;
 }
 
 export default function RouteControls({
@@ -47,6 +52,10 @@ export default function RouteControls({
   onImportGoogleRoute,
   onCloseMobilePanel,
   isLoadingRoute,
+  pickingTarget,
+  onStartMapPick,
+  routingErrorDetail,
+  onApplySuggestedLocation,
 }: RouteControlsProps) {
   const [isAddingStop, setIsAddingStop] = useState(false);
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
@@ -93,6 +102,10 @@ export default function RouteControls({
         savedPlaces={savedPlaces}
         onSelectLocation={onSelectOrigin}
         onClear={onClearOrigin}
+        isPickingOnMap={pickingTarget === 'origin'}
+        onStartMapPick={() => onStartMapPick?.('origin')}
+        routingError={routingErrorDetail?.targetKey === 'origin' ? routingErrorDetail : null}
+        onApplySuggestedLocation={(location) => onApplySuggestedLocation?.('origin', location)}
       />
 
       <div className="theme-section rounded-xl border border-white/10 bg-black/20 p-2.5">
@@ -110,38 +123,68 @@ export default function RouteControls({
 
         {stops.length > 0 && (
           <div className="mt-2 space-y-1.5">
-            {stops.map((stop, index) => (
-              <div
-                key={`${stop.lng}-${stop.lat}-${index}`}
-                draggable
-                onDragStart={() => setDraggedStopIndex(index)}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  if (draggedStopIndex !== null && draggedStopIndex !== index) onReorderStops(draggedStopIndex, index);
-                  setDraggedStopIndex(null);
-                }}
-                onDragEnd={() => setDraggedStopIndex(null)}
-                onKeyDown={(event) => {
-                  if (event.key === 'ArrowUp' && index > 0) { event.preventDefault(); onReorderStops(index, index - 1); }
-                  if (event.key === 'ArrowDown' && index < stops.length - 1) { event.preventDefault(); onReorderStops(index, index + 1); }
-                }}
-                tabIndex={0}
-                className={`flex cursor-grab items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-teal-400 ${draggedStopIndex === index ? 'border-teal-300/50 bg-teal-400/15 opacity-60' : 'border-white/5 bg-white/5 hover:border-teal-400/30'}`}
-                aria-label={`Stop ${index + 1}: ${stop.name}. Drag to reorder.`}
-              >
-                <GripVertical className="h-4 w-4 shrink-0 text-gray-500" />
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-400/40 bg-amber-500/20 text-[10px] font-mono text-amber-300">{index + 1}</span>
-                <span className="min-w-0 flex-1 truncate text-xs text-gray-200">{stop.name}</span>
-                <div className="flex shrink-0 items-center">
-                  <button type="button" disabled={index === 0} onClick={() => onReorderStops(index, index - 1)} className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-teal-200 disabled:opacity-25" title="Move stop earlier" aria-label={`Move ${stop.name} earlier`}><ArrowUp className="h-3 w-3" /></button>
-                  <button type="button" disabled={index === stops.length - 1} onClick={() => onReorderStops(index, index + 1)} className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-teal-200 disabled:opacity-25" title="Move stop later" aria-label={`Move ${stop.name} later`}><ArrowDown className="h-3 w-3" /></button>
+            {stops.map((stop, index) => {
+              const stopError = routingErrorDetail?.targetKey === `stop-${index}` ? routingErrorDetail : null;
+              const isPickingThisStop = typeof pickingTarget === 'object' && pickingTarget?.type === 'stop' && pickingTarget.index === index;
+              return (
+                <div key={`${stop.lng}-${stop.lat}-${index}`} className="space-y-1">
+                  <div
+                    draggable
+                    onDragStart={() => setDraggedStopIndex(index)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (draggedStopIndex !== null && draggedStopIndex !== index) onReorderStops(draggedStopIndex, index);
+                      setDraggedStopIndex(null);
+                    }}
+                    onDragEnd={() => setDraggedStopIndex(null)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowUp' && index > 0) { event.preventDefault(); onReorderStops(index, index - 1); }
+                      if (event.key === 'ArrowDown' && index < stops.length - 1) { event.preventDefault(); onReorderStops(index, index + 1); }
+                    }}
+                    tabIndex={0}
+                    className={`flex cursor-grab items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-teal-400 ${stopError ? 'border-red-500/80 bg-red-950/30 ring-1 ring-red-500/50' : draggedStopIndex === index ? 'border-teal-300/50 bg-teal-400/15 opacity-60' : 'border-white/5 bg-white/5 hover:border-teal-400/30'}`}
+                    aria-label={`Stop ${index + 1}: ${stop.name}. Drag to reorder.`}
+                  >
+                    <GripVertical className="h-4 w-4 shrink-0 text-gray-500" />
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-400/40 bg-amber-500/20 text-[10px] font-mono text-amber-300">{index + 1}</span>
+                    <span className="min-w-0 flex-1 truncate text-xs text-gray-200">{stop.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => onStartMapPick?.({ type: 'stop', index })}
+                      className={`rounded px-1.5 py-0.5 text-[9px] font-semibold transition-colors ${isPickingThisStop ? 'bg-amber-400/20 text-amber-200 animate-pulse' : 'text-gray-400 hover:bg-white/10 hover:text-cyan-200'}`}
+                      title="Repick stop on map"
+                    >
+                      {isPickingThisStop ? 'Click map...' : 'Pick map'}
+                    </button>
+                    <div className="flex shrink-0 items-center">
+                      <button type="button" disabled={index === 0} onClick={() => onReorderStops(index, index - 1)} className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-teal-200 disabled:opacity-25" title="Move stop earlier" aria-label={`Move ${stop.name} earlier`}><ArrowUp className="h-3 w-3" /></button>
+                      <button type="button" disabled={index === stops.length - 1} onClick={() => onReorderStops(index, index + 1)} className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-teal-200 disabled:opacity-25" title="Move stop later" aria-label={`Move ${stop.name} later`}><ArrowDown className="h-3 w-3" /></button>
+                    </div>
+                    <button type="button" onClick={() => onRemoveStop(index)} className="rounded-md p-1 text-red-200/70 hover:bg-red-500/20 hover:text-red-100" title={`Remove stop ${index + 1}`} aria-label={`Remove stop ${index + 1}`}>
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  {stopError && (
+                    <div className="rounded-lg border border-red-500/40 bg-red-950/40 p-2 text-xs space-y-1">
+                      <p className="text-[10px] text-red-300 font-semibold">⚠️ {stopError.message}</p>
+                      {stopError.suggestedLocation && (
+                        <div className="flex items-center justify-between gap-2 border-t border-red-500/20 pt-1">
+                          <span className="truncate text-[10px] text-amber-200 font-medium">Suggested: {stopError.suggestedLocation.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => onApplySuggestedLocation?.(index, stopError.suggestedLocation!)}
+                            className="rounded bg-amber-400 px-2 py-0.5 text-[9px] font-bold text-black hover:bg-amber-300"
+                          >
+                            Use suggested
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <button type="button" onClick={() => onRemoveStop(index)} className="rounded-md p-1 text-red-200/70 hover:bg-red-500/20 hover:text-red-100" title={`Remove stop ${index + 1}`} aria-label={`Remove stop ${index + 1}`}>
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -156,6 +199,8 @@ export default function RouteControls({
               savedPlaces={savedPlaces}
               onSelectLocation={(location) => { onAddStop(location); setIsAddingStop(false); }}
               onClear={() => setIsAddingStop(false)}
+              isPickingOnMap={typeof pickingTarget === 'object' && pickingTarget?.type === 'stop' && pickingTarget.index === stops.length}
+              onStartMapPick={() => onStartMapPick?.({ type: 'stop', index: stops.length })}
             />
             <button type="button" onClick={() => setIsAddingStop(false)} className="mt-2 text-[10px] text-teal-200/70 hover:text-white">Cancel adding stop</button>
           </div>
@@ -171,6 +216,10 @@ export default function RouteControls({
         savedPlaces={savedPlaces}
         onSelectLocation={onSelectDestination}
         onClear={onClearDestination}
+        isPickingOnMap={pickingTarget === 'destination'}
+        onStartMapPick={() => onStartMapPick?.('destination')}
+        routingError={routingErrorDetail?.targetKey === 'destination' ? routingErrorDetail : null}
+        onApplySuggestedLocation={(location) => onApplySuggestedLocation?.('destination', location)}
       />
 
       <div className="flex justify-center">

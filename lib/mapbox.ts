@@ -1,4 +1,5 @@
 import { LocationPoint, RouteData, RouteDetails, RouteOption, RouteSegment, RouteTelemetry } from '@/types';
+import { snapToNearestRoad } from './geocoding';
 
 export const DEFAULT_MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -659,6 +660,63 @@ function buildRouteOption(
     provider,
   };
 }
+export interface RoutingErrorDetail {
+  failingIndex: number;
+  targetKey: 'origin' | 'destination' | `stop-${number}`;
+  failingLocation: LocationPoint;
+  message: string;
+  suggestedLocation?: LocationPoint;
+}
+
+export async function isolateRoutingError(
+  origin: LocationPoint,
+  destination: LocationPoint,
+  stops: LocationPoint[] = [],
+  token?: string
+): Promise<RoutingErrorDetail> {
+  const points = [origin, ...stops, destination];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const legCoords = `${p1.lng},${p1.lat};${p2.lng},${p2.lat}`;
+    try {
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${legCoords}?overview=false`;
+      const res = await fetch(osrmUrl);
+      const data = await res.json();
+      if (!data.routes || data.routes.length === 0 || data.code !== 'Ok') {
+        const failingIndex = i;
+        const targetKey: 'origin' | 'destination' | `stop-${number}` =
+          failingIndex === 0
+            ? 'origin'
+            : failingIndex === points.length - 1
+              ? 'destination'
+              : `stop-${failingIndex - 1}`;
+        const failingLocation = points[failingIndex];
+        const suggestedLocation = await snapToNearestRoad(failingLocation.lng, failingLocation.lat, token);
+        return {
+          failingIndex,
+          targetKey,
+          failingLocation,
+          message: `Unable to route to "${failingLocation.name}". Driveable road access required.`,
+          suggestedLocation,
+        };
+      }
+    } catch {
+      // Continue checking next legs
+    }
+  }
+
+  const failingIndex = points.length - 1;
+  const failingLocation = destination;
+  const suggestedLocation = await snapToNearestRoad(failingLocation.lng, failingLocation.lat, token);
+  return {
+    failingIndex,
+    targetKey: 'destination',
+    failingLocation,
+    message: `Unable to compute a route between the selected locations.`,
+    suggestedLocation,
+  };
+}
 
 /** Fetch a route through Mapbox when configured, with an OSRM fallback. */
 export async function fetchRoute(
@@ -690,7 +748,7 @@ export async function fetchRoute(
     }
   }
 
-  const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordinateString}?alternatives=true&overview=full&geometries=geojson&steps=true&annotations=true`
+  const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordinateString}?alternatives=true&overview=full&geometries=geojson&steps=true&annotations=true`;
   const osrmData = await readJson(await fetch(osrmUrl));
   if (osrmData.routes?.length > 0) {
     const options = osrmData.routes.slice(0, 4).map((route: any, index: number) => buildRouteOption(route, index, origin, destination, stops, mpg, pricePerLiterPence, 'osrm')) as RouteOption[];
@@ -701,7 +759,10 @@ export async function fetchRoute(
     };
   }
 
-  throw new Error('Unable to compute a route between the selected locations.');
+  const detailedError = await isolateRoutingError(origin, destination, stops, token);
+  const err = new Error(detailedError.message);
+  (err as any).routingErrorDetail = detailedError;
+  throw err;
 }
 
 /** Enrich the fast geometry estimate with terrain and road tags from the app API route. */

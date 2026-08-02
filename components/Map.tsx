@@ -44,6 +44,10 @@ interface MapProps {
   sidebarWidth?: number;
   onProgressTick?: (progress: number, bearing: number) => void;
   onOpenTokenModal: () => void;
+  isPickingMapLocation?: boolean;
+  pickingTargetName?: string;
+  onMapClick?: (coords: { lng: number; lat: number }) => void;
+  onCancelMapPick?: () => void;
 }
 
 const FREE_CARTO_DARK: mapboxgl.Style = {
@@ -284,6 +288,10 @@ export default function Map({
   sidebarWidth = 420,
   onProgressTick,
   onOpenTokenModal,
+  isPickingMapLocation,
+  pickingTargetName,
+  onMapClick,
+  onCancelMapPick,
 }: MapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -322,6 +330,33 @@ export default function Map({
   const [isPreviewDataExpanded, setIsPreviewDataExpanded] = useState(true);
   const [isMiniMapExpanded, setIsMiniMapExpanded] = useState(true);
   const [isManualHintVisible, setIsManualHintVisible] = useState(false);
+
+  const onMapClickRef = useRef(onMapClick);
+  useEffect(() => {
+    onMapClickRef.current = onMapClick;
+  }, [onMapClick]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const handleMapClick = (e: mapboxgl.MapMouseEvent) => {
+      if (isPickingMapLocation) {
+        onMapClickRef.current?.({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+      }
+    };
+
+    if (isPickingMapLocation) {
+      map.getCanvas().style.cursor = 'crosshair';
+      map.on('click', handleMapClick);
+    } else {
+      map.getCanvas().style.cursor = '';
+    }
+
+    return () => {
+      map.off('click', handleMapClick);
+    };
+  }, [isPickingMapLocation]);
 
   const routeGeometry = routeData?.geometry;
   const primaryRouteGeometry = primaryRouteData?.geometry || routeGeometry;
@@ -877,6 +912,25 @@ export default function Map({
   return (
     <div className="relative h-full min-h-[100dvh] w-full bg-[var(--bg-obsidian)]">
       <div ref={mapContainerRef} className="h-full min-h-[100dvh] w-full" />
+
+      {isPickingMapLocation && (
+        <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border border-amber-400/50 bg-black/90 px-4 py-2.5 shadow-2xl backdrop-blur-md">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-400/20 text-amber-300">
+            <MapPinned className="h-4 w-4 animate-pulse" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-white">Click anywhere on map</p>
+            <p className="text-[10px] text-amber-200">Setting {pickingTargetName || 'location'} (snaps to nearest road)</p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelMapPick}
+            className="rounded-lg border border-white/10 bg-white/10 px-2.5 py-1 text-xs font-semibold text-gray-300 hover:bg-white/20 hover:text-white"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {!isPreviewActive && (
         <div className="theme-scope liquid-glass map-control-safe absolute left-2 right-2 z-30 flex max-w-full items-center justify-center space-x-1 overflow-x-auto rounded-xl border border-white/10 p-1.5 shadow-xl sm:left-auto sm:right-4">
