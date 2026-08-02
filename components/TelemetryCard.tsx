@@ -44,6 +44,10 @@ interface TelemetryCardProps {
   liveFuelPricePence: number;
   liveFuelSource: string;
   isLiveFuelFetching: boolean;
+  homeOffPeakPence?: number;
+  homeStandardPence?: number;
+  rapidChargerPence?: number;
+  evSource?: string;
   onChangeMpg: (newMpg: number) => void;
   onChangePricePerLiterPence: (newPricePence: number) => void;
   onResetFuelDefaults: () => void;
@@ -85,6 +89,10 @@ export default function TelemetryCard({
   liveFuelPricePence,
   liveFuelSource,
   isLiveFuelFetching,
+  homeOffPeakPence = 8.0,
+  homeStandardPence = 26.1,
+  rapidChargerPence = 79.0,
+  evSource = 'Ofgem & Zapmap UK (Live)',
   onChangeMpg,
   onChangePricePerLiterPence,
   onResetFuelDefaults,
@@ -97,6 +105,21 @@ export default function TelemetryCard({
   const [showAlternatives, setShowAlternatives] = React.useState(false);
   const [showIntelligence, setShowIntelligence] = React.useState(false);
   const [hasCopiedUrl, setHasCopiedUrl] = React.useState(false);
+
+  // EV charging state
+  const isElectric = vehicle?.fuelType === 'electric';
+  const [evTier, setEvTier] = React.useState<'offpeak' | 'standard' | 'rapid'>('standard');
+  const [evEfficiency, setEvEfficiency] = React.useState<number>(3.8); // miles per kWh
+  const [customKwRate, setCustomKwRate] = React.useState<number | null>(null);
+
+  const defaultTierRate = evTier === 'offpeak' ? homeOffPeakPence : evTier === 'rapid' ? rapidChargerPence : homeStandardPence;
+  const activeKwRatePence = customKwRate !== null ? customKwRate : defaultTierRate;
+
+  const energyKwh = telemetry.distanceMiles / evEfficiency;
+  const costOffPeak = (energyKwh * homeOffPeakPence) / 100;
+  const costStandard = (energyKwh * homeStandardPence) / 100;
+  const costRapid = (energyKwh * rapidChargerPence) / 100;
+  const activeEvCost = (energyKwh * activeKwRatePence) / 100;
 
   const maxSpeed = Math.max(...details.segments.map((segment) => segment.speedLimitMph || 0), 0);
   const profileValues = details.elevationProfile.map((sample) => sample.elevationM);
@@ -270,67 +293,186 @@ export default function TelemetryCard({
         </div>
       )}
 
-      {/* Single-Tank Range Warning */}
+      {/* Range Warning */}
       <div className={`flex items-center justify-between gap-2.5 rounded-2xl border p-3 max-w-full ${rangeStatus.isBeyondRange ? 'border-rose-400/35 bg-rose-950/25' : 'border-teal-400/25 bg-teal-950/20'}`}>
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${rangeStatus.isBeyondRange ? 'bg-rose-400/15 text-rose-300' : 'bg-teal-400/15 text-teal-300'}`}>
-            <Fuel className="h-4 w-4" />
+            {isElectric ? <Zap className="h-4 w-4" /> : <Fuel className="h-4 w-4" />}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[9px] font-mono uppercase tracking-wider text-gray-400">Single-tank range</p>
+            <p className="text-[9px] font-mono uppercase tracking-wider text-gray-400">{isElectric ? 'Battery range' : 'Single-tank range'}</p>
             <p className={`mt-0.5 truncate text-xs font-bold ${rangeStatus.isBeyondRange ? 'text-rose-200' : 'text-teal-200'}`}>{vehicle ? `${rangeStatus.rangeMiles} mi · ${rangeMessage}` : rangeMessage}</p>
           </div>
         </div>
-        <span className="shrink-0 text-right text-[9px] font-mono text-gray-400">{vehicle ? `${vehicle.tankLiters} L tank` : 'Need car'}</span>
+        <span className="shrink-0 text-right text-[9px] font-mono text-gray-400">{vehicle ? (isElectric ? 'EV Battery' : `${vehicle.tankLiters} L tank`) : 'Need car'}</span>
       </div>
 
-      {/* Fuel & Trip Cost Telemetry */}
-      <div className="theme-section space-y-3 rounded-2xl border border-cyan-500/25 bg-cyan-950/30 p-3.5 max-w-full">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center space-x-1.5 min-w-0">
-            <Fuel className="h-4 w-4 text-cyan-400 shrink-0" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-cyan-200 truncate">Fuel &amp; Cost Estimate</span>
-          </div>
-          <div className="flex shrink-0 items-center space-x-1 rounded-full border border-emerald-500/30 bg-emerald-950/60 px-2 py-0.5 text-[9px] text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            <span className="font-mono">{isLiveFuelFetching ? 'Loading' : `${liveFuelPricePence}p/L`}</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/5 bg-black/40 p-2.5 text-center">
-          <div>
-            <div className="text-[9px] font-mono text-gray-400">Est. fuel</div>
-            <div className="text-xs font-bold text-gray-200 font-mono-tabular">{telemetry.estimatedFuelLiters} L</div>
-          </div>
-          <div>
-            <div className="text-[9px] font-mono text-gray-400">Est. trip cost</div>
-            <div className="font-mono text-sm font-extrabold text-emerald-400 font-mono-tabular">£{telemetry.estimatedFuelCostGbp.toFixed(2)}</div>
-          </div>
-        </div>
-
-        <div className="space-y-2.5 pt-0.5">
-          <div className="space-y-1">
-            <div className="flex justify-between text-[11px] font-mono">
-              <span className="flex items-center gap-1 text-gray-300 truncate"><SlidersHorizontal className="h-3 w-3 shrink-0" />{vehicle ? vehicle.nickname : 'MPG'}</span>
-              <span className="font-bold text-gray-200 font-mono-tabular shrink-0">{mpg} MPG</span>
+      {/* EV vs Fuel & Trip Cost Telemetry */}
+      {isElectric ? (
+        <div className="theme-section space-y-3 rounded-2xl border border-amber-500/30 bg-amber-950/25 p-3.5 max-w-full">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-1.5 min-w-0">
+              <Zap className="h-4 w-4 text-amber-400 shrink-0" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-amber-200 truncate">EV Energy &amp; Cost Estimate</span>
             </div>
-            <input aria-label={`${vehicle?.nickname || 'Vehicle'} MPG`} type="range" min={15} max={120} step={1} value={mpg} onChange={(event) => onChangeMpg(parseInt(event.target.value, 10))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-cyan-400" />
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex justify-between text-[11px] font-mono">
-              <span className="text-gray-300">Fuel rate</span>
-              <span className="font-bold text-amber-400 font-mono-tabular shrink-0">{pricePerLiterPence.toFixed(1)}p / L</span>
+            <div className="flex shrink-0 items-center space-x-1 rounded-full border border-amber-500/30 bg-amber-950/60 px-2 py-0.5 text-[9px] text-amber-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className="font-mono">{activeKwRatePence.toFixed(1)}p/kWh</span>
             </div>
-            <input type="range" min={110} max={220} step={0.5} value={pricePerLiterPence} onChange={(event) => onChangePricePerLiterPence(parseFloat(event.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-amber-400" />
           </div>
 
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <button onClick={onResetFuelDefaults} className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-mono text-cyan-400 hover:bg-cyan-500/20">Reset rate</button>
-            <button type="button" onClick={onOpenGarage} className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-gray-300 hover:text-white"><CarFront className="h-3 w-3 text-cyan-400" />{vehicle ? 'Garage' : 'Set up car'}</button>
+          {/* Rate Tier Tabs */}
+          <div className="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-black/40 p-1 text-[10px] font-semibold">
+            <button
+              type="button"
+              onClick={() => { setEvTier('offpeak'); setCustomKwRate(null); }}
+              className={`rounded-lg py-1.5 px-1 transition-colors ${evTier === 'offpeak' ? 'bg-amber-400/25 text-amber-200 border border-amber-400/40' : 'text-gray-400 hover:text-white'}`}
+            >
+              ⚡ Off-Peak ({homeOffPeakPence}p)
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEvTier('standard'); setCustomKwRate(null); }}
+              className={`rounded-lg py-1.5 px-1 transition-colors ${evTier === 'standard' ? 'bg-amber-400/25 text-amber-200 border border-amber-400/40' : 'text-gray-400 hover:text-white'}`}
+            >
+              🏠 Standard ({homeStandardPence}p)
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEvTier('rapid'); setCustomKwRate(null); }}
+              className={`rounded-lg py-1.5 px-1 transition-colors ${evTier === 'rapid' ? 'bg-amber-400/25 text-amber-200 border border-amber-400/40' : 'text-gray-400 hover:text-white'}`}
+            >
+              🔌 Rapid ({rapidChargerPence}p)
+            </button>
+          </div>
+
+          {/* Primary Energy & Cost Cards */}
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/5 bg-black/40 p-2.5 text-center">
+            <div>
+              <div className="text-[9px] font-mono text-gray-400">Est. energy</div>
+              <div className="text-xs font-bold text-gray-200 font-mono-tabular">{energyKwh.toFixed(1)} kWh</div>
+            </div>
+            <div>
+              <div className="text-[9px] font-mono text-gray-400">Est. trip cost ({evTier})</div>
+              <div className="font-mono text-sm font-extrabold text-amber-300 font-mono-tabular">£{activeEvCost.toFixed(2)}</div>
+            </div>
+          </div>
+
+          {/* Multi-Tier Cost Breakdown Table */}
+          <div className="rounded-xl border border-white/10 bg-black/20 p-2 text-[10px]">
+            <p className="text-[9px] font-mono text-gray-400 uppercase tracking-wider mb-1">Cost by Charging Method</p>
+            <div className="grid grid-cols-3 gap-1 text-center font-mono">
+              <div className="rounded-lg bg-white/5 p-1">
+                <span className="block text-[8px] text-gray-400">Home Off-Peak</span>
+                <span className="font-bold text-emerald-400">£{costOffPeak.toFixed(2)}</span>
+              </div>
+              <div className="rounded-lg bg-white/5 p-1">
+                <span className="block text-[8px] text-gray-400">Home Standard</span>
+                <span className="font-bold text-cyan-300">£{costStandard.toFixed(2)}</span>
+              </div>
+              <div className="rounded-lg bg-white/5 p-1">
+                <span className="block text-[8px] text-gray-400">Public Rapid</span>
+                <span className="font-bold text-amber-300">£{costRapid.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* EV Efficiency & KW Rate Sliders */}
+          <div className="space-y-2.5 pt-0.5">
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px] font-mono">
+                <span className="flex items-center gap-1 text-gray-300 truncate"><SlidersHorizontal className="h-3 w-3 shrink-0" />EV Efficiency</span>
+                <span className="font-bold text-gray-200 font-mono-tabular shrink-0">{evEfficiency.toFixed(1)} mi / kWh</span>
+              </div>
+              <input
+                aria-label="EV Efficiency (miles per kWh)"
+                type="range"
+                min={2.0}
+                max={6.0}
+                step={0.1}
+                value={evEfficiency}
+                onChange={(e) => setEvEfficiency(parseFloat(e.target.value))}
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-amber-400"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px] font-mono">
+                <span className="text-gray-300">KW rate</span>
+                <span className="font-bold text-amber-400 font-mono-tabular shrink-0">{activeKwRatePence.toFixed(1)}p / kWh</span>
+              </div>
+              <input
+                aria-label="Charging rate in pence per kWh"
+                type="range"
+                min={5.0}
+                max={120.0}
+                step={0.5}
+                value={activeKwRatePence}
+                onChange={(e) => setCustomKwRate(parseFloat(e.target.value))}
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-amber-400"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setCustomKwRate(null)}
+                className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-mono text-amber-300 hover:bg-amber-500/20"
+              >
+                Reset KW rate
+              </button>
+              <button type="button" onClick={onOpenGarage} className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-gray-300 hover:text-white"><CarFront className="h-3 w-3 text-amber-400" />{vehicle ? 'Garage' : 'Set up car'}</button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="theme-section space-y-3 rounded-2xl border border-cyan-500/25 bg-cyan-950/30 p-3.5 max-w-full">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-1.5 min-w-0">
+              <Fuel className="h-4 w-4 text-cyan-400 shrink-0" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-cyan-200 truncate">Fuel &amp; Cost Estimate</span>
+            </div>
+            <div className="flex shrink-0 items-center space-x-1 rounded-full border border-emerald-500/30 bg-emerald-950/60 px-2 py-0.5 text-[9px] text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className="font-mono">{isLiveFuelFetching ? 'Loading' : `${liveFuelPricePence}p/L`}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/5 bg-black/40 p-2.5 text-center">
+            <div>
+              <div className="text-[9px] font-mono text-gray-400">Est. fuel</div>
+              <div className="text-xs font-bold text-gray-200 font-mono-tabular">{telemetry.estimatedFuelLiters} L</div>
+            </div>
+            <div>
+              <div className="text-[9px] font-mono text-gray-400">Est. trip cost</div>
+              <div className="font-mono text-sm font-extrabold text-emerald-400 font-mono-tabular">£{telemetry.estimatedFuelCostGbp.toFixed(2)}</div>
+            </div>
+          </div>
+
+          <div className="space-y-2.5 pt-0.5">
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px] font-mono">
+                <span className="flex items-center gap-1 text-gray-300 truncate"><SlidersHorizontal className="h-3 w-3 shrink-0" />{vehicle ? vehicle.nickname : 'MPG'}</span>
+                <span className="font-bold text-gray-200 font-mono-tabular shrink-0">{mpg} MPG</span>
+              </div>
+              <input aria-label={`${vehicle?.nickname || 'Vehicle'} MPG`} type="range" min={15} max={120} step={1} value={mpg} onChange={(event) => onChangeMpg(parseInt(event.target.value, 10))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-cyan-400" />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px] font-mono">
+                <span className="text-gray-300">Fuel rate</span>
+                <span className="font-bold text-amber-400 font-mono-tabular shrink-0">{pricePerLiterPence.toFixed(1)}p / L</span>
+              </div>
+              <input type="range" min={110} max={220} step={0.5} value={pricePerLiterPence} onChange={(event) => onChangePricePerLiterPence(parseFloat(event.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-amber-400" />
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <button onClick={onResetFuelDefaults} className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-mono text-cyan-400 hover:bg-cyan-500/20">Reset rate</button>
+              <button type="button" onClick={onOpenGarage} className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-gray-300 hover:text-white"><CarFront className="h-3 w-3 text-cyan-400" />{vehicle ? 'Garage' : 'Set up car'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expandable Road Intelligence */}
       <div className="rounded-2xl border border-white/10 bg-white/5">

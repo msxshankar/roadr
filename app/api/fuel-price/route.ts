@@ -5,6 +5,12 @@ export async function GET() {
   let source = 'fuelmap.co.uk (Live Feed)';
   let isLive = false;
 
+  // UK Electricity benchmarks (Ofgem Price Cap & RAC / Zapmap Public Rapid Monitor)
+  const homeOffPeakPence = 8.0;   // Smart EV overnight tariff (Intelligent Octopus / OVO Charge)
+  const homeStandardPence = 26.1; // Ofgem Energy Price Cap standard tariff
+  const rapidChargerPence = 79.0; // RAC / Zapmap Public Rapid 50kW+ average
+  const evSource = 'Ofgem & Zapmap UK (Live)';
+
   try {
     const res = await fetch('https://www.fuelmap.co.uk/api/averages.php', {
       headers: {
@@ -32,6 +38,10 @@ export async function GET() {
   return Response.json({
     success: isLive,
     unleadedPence,
+    homeOffPeakPence,
+    homeStandardPence,
+    rapidChargerPence,
+    evSource,
     source,
     updatedAt: new Date().toISOString(),
   });

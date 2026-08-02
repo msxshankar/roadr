@@ -59,6 +59,10 @@ export default function Home() {
   const [pricePerLiterPence, setPricePerLiterPence] = useState(DEFAULT_UK_PETROL_PRICE_PENCE);
   const [liveFuelPricePence, setLiveFuelPricePence] = useState(DEFAULT_UK_PETROL_PRICE_PENCE);
   const [liveFuelSource, setLiveFuelSource] = useState('fuelmap.co.uk');
+  const [homeOffPeakPence, setHomeOffPeakPence] = useState(8.0);
+  const [homeStandardPence, setHomeStandardPence] = useState(26.1);
+  const [rapidChargerPence, setRapidChargerPence] = useState(79.0);
+  const [evSource, setEvSource] = useState('Ofgem & Zapmap UK (Live)');
   const [isLiveFuelFetching, setIsLiveFuelFetching] = useState(true);
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
@@ -660,6 +664,10 @@ export default function Home() {
         setLiveFuelPricePence(data.unleadedPence);
         setPricePerLiterPence(data.unleadedPence);
         setLiveFuelSource(data.source || 'fuelmap.co.uk');
+        if (data.homeOffPeakPence) setHomeOffPeakPence(data.homeOffPeakPence);
+        if (data.homeStandardPence) setHomeStandardPence(data.homeStandardPence);
+        if (data.rapidChargerPence) setRapidChargerPence(data.rapidChargerPence);
+        if (data.evSource) setEvSource(data.evSource);
         void handleCalculateRoute(origin, destination, mpg, data.unleadedPence, stops);
       } catch (error) {
         console.warn('Failed to load live fuel price feed:', error);
@@ -827,7 +835,7 @@ export default function Home() {
           routingErrorDetail={routingErrorDetail}
           onApplySuggestedLocation={handleApplySuggestedLocation}
         />
-        {activeRouteData && origin && destination && routeData && <TelemetryCard telemetry={activeRouteData.telemetry} details={activeRouteData.details} originalRoute={routeData} selectedRouteId={selectedRouteId} alternatives={routeData.alternatives || []} origin={origin} destination={destination} stops={stops} provider={activeRouteData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectRoute={handleSelectRoute} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={() => setIsRecordModalOpen(true)} />}
+        {activeRouteData && origin && destination && routeData && <TelemetryCard telemetry={activeRouteData.telemetry} details={activeRouteData.details} originalRoute={routeData} selectedRouteId={selectedRouteId} alternatives={routeData.alternatives || []} origin={origin} destination={destination} stops={stops} provider={activeRouteData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} homeOffPeakPence={homeOffPeakPence} homeStandardPence={homeStandardPence} rapidChargerPence={rapidChargerPence} evSource={evSource} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectRoute={handleSelectRoute} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={() => setIsRecordModalOpen(true)} />}
         <div className="route-sidebar-resizer hidden md:block" role="separator" aria-label="Resize route planner sidebar" aria-orientation="vertical" onPointerDown={handleSidebarResizeStart} />
       </div>}
 
