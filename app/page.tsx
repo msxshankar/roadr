@@ -782,7 +782,7 @@ export default function Home() {
             ? 'Origin'
             : pickingTarget === 'destination'
               ? 'Destination'
-              : typeof pickingTarget === 'object'
+              : pickingTarget && typeof pickingTarget === 'object'
                 ? `Stop ${pickingTarget.index + 1}`
                 : 'location'
         }
