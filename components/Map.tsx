@@ -97,6 +97,7 @@ const FREE_SATELLITE: mapboxgl.Style = {
 export const MAPBOX_STYLES = [
   { id: 'satellite', name: '3D Satellite', url: 'mapbox://styles/mapbox/satellite-streets-v12', fallback: FREE_SATELLITE },
   { id: 'outdoors', name: 'Outdoors Topo', url: 'mapbox://styles/mapbox/outdoors-v12', fallback: FREE_OSM_BASEMAP },
+  { id: 'dark', name: 'Dark Topo', url: 'mapbox://styles/mapbox/dark-v11', fallback: FREE_CARTO_DARK },
 ];
 
 function getPreviewPitch(zoom: number): number {
