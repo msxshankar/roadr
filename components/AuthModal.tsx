@@ -108,7 +108,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated }: AuthModa
               onChange={(event) => setUsername(event.target.value)}
               autoComplete="username"
               className="theme-field min-h-11 w-full rounded-xl border px-3.5 py-2.5 outline-none transition-colors focus:border-cyan-300"
-              placeholder="e.g. mayur"
+              placeholder="Enter your username"
               required
             />
           </label>
