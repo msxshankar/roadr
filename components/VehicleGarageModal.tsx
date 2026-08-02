@@ -63,11 +63,15 @@ export default function VehicleGarageModal({
   const [form, setForm] = useState<VehicleDraft>(() => createDraft());
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
 
+  const wasOpenRef = React.useRef(false);
+
   useEffect(() => {
-    if (!isOpen) return;
-    const selected = vehicles.find((vehicle) => vehicle.id === activeVehicleId) || vehicles[0];
-    setEditingVehicleId(selected?.id || null);
-    setForm(createDraft(selected));
+    if (isOpen && !wasOpenRef.current) {
+      const selected = vehicles.find((vehicle) => vehicle.id === activeVehicleId) || vehicles[0];
+      setEditingVehicleId(selected?.id || null);
+      setForm(createDraft(selected));
+    }
+    wasOpenRef.current = isOpen;
   }, [activeVehicleId, isOpen, vehicles]);
 
   if (!isOpen) return null;

@@ -75,7 +75,9 @@ function normaliseRecordedRoute(value: unknown): RecordedRoute | null {
     : [];
   const recordedAt = typeof value.recordedAt === 'string' && !Number.isNaN(Date.parse(value.recordedAt))
     ? value.recordedAt
-    : null;
+    : value.recordedAt instanceof Date && !Number.isNaN(value.recordedAt.getTime())
+      ? value.recordedAt.toISOString()
+      : null;
 
   if (
     !id ||
