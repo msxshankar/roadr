@@ -58,11 +58,7 @@ export default function Header({
         aria-label="ROADR home - reload page"
       >
         <div className="min-w-0">
-          <div className="flex items-center space-x-1.5 sm:space-x-2">
-            <h1 className="font-display shrink-0 text-sm font-extrabold tracking-[0.2em] text-teal-300 sm:text-base">ROADR</h1>
-            <span className="header-badge hidden rounded-full border border-violet-400/30 bg-violet-950/60 px-1.5 py-0.5 text-[9px] font-mono text-violet-300 sm:inline sm:px-2 sm:text-[10px]">MAP-FIRST ROUTING</span>
-          </div>
-          <p className="hidden text-[10px] text-gray-400 md:block sm:text-xs">Route planning &amp; drive telemetry</p>
+          <h1 className="font-display shrink-0 text-sm font-extrabold tracking-[0.2em] text-teal-300 sm:text-base">ROADR</h1>
         </div>
       </button>
 
