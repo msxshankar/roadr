@@ -107,7 +107,7 @@ export default function Header({
             </button>
             <button type="button" onClick={onSignOut} className="header-action flex shrink-0 items-center gap-1 rounded-xl border border-red-400/25 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-200 transition-all hover:bg-red-500/20 hover:text-white sm:px-3 sm:text-xs" title="Sign out of Roadr" aria-label="Sign out of Roadr">
               <LogOut className="h-3.5 w-3.5" />
-              <span className="header-action-label hidden sm:inline font-medium">Exit</span>
+              <span className="header-action-label hidden sm:inline font-medium">Sign out</span>
             </button>
           </>
         ) : (
