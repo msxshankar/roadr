@@ -84,53 +84,76 @@ body,
 }
 
 /* Solid, theme-aware surfaces. The map remains visually rich; application chrome stays readable. */
-.liquid-glass {
-  background: var(--app-panel);
-  border: 1px solid var(--app-border);
-  box-shadow: 0 10px 30px var(--app-shadow);
-}
-
-.liquid-glass-header {
-  background: var(--app-panel);
-  border-bottom: 1px solid var(--app-border);
-}
-
-.theme-brand-surface {
-  background: var(--bg-obsidian);
-}
-
-.theme-modal {
-  background: var(--app-panel) !important;
-  border-color: var(--app-border) !important;
-  color: var(--app-text);
-}
-
-.theme-preview-panel {
-  background: var(--app-panel) !important;
-  border-color: var(--app-border) !important;
-  box-shadow: 0 10px 30px var(--app-shadow) !important;
-}
-
-/* Flighty-inspired hierarchy: the map stays open, while every control is a
-   solid, rounded card with a clear compact state. No blur is needed for legibility. */
+/* Flighty-inspired Glassmorphism & Depth System */
+.liquid-glass,
+.liquid-glass-header,
 .flighty-card,
 .flighty-preview-panel,
 .flighty-map-card,
-.flighty-import-card {
-  background: var(--app-panel) !important;
-  border-color: var(--app-border) !important;
-  box-shadow: 0 16px 42px var(--app-shadow);
+.flighty-import-card,
+.theme-modal {
+  background: rgba(12, 14, 20, 0.82) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 
-.flighty-map-chip,
-.flighty-dock-status {
-  background: var(--app-panel) !important;
-  border-color: var(--app-border) !important;
-  color: var(--app-text);
+html[data-theme='light'] .liquid-glass,
+html[data-theme='light'] .liquid-glass-header,
+html[data-theme='light'] .flighty-card,
+html[data-theme='light'] .flighty-preview-panel,
+html[data-theme='light'] .flighty-map-card,
+html[data-theme='light'] .flighty-import-card,
+html[data-theme='light'] .theme-modal {
+  background: rgba(255, 255, 255, 0.88) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 20px 40px rgba(30, 45, 65, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
-.flighty-header {
-  box-shadow: 0 8px 28px var(--app-shadow);
+.liquid-glass-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* Flighty Telemetry Pulse Dot */
+@keyframes flightyPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.6);
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.85;
+    box-shadow: 0 0 0 6px rgba(45, 212, 191, 0);
+  }
+}
+
+.flighty-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background-color: #2dd4bf;
+  animation: flightyPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.flighty-pulse-dot-amber {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background-color: #f59e0b;
+  animation: flightyPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Tabular Numerals for Flight Specs */
+.font-mono-tabular {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 .safe-top {
