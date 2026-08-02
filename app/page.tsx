@@ -79,6 +79,12 @@ export default function Home() {
 
   const routeRequestIdRef = useRef(0);
   const isSavingRef = useRef(false);
+  const appStateRef = useRef<RoadrAppState>({
+    vehicles: [],
+    activeVehicleId: null,
+    savedPlaces: [],
+    recordedRoutes: [],
+  });
   const sidebarResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const terrainGeometryRef = useRef<GeoJSON.LineString | null>(null);
   const roadGeometryRef = useRef<GeoJSON.LineString | null>(null);
@@ -180,13 +186,12 @@ export default function Home() {
   };
 
   const handleSaveVehicle = (nextVehicle: VehicleProfile, closeModal = true) => {
-    const nextVehicles = vehicles.some((item) => item.id === nextVehicle.id)
-      ? vehicles.map((item) => item.id === nextVehicle.id ? nextVehicle : item)
-      : [...vehicles, nextVehicle];
+    const currentVehicles = appStateRef.current.vehicles;
+    const nextVehicles = currentVehicles.some((item) => item.id === nextVehicle.id)
+      ? currentVehicles.map((item) => item.id === nextVehicle.id ? nextVehicle : item)
+      : [...currentVehicles, nextVehicle];
     const nextActiveId = nextVehicle.id;
 
-    setVehicles(nextVehicles);
-    setActiveVehicleId(nextActiveId);
     setMpg(nextVehicle.mpg);
     setRouteData((current) => current ? {
       ...current,
@@ -199,25 +204,24 @@ export default function Home() {
     if (closeModal) {
       setIsGarageOpen(false);
     }
-    void syncAppStateNow({ vehicles: nextVehicles, activeVehicleId: nextActiveId });
+    updateAppState({ vehicles: nextVehicles, activeVehicleId: nextActiveId });
   };
 
   const handleSelectVehicle = (vehicleId: string) => {
-    const nextVehicle = vehicles.find((item) => item.id === vehicleId);
-    setActiveVehicleId(nextVehicle?.id || null);
+    const nextVehicle = appStateRef.current.vehicles.find((item) => item.id === vehicleId);
     if (nextVehicle) setMpg(nextVehicle.mpg);
+    updateAppState({ activeVehicleId: vehicleId });
   };
 
   const handleDeleteVehicle = (vehicleId: string) => {
-    const nextVehicles = vehicles.filter((item) => item.id !== vehicleId);
-    let nextActiveId = activeVehicleId;
-    if (activeVehicleId === vehicleId) {
+    const currentVehicles = appStateRef.current.vehicles;
+    const nextVehicles = currentVehicles.filter((item) => item.id !== vehicleId);
+    let nextActiveId = appStateRef.current.activeVehicleId;
+    if (nextActiveId === vehicleId) {
       nextActiveId = nextVehicles[0]?.id || null;
-      setActiveVehicleId(nextActiveId);
       if (nextVehicles[0]) setMpg(nextVehicles[0].mpg);
     }
-    setVehicles(nextVehicles);
-    void syncAppStateNow({ vehicles: nextVehicles, activeVehicleId: nextActiveId });
+    updateAppState({ vehicles: nextVehicles, activeVehicleId: nextActiveId });
   };
 
   const rememberPlace = (location: LocationPoint) => {
@@ -284,9 +288,8 @@ export default function Home() {
   };
 
   const handleDeleteRecordedRoute = (routeId: string) => {
-    const nextRoutes = recordedRoutes.filter((route) => route.id !== routeId);
-    setRecordedRoutes(nextRoutes);
-    void syncAppStateNow({ recordedRoutes: nextRoutes });
+    const nextRoutes = appStateRef.current.recordedRoutes.filter((route) => route.id !== routeId);
+    updateAppState({ recordedRoutes: nextRoutes });
   };
 
   const handleSwapLocations = () => {
@@ -369,6 +372,40 @@ export default function Home() {
     }
   };
 
+  const syncStateToServer = useCallback(async (stateToSync: RoadrAppState) => {
+    if (authStatus !== 'authenticated') return;
+    isSavingRef.current = true;
+    try {
+      await fetch('/api/state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(stateToSync),
+      });
+    } catch (error) {
+      console.warn('Unable to persist Roadr state:', error);
+    } finally {
+      isSavingRef.current = false;
+    }
+  }, [authStatus]);
+
+  const updateAppState = useCallback((next: Partial<RoadrAppState>) => {
+    const updated: RoadrAppState = {
+      vehicles: next.vehicles ?? appStateRef.current.vehicles,
+      activeVehicleId: next.activeVehicleId !== undefined ? next.activeVehicleId : appStateRef.current.activeVehicleId,
+      savedPlaces: next.savedPlaces ?? appStateRef.current.savedPlaces,
+      recordedRoutes: next.recordedRoutes ?? appStateRef.current.recordedRoutes,
+    };
+
+    appStateRef.current = updated;
+
+    if (next.vehicles !== undefined) setVehicles(updated.vehicles);
+    if (next.activeVehicleId !== undefined) setActiveVehicleId(updated.activeVehicleId);
+    if (next.savedPlaces !== undefined) setSavedPlaces(updated.savedPlaces);
+    if (next.recordedRoutes !== undefined) setRecordedRoutes(updated.recordedRoutes);
+
+    void syncStateToServer(updated);
+  }, [syncStateToServer]);
+
   const refreshAppState = useCallback(async () => {
     if (authStatus !== 'authenticated' || isSavingRef.current) return;
     try {
@@ -376,6 +413,7 @@ export default function Home() {
       if (!response.ok || isSavingRef.current) return;
       const state = await response.json() as RoadrAppState;
       if (isSavingRef.current) return;
+      appStateRef.current = state;
       setVehicles(state.vehicles);
       setActiveVehicleId((current) => state.vehicles.some((v) => v.id === current) ? current : (state.activeVehicleId || state.vehicles[0]?.id || null));
       setSavedPlaces(state.savedPlaces);
@@ -384,28 +422,6 @@ export default function Home() {
       console.warn('Unable to refresh Roadr state:', error);
     }
   }, [authStatus]);
-
-  const syncAppStateNow = useCallback(async (overrideState?: Partial<RoadrAppState>) => {
-    if (authStatus !== 'authenticated') return;
-    isSavingRef.current = true;
-    const payload: RoadrAppState = {
-      vehicles: overrideState?.vehicles ?? vehicles,
-      activeVehicleId: overrideState?.activeVehicleId !== undefined ? overrideState.activeVehicleId : activeVehicleId,
-      savedPlaces: overrideState?.savedPlaces ?? savedPlaces,
-      recordedRoutes: overrideState?.recordedRoutes ?? recordedRoutes,
-    };
-    try {
-      await fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-    } catch (error) {
-      console.warn('Unable to persist Roadr state:', error);
-    } finally {
-      isSavingRef.current = false;
-    }
-  }, [activeVehicleId, authStatus, recordedRoutes, savedPlaces, vehicles]);
 
   const handleRecordRoute = (name: string) => {
     if (!activeRouteData || !vehicle) return;
@@ -422,10 +438,9 @@ export default function Home() {
       fuelCostGbp: activeRouteData.telemetry.estimatedFuelCostGbp,
       durationSeconds: activeRouteData.telemetry.durationSeconds,
     };
-    const nextRoutes = [record, ...recordedRoutes].slice(0, 50);
-    setRecordedRoutes(nextRoutes);
+    const nextRoutes = [record, ...appStateRef.current.recordedRoutes].slice(0, 50);
     setIsRecordModalOpen(false);
-    void syncAppStateNow({ recordedRoutes: nextRoutes });
+    updateAppState({ recordedRoutes: nextRoutes });
   };
 
   useEffect(() => {
@@ -494,6 +509,7 @@ export default function Home() {
           })()
           : legacyState;
         if (!cancelled) {
+          appStateRef.current = state;
           setVehicles(state.vehicles);
           setActiveVehicleId(state.activeVehicleId || state.vehicles[0]?.id || null);
           setSavedPlaces(state.savedPlaces);
@@ -506,6 +522,7 @@ export default function Home() {
         console.warn('Unable to load Roadr state:', error);
         if (!cancelled) {
           const fallback = authStatus === 'anonymous' && allowLegacyState ? legacyState : emptyState;
+          appStateRef.current = fallback;
           setVehicles(fallback.vehicles);
           setActiveVehicleId(fallback.activeVehicleId || fallback.vehicles[0]?.id || null);
           setSavedPlaces(fallback.savedPlaces);
