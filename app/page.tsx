@@ -236,9 +236,6 @@ export default function Home() {
   const handleUpdateFuelConfig = (newMpg: number, newPricePence: number) => {
     setMpg(newMpg);
     setPricePerLiterPence(newPricePence);
-    if (activeVehicleId) {
-      setVehicles((current) => current.map((item) => item.id === activeVehicleId ? { ...item, mpg: newMpg } : item));
-    }
     setRouteData((current) => current ? {
       ...current,
       telemetry: computeTelemetry(current.telemetry.distanceMeters, current.telemetry.durationSeconds, newMpg, newPricePence),
@@ -689,8 +686,11 @@ export default function Home() {
 
   // A saved car may load after the first route request; reconcile that response so the
   // persisted MPG is never silently replaced by the generic UK average.
+  // Skip reconciliation if the user has overridden MPG via the slider (mpg differs from both default and vehicle).
   useEffect(() => {
     if (!vehicle || !routeData) return;
+    if (mpg !== DEFAULT_UK_MPG && mpg !== vehicle.mpg) return;
+    setMpg(vehicle.mpg);
     const telemetry = computeTelemetry(
       routeData.telemetry.distanceMeters,
       routeData.telemetry.durationSeconds,
@@ -710,7 +710,8 @@ export default function Home() {
         })),
       } : current);
     }
-  }, [vehicle, pricePerLiterPence, routeData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicle, pricePerLiterPence]);
 
   // Road tags load independently so the preview can show a real/estimated limit quickly.
   useEffect(() => {
