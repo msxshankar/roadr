@@ -49,6 +49,7 @@ function normaliseVehicle(value: unknown): VehicleProfile | null {
   const fuelType = typeof value.fuelType === 'string' && FUEL_TYPES.includes(value.fuelType as VehicleFuelType)
     ? value.fuelType as VehicleFuelType
     : 'petrol';
+  const rangeMiles = finiteNumber(value.rangeMiles) ? Math.min(Math.max(value.rangeMiles, 1), 2000) : 250;
   if (!id || !nickname || !finiteNumber(value.mpg) || !finiteNumber(value.tankLiters)) return null;
 
   return {
@@ -60,6 +61,7 @@ function normaliseVehicle(value: unknown): VehicleProfile | null {
     fuelType,
     mpg: Math.min(Math.max(value.mpg, 1), 200),
     tankLiters: Math.min(Math.max(value.tankLiters, 1), 200),
+    rangeMiles,
   };
 }
 
@@ -175,6 +177,7 @@ export function stateFromRows(rows: {
       fuelType: row.fuel_type,
       mpg: row.mpg,
       tankLiters: row.tank_liters,
+      rangeMiles: row.range_miles,
     })),
     activeVehicleId: rows.activeVehicleId || null,
     savedPlaces: rows.savedPlaces,

@@ -23,7 +23,7 @@ export async function GET() {
     if (!user) return unauthorisedResponse();
 
     const [vehicleRows, placeRows, routeRows, settingRows] = await Promise.all([
-      query('SELECT id, nickname, make, model, year, fuel_type, mpg, tank_liters FROM vehicles WHERE user_id = $1 ORDER BY created_at ASC', [user.id]),
+      query('SELECT id, nickname, make, model, year, fuel_type, mpg, tank_liters, range_miles FROM vehicles WHERE user_id = $1 ORDER BY created_at ASC', [user.id]),
       query('SELECT name, lng, lat FROM saved_places WHERE user_id = $1 ORDER BY created_at ASC', [user.id]),
       query('SELECT id, vehicle_id, name, origin, destination, stops, recorded_at, distance_miles, fuel_liters, fuel_cost_gbp, duration_seconds FROM recorded_routes WHERE user_id = $1 ORDER BY created_at ASC', [user.id]),
       query('SELECT active_vehicle_id FROM user_settings WHERE user_id = $1', [user.id]),
@@ -68,9 +68,9 @@ export async function PUT(request: Request) {
       await client.query('DELETE FROM vehicles WHERE user_id = $1', [user.id]);
       for (const vehicle of state.vehicles) {
         await client.query(
-          `INSERT INTO vehicles (id, user_id, nickname, make, model, year, fuel_type, mpg, tank_liters)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [vehicle.id, user.id, vehicle.nickname, vehicle.make, vehicle.model, vehicle.year, vehicle.fuelType, vehicle.mpg, vehicle.tankLiters]
+          `INSERT INTO vehicles (id, user_id, nickname, make, model, year, fuel_type, mpg, tank_liters, range_miles)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [vehicle.id, user.id, vehicle.nickname, vehicle.make, vehicle.model, vehicle.year, vehicle.fuelType, vehicle.mpg, vehicle.tankLiters, vehicle.rangeMiles ?? 250]
         );
       }
 

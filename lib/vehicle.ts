@@ -12,6 +12,7 @@ export const DEFAULT_VEHICLE: Omit<VehicleProfile, 'id'> = {
   fuelType: 'petrol',
   mpg: 42,
   tankLiters: 50,
+  rangeMiles: 250,
 };
 
 const FUEL_TYPES: VehicleFuelType[] = ['petrol', 'diesel', 'hybrid', 'electric'];
@@ -39,6 +40,7 @@ export function parseVehicleProfile(serialized: string | null): VehicleProfile |
       fuelType: isVehicleFuelType(value.fuelType) ? value.fuelType : DEFAULT_VEHICLE.fuelType,
       mpg: Math.min(Math.max(toFiniteNumber(value.mpg, DEFAULT_VEHICLE.mpg), 1), 200),
       tankLiters: Math.min(Math.max(toFiniteNumber(value.tankLiters, DEFAULT_VEHICLE.tankLiters), 1), 200),
+      rangeMiles: Math.min(Math.max(toFiniteNumber(value.rangeMiles, 250), 1), 2000),
     };
   } catch {
     return null;
@@ -68,9 +70,13 @@ export function vehicleLabel(vehicle: VehicleProfile | null): string {
   return details ? `${vehicle.nickname} · ${details}` : vehicle.nickname;
 }
 
-/** Estimate how far a full tank can take the configured vehicle in UK miles. */
+/** Estimate how far a vehicle can travel in UK miles. */
 export function calculateVehicleRangeMiles(vehicle: VehicleProfile | null): number | null {
-  if (!vehicle || !Number.isFinite(vehicle.mpg) || !Number.isFinite(vehicle.tankLiters)) return null;
+  if (!vehicle) return null;
+  if (vehicle.fuelType === 'electric') {
+    return Number(Math.max(vehicle.rangeMiles ?? 250, 0).toFixed(0));
+  }
+  if (!Number.isFinite(vehicle.mpg) || !Number.isFinite(vehicle.tankLiters)) return null;
   return Number(((Math.max(vehicle.mpg, 1) * Math.max(vehicle.tankLiters, 1)) / UK_GALLON_LITERS).toFixed(0));
 }
 

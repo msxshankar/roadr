@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, CarFront, Fuel, Gauge, History, Plus, Save, Trash2, X } from 'lucide-react';
+import { ArrowRight, CarFront, Fuel, Gauge, History, Plus, Save, Trash2, X, Zap } from 'lucide-react';
 import { RecordedRoute, VehicleFuelType, VehicleProfile } from '@/types';
 import { calculateVehicleRangeMiles, DEFAULT_VEHICLE, vehicleLabel } from '@/lib/vehicle';
 
@@ -18,9 +18,10 @@ interface VehicleGarageModalProps {
   onClose: () => void;
 }
 
-type VehicleDraft = Omit<VehicleProfile, 'mpg' | 'tankLiters'> & {
+type VehicleDraft = Omit<VehicleProfile, 'mpg' | 'tankLiters' | 'rangeMiles'> & {
   mpg: string;
   tankLiters: string;
+  rangeMiles: string;
 };
 
 const FUEL_OPTIONS: Array<{ value: VehicleFuelType; label: string }> = [
@@ -31,12 +32,13 @@ const FUEL_OPTIONS: Array<{ value: VehicleFuelType; label: string }> = [
 ];
 
 function createDraft(vehicle?: VehicleProfile): VehicleDraft {
-  if (vehicle) return { ...vehicle, mpg: String(vehicle.mpg), tankLiters: String(vehicle.tankLiters) };
+  if (vehicle) return { ...vehicle, mpg: String(vehicle.mpg), tankLiters: String(vehicle.tankLiters), rangeMiles: String(vehicle.rangeMiles ?? 250) };
   return {
     ...DEFAULT_VEHICLE,
     id: `vehicle-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     mpg: String(DEFAULT_VEHICLE.mpg),
     tankLiters: String(DEFAULT_VEHICLE.tankLiters),
+    rangeMiles: String(DEFAULT_VEHICLE.rangeMiles ?? 250),
   };
 }
 
@@ -88,6 +90,7 @@ export default function VehicleGarageModal({
     ...form,
     mpg: numberInRange(form.mpg, DEFAULT_VEHICLE.mpg, 1, 200),
     tankLiters: numberInRange(form.tankLiters, DEFAULT_VEHICLE.tankLiters, 1, 200),
+    rangeMiles: numberInRange(form.rangeMiles, 250, 1, 2000),
   });
 
   const update = <K extends keyof VehicleDraft>(key: K, value: VehicleDraft[K]) => {
@@ -169,6 +172,7 @@ export default function VehicleGarageModal({
                   ...form,
                   mpg: numberInRange(form.mpg, DEFAULT_VEHICLE.mpg, 1, 200),
                   tankLiters: numberInRange(form.tankLiters, DEFAULT_VEHICLE.tankLiters, 1, 200),
+                  rangeMiles: numberInRange(form.rangeMiles, 250, 1, 2000),
                 });
               }}
               className="space-y-4"
@@ -197,24 +201,34 @@ export default function VehicleGarageModal({
                   <span>Model</span>
                   <input value={form.model} onChange={(event) => update('model', event.target.value)} placeholder="e.g. MX-5" className={fieldClass} />
                 </label>
-                <label className="space-y-1.5 text-xs text-gray-300">
+                <label className="space-y-1.5 text-xs text-gray-300 sm:col-span-2">
                   <span>Year</span>
                   <input value={form.year} onChange={(event) => update('year', event.target.value)} placeholder="2024" inputMode="numeric" className={fieldClass} />
                 </label>
-                <label className="space-y-1.5 text-xs text-gray-300">
-                  <span className="flex items-center gap-1"><Gauge className="h-3.5 w-3.5 text-gray-400" /> Real-world MPG</span>
-                  <input type="text" inputMode="decimal" min="1" max="200" value={form.mpg} onChange={(event) => update('mpg', event.target.value.replace(',', '.').replace(/[^0-9.]/g, ''))} className={fieldClass} required aria-label="Real-world MPG" />
-                </label>
-                <label className="space-y-1.5 text-xs text-gray-300 sm:col-span-2">
-                  <span className="flex items-center gap-1"><Fuel className="h-3.5 w-3.5 text-gray-400" /> Tank capacity (litres)</span>
-                  <input type="text" inputMode="decimal" min="1" max="200" value={form.tankLiters} onChange={(event) => update('tankLiters', event.target.value.replace(',', '.').replace(/[^0-9.]/g, ''))} className={fieldClass} required aria-label="Tank capacity in litres" />
-                </label>
+
+                {form.fuelType === 'electric' ? (
+                  <label className="space-y-1.5 text-xs text-gray-300 sm:col-span-2">
+                    <span className="flex items-center gap-1 font-semibold text-amber-300"><Zap className="h-3.5 w-3.5 text-amber-400" /> Estimated range (miles)</span>
+                    <input type="text" inputMode="numeric" min="1" max="2000" value={form.rangeMiles} onChange={(event) => update('rangeMiles', event.target.value.replace(/[^0-9]/g, ''))} className={fieldClass} required aria-label="Estimated range in miles" placeholder="e.g. 250" />
+                  </label>
+                ) : (
+                  <>
+                    <label className="space-y-1.5 text-xs text-gray-300">
+                      <span className="flex items-center gap-1"><Gauge className="h-3.5 w-3.5 text-gray-400" /> Estimated MPG</span>
+                      <input type="text" inputMode="decimal" min="1" max="200" value={form.mpg} onChange={(event) => update('mpg', event.target.value.replace(',', '.').replace(/[^0-9.]/g, ''))} className={fieldClass} required aria-label="Estimated MPG" />
+                    </label>
+                    <label className="space-y-1.5 text-xs text-gray-300">
+                      <span className="flex items-center gap-1"><Fuel className="h-3.5 w-3.5 text-gray-400" /> Tank capacity (litres)</span>
+                      <input type="text" inputMode="decimal" min="1" max="200" value={form.tankLiters} onChange={(event) => update('tankLiters', event.target.value.replace(',', '.').replace(/[^0-9.]/g, ''))} className={fieldClass} required aria-label="Tank capacity in litres" />
+                    </label>
+                  </>
+                )}
               </div>
 
               <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-3.5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-gray-200">{form.nickname || 'This car'} · {numberInRange(form.mpg, DEFAULT_VEHICLE.mpg, 1, 200)} MPG</p>
-                  <p className="mt-0.5 text-[10px] text-gray-500">Estimated full-tank range: <span className="text-gray-300">{rangePreview ?? '—'} mi</span></p>
+                  <p className="text-xs font-semibold text-gray-200">{form.nickname || 'This car'} · {form.fuelType === 'electric' ? 'Electric' : `${numberInRange(form.mpg, DEFAULT_VEHICLE.mpg, 1, 200)} MPG`}</p>
+                  <p className="mt-0.5 text-[10px] text-gray-500">{form.fuelType === 'electric' ? 'Estimated full-charge range: ' : 'Estimated full-tank range: '}<span className="text-gray-300">{rangePreview ?? '—'} mi</span></p>
                 </div>
                 <button type="submit" className="theme-primary-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-extrabold hover:brightness-110"><Save className="h-4 w-4" /> Save car</button>
               </div>

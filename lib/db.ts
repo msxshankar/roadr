@@ -63,8 +63,11 @@ export async function initDb(): Promise<void> {
         fuel_type VARCHAR(20) NOT NULL DEFAULT 'petrol',
         mpg DOUBLE PRECISION NOT NULL DEFAULT 42,
         tank_liters DOUBLE PRECISION NOT NULL DEFAULT 50,
+        range_miles DOUBLE PRECISION DEFAULT 250,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS range_miles DOUBLE PRECISION DEFAULT 250;
 
       CREATE TABLE IF NOT EXISTS saved_places (
         id TEXT PRIMARY KEY,

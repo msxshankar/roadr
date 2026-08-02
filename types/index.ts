@@ -17,6 +17,7 @@ export interface VehicleProfile {
   fuelType: VehicleFuelType;
   mpg: number;
   tankLiters: number;
+  rangeMiles?: number;
 }
 
 export interface FuelConfig {
