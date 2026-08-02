@@ -21,6 +21,7 @@ interface HeaderProps {
   user?: User | null;
   onOpenAuth?: () => void;
   onSignOut?: () => void;
+  onOpenAccount?: () => void;
 }
 
 export default function Header({
@@ -38,6 +39,7 @@ export default function Header({
   user = null,
   onOpenAuth,
   onSignOut,
+  onOpenAccount,
 }: HeaderProps) {
   const handleVehicleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const nextId = event.target.value;
@@ -85,15 +87,23 @@ export default function Header({
           {theme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-300" /> : <Moon className="h-3.5 w-3.5 text-violet-300" />}<span className="header-action-label hidden sm:inline">{theme === 'dark' ? 'Light' : 'Dark'}</span>
         </button>
 
-        <Link href="/admin" className="header-action flex shrink-0 items-center gap-1.5 rounded-xl border border-violet-400/30 bg-violet-500/10 px-2.5 py-1.5 text-[11px] text-violet-200 transition-all hover:bg-violet-500/20 hover:text-white sm:px-3 sm:py-2 sm:text-xs" title="Open admin dashboard" aria-label="Open admin dashboard">
-          <ShieldCheck className="h-3.5 w-3.5" /><span className="header-action-label hidden sm:inline">Admin</span>
-        </Link>
+        {user?.role === 'admin' && (
+          <Link href="/admin" className="header-action flex shrink-0 items-center gap-1.5 rounded-xl border border-violet-400/30 bg-violet-500/10 px-2.5 py-1.5 text-[11px] text-violet-200 transition-all hover:bg-violet-500/20 hover:text-white sm:px-3 sm:py-2 sm:text-xs" title="Open admin dashboard" aria-label="Open admin dashboard">
+            <ShieldCheck className="h-3.5 w-3.5" /><span className="header-action-label hidden sm:inline">Admin</span>
+          </Link>
+        )}
         {user ? (
           <>
-            <div className="header-profile flex min-h-10 shrink-0 items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-2" title={`Signed in as ${user.username}`} aria-label={`Signed in as ${user.username}`}>
+            <button
+              type="button"
+              onClick={onOpenAccount}
+              className="header-profile flex min-h-10 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-2 transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20"
+              title={`Signed in as ${user.username} — Click to manage account`}
+              aria-label={`Signed in as ${user.username}. Manage account`}
+            >
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-400/20 text-[10px] font-bold text-cyan-100">{initials}</span>
               <span className="header-profile-name hidden max-w-24 truncate text-xs font-semibold text-cyan-100 sm:inline">{user.username}</span>
-            </div>
+            </button>
             <button type="button" onClick={onSignOut} className="header-action flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border border-red-400/25 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-200 transition-all hover:bg-red-500/20 hover:text-white sm:px-3 sm:py-2 sm:text-xs" title="Sign out of Roadr" aria-label="Sign out of Roadr">
               <LogOut className="h-3.5 w-3.5" /><span className="header-action-label hidden sm:inline">Sign out</span>
             </button>

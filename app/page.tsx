@@ -10,6 +10,7 @@ import RoutePreviewHUD from '@/components/RoutePreviewHUD';
 import VehicleGarageModal from '@/components/VehicleGarageModal';
 import RecordRouteModal from '@/components/RecordRouteModal';
 import AuthModal from '@/components/AuthModal';
+import AccountModal from '@/components/AccountModal';
 import { LocationPoint, RecordedRoute, RouteData, RoadrAppState, User, VehicleProfile } from '@/types';
 import { DEFAULT_DESTINATION, DEFAULT_ORIGIN } from '@/lib/defaultRoute';
 import { parseSavedPlaces, upsertSavedPlace } from '@/lib/savedPlaces';
@@ -36,6 +37,7 @@ export default function Home() {
   const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
   const [isGarageOpen, setIsGarageOpen] = useState(false);
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
 
   const [origin, setOrigin] = useState<LocationPoint | null>(DEFAULT_ORIGIN);
   const [destination, setDestination] = useState<LocationPoint | null>(DEFAULT_DESTINATION);
@@ -113,6 +115,18 @@ export default function Home() {
     }
   };
 
+  const handleAccountDeleted = () => {
+    setUser(null);
+    setAuthStatus('anonymous');
+    setAllowLegacyState(false);
+    setHasLoadedAppState(false);
+    setVehicles([]);
+    setActiveVehicleId(null);
+    setSavedPlaces([]);
+    setRecordedRoutes([]);
+    setIsAccountModalOpen(false);
+  };
+
   const handleExitPreview = () => {
     setIsPreviewActive(false);
     setIsPlayingPreview(false);
@@ -187,13 +201,13 @@ export default function Home() {
   };
 
   const handleDeleteVehicle = (vehicleId: string) => {
-    const remaining = vehicles.filter((item) => item.id !== vehicleId);
-    const nextActiveId = activeVehicleId === vehicleId ? remaining[0]?.id || null : activeVehicleId;
-    setVehicles(remaining);
-    setRecordedRoutes((current) => current.filter((route) => route.vehicleId !== vehicleId));
-    setActiveVehicleId(nextActiveId);
-    const nextVehicle = remaining.find((item) => item.id === nextActiveId);
-    setMpg(nextVehicle?.mpg || DEFAULT_VEHICLE.mpg);
+    setVehicles((current) => current.filter((item) => item.id !== vehicleId));
+    if (activeVehicleId === vehicleId) {
+      const remaining = vehicles.filter((item) => item.id !== vehicleId);
+      const nextActive = remaining[0] || null;
+      setActiveVehicleId(nextActive?.id || null);
+      if (nextActive) setMpg(nextActive.mpg);
+    }
   };
 
   const rememberPlace = (location: LocationPoint) => {
@@ -592,7 +606,7 @@ export default function Home() {
 
   return (
     <main className="app-shell flighty-shell relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[var(--bg-obsidian)] text-gray-100">
-      {!isPreviewActive && <Header token={token} onOpenTokenModal={() => setIsTokenModalOpen(true)} onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} vehicles={vehicles} activeVehicleId={activeVehicleId} onSelectVehicle={handleSelectVehicle} onOpenGarage={() => setIsGarageOpen(true)} user={user} onOpenAuth={() => setIsAuthModalOpen(true)} onSignOut={() => { void handleSignOut(); }} />}
+      {!isPreviewActive && <Header token={token} onOpenTokenModal={() => setIsTokenModalOpen(true)} onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} vehicles={vehicles} activeVehicleId={activeVehicleId} onSelectVehicle={handleSelectVehicle} onOpenGarage={() => setIsGarageOpen(true)} user={user} onOpenAuth={() => setIsAuthModalOpen(true)} onSignOut={() => { void handleSignOut(); }} onOpenAccount={() => setIsAccountModalOpen(true)} />}
 
       <Map
         token={token}
@@ -644,6 +658,7 @@ export default function Home() {
       <VehicleGarageModal isOpen={isGarageOpen} vehicles={vehicles} activeVehicleId={activeVehicleId} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onSelectVehicle={handleSelectVehicle} onDeleteVehicle={handleDeleteVehicle} onSelectRecordedRoute={handleLoadRecordedRoute} onDeleteRecordedRoute={handleDeleteRecordedRoute} onClose={() => setIsGarageOpen(false)} />
       <TokenModal isOpen={isTokenModalOpen} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsTokenModalOpen(false)} />
       <AuthModal isOpen={isAuthModalOpen} onClose={handleCloseAuth} onAuthenticated={handleAuthenticated} />
+      <AccountModal isOpen={isAccountModalOpen} user={user} vehiclesCount={vehicles.length} routesCount={recordedRoutes.length} onClose={() => setIsAccountModalOpen(false)} onAccountDeleted={handleAccountDeleted} />
     </main>
   );
 }
