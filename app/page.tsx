@@ -360,6 +360,40 @@ export default function Home() {
     }
   };
 
+  const refreshAppState = useCallback(async () => {
+    if (authStatus !== 'authenticated') return;
+    try {
+      const response = await fetch('/api/state', { cache: 'no-store' });
+      if (!response.ok) return;
+      const state = await response.json() as RoadrAppState;
+      setVehicles(state.vehicles);
+      setActiveVehicleId((current) => state.vehicles.some((v) => v.id === current) ? current : (state.activeVehicleId || state.vehicles[0]?.id || null));
+      setSavedPlaces(state.savedPlaces);
+      setRecordedRoutes(state.recordedRoutes);
+    } catch (error) {
+      console.warn('Unable to refresh Roadr state:', error);
+    }
+  }, [authStatus]);
+
+  const syncAppStateNow = useCallback(async (overrideState?: Partial<RoadrAppState>) => {
+    if (authStatus !== 'authenticated') return;
+    const payload: RoadrAppState = {
+      vehicles: overrideState?.vehicles ?? vehicles,
+      activeVehicleId: overrideState?.activeVehicleId !== undefined ? overrideState.activeVehicleId : activeVehicleId,
+      savedPlaces: overrideState?.savedPlaces ?? savedPlaces,
+      recordedRoutes: overrideState?.recordedRoutes ?? recordedRoutes,
+    };
+    try {
+      await fetch('/api/state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      console.warn('Unable to persist Roadr state:', error);
+    }
+  }, [activeVehicleId, authStatus, recordedRoutes, savedPlaces, vehicles]);
+
   const handleRecordRoute = (name: string) => {
     if (!activeRouteData || !vehicle) return;
     const record: RecordedRoute = {
@@ -375,8 +409,10 @@ export default function Home() {
       fuelCostGbp: activeRouteData.telemetry.estimatedFuelCostGbp,
       durationSeconds: activeRouteData.telemetry.durationSeconds,
     };
-    setRecordedRoutes((current) => [record, ...current].slice(0, 50));
+    const nextRoutes = [record, ...recordedRoutes].slice(0, 50);
+    setRecordedRoutes(nextRoutes);
     setIsRecordModalOpen(false);
+    void syncAppStateNow({ recordedRoutes: nextRoutes });
   };
 
   useEffect(() => {
@@ -503,6 +539,31 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [activeVehicleId, authStatus, hasLoadedAppState, recordedRoutes, savedPlaces, vehicles]);
 
+  useEffect(() => {
+    if (authStatus !== 'authenticated') return;
+
+    const handleFocusOrVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshAppState();
+      }
+    };
+
+    window.addEventListener('focus', handleFocusOrVisibility);
+    document.addEventListener('visibilitychange', handleFocusOrVisibility);
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refreshAppState();
+      }
+    }, 12000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocusOrVisibility);
+      document.removeEventListener('visibilitychange', handleFocusOrVisibility);
+      window.clearInterval(interval);
+    };
+  }, [authStatus, refreshAppState]);
+
   // Calculate the initial route even if the live fuel feed is unavailable.
   useEffect(() => {
     void handleCalculateRoute(DEFAULT_ORIGIN, DEFAULT_DESTINATION, mpg, pricePerLiterPence, []);
@@ -611,7 +672,7 @@ export default function Home() {
 
   return (
     <main className="app-shell flighty-shell relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[var(--bg-obsidian)] text-gray-100">
-      {!isPreviewActive && <Header onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} vehicles={vehicles} activeVehicleId={activeVehicleId} onSelectVehicle={handleSelectVehicle} onOpenGarage={() => setIsGarageOpen(true)} user={user} onOpenAuth={() => setIsAuthModalOpen(true)} onSignOut={() => { void handleSignOut(); }} onOpenAccount={() => setIsAccountModalOpen(true)} />}
+      {!isPreviewActive && <Header onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} vehicles={vehicles} activeVehicleId={activeVehicleId} onSelectVehicle={handleSelectVehicle} onOpenGarage={() => { if (authStatus === 'authenticated') void refreshAppState(); setIsGarageOpen(true); }} user={user} onOpenAuth={() => setIsAuthModalOpen(true)} onSignOut={() => { void handleSignOut(); }} onOpenAccount={() => { if (authStatus === 'authenticated') void refreshAppState(); setIsAccountModalOpen(true); }} />}
 
       <Map
         token={token}
