@@ -58,7 +58,7 @@ export default function Header({
         aria-label="ROADR home - reload page"
       >
         <div className="min-w-0">
-          <h1 className="font-display shrink-0 text-sm font-extrabold tracking-[0.2em] text-teal-300 sm:text-base">ROADR</h1>
+          <h1 className="font-display shrink-0 text-base font-black tracking-[0.2em] text-teal-300 sm:text-lg lg:text-xl">ROADR</h1>
         </div>
       </button>
 
