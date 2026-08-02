@@ -78,6 +78,7 @@ export default function Home() {
   const [sidebarWidth, setSidebarWidth] = useState(420);
 
   const routeRequestIdRef = useRef(0);
+  const isSavingRef = useRef(false);
   const sidebarResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const terrainGeometryRef = useRef<GeoJSON.LineString | null>(null);
   const roadGeometryRef = useRef<GeoJSON.LineString | null>(null);
@@ -179,10 +180,13 @@ export default function Home() {
   };
 
   const handleSaveVehicle = (nextVehicle: VehicleProfile, closeModal = true) => {
-    setVehicles((current) => current.some((item) => item.id === nextVehicle.id)
-      ? current.map((item) => item.id === nextVehicle.id ? nextVehicle : item)
-      : [...current, nextVehicle]);
-    setActiveVehicleId(nextVehicle.id);
+    const nextVehicles = vehicles.some((item) => item.id === nextVehicle.id)
+      ? vehicles.map((item) => item.id === nextVehicle.id ? nextVehicle : item)
+      : [...vehicles, nextVehicle];
+    const nextActiveId = nextVehicle.id;
+
+    setVehicles(nextVehicles);
+    setActiveVehicleId(nextActiveId);
     setMpg(nextVehicle.mpg);
     setRouteData((current) => current ? {
       ...current,
@@ -195,6 +199,7 @@ export default function Home() {
     if (closeModal) {
       setIsGarageOpen(false);
     }
+    void syncAppStateNow({ vehicles: nextVehicles, activeVehicleId: nextActiveId });
   };
 
   const handleSelectVehicle = (vehicleId: string) => {
@@ -204,13 +209,15 @@ export default function Home() {
   };
 
   const handleDeleteVehicle = (vehicleId: string) => {
-    setVehicles((current) => current.filter((item) => item.id !== vehicleId));
+    const nextVehicles = vehicles.filter((item) => item.id !== vehicleId);
+    let nextActiveId = activeVehicleId;
     if (activeVehicleId === vehicleId) {
-      const remaining = vehicles.filter((item) => item.id !== vehicleId);
-      const nextActive = remaining[0] || null;
-      setActiveVehicleId(nextActive?.id || null);
-      if (nextActive) setMpg(nextActive.mpg);
+      nextActiveId = nextVehicles[0]?.id || null;
+      setActiveVehicleId(nextActiveId);
+      if (nextVehicles[0]) setMpg(nextVehicles[0].mpg);
     }
+    setVehicles(nextVehicles);
+    void syncAppStateNow({ vehicles: nextVehicles, activeVehicleId: nextActiveId });
   };
 
   const rememberPlace = (location: LocationPoint) => {
@@ -277,7 +284,9 @@ export default function Home() {
   };
 
   const handleDeleteRecordedRoute = (routeId: string) => {
-    setRecordedRoutes((current) => current.filter((route) => route.id !== routeId));
+    const nextRoutes = recordedRoutes.filter((route) => route.id !== routeId);
+    setRecordedRoutes(nextRoutes);
+    void syncAppStateNow({ recordedRoutes: nextRoutes });
   };
 
   const handleSwapLocations = () => {
@@ -361,11 +370,12 @@ export default function Home() {
   };
 
   const refreshAppState = useCallback(async () => {
-    if (authStatus !== 'authenticated') return;
+    if (authStatus !== 'authenticated' || isSavingRef.current) return;
     try {
       const response = await fetch('/api/state', { cache: 'no-store' });
-      if (!response.ok) return;
+      if (!response.ok || isSavingRef.current) return;
       const state = await response.json() as RoadrAppState;
+      if (isSavingRef.current) return;
       setVehicles(state.vehicles);
       setActiveVehicleId((current) => state.vehicles.some((v) => v.id === current) ? current : (state.activeVehicleId || state.vehicles[0]?.id || null));
       setSavedPlaces(state.savedPlaces);
@@ -377,6 +387,7 @@ export default function Home() {
 
   const syncAppStateNow = useCallback(async (overrideState?: Partial<RoadrAppState>) => {
     if (authStatus !== 'authenticated') return;
+    isSavingRef.current = true;
     const payload: RoadrAppState = {
       vehicles: overrideState?.vehicles ?? vehicles,
       activeVehicleId: overrideState?.activeVehicleId !== undefined ? overrideState.activeVehicleId : activeVehicleId,
@@ -391,6 +402,8 @@ export default function Home() {
       });
     } catch (error) {
       console.warn('Unable to persist Roadr state:', error);
+    } finally {
+      isSavingRef.current = false;
     }
   }, [activeVehicleId, authStatus, recordedRoutes, savedPlaces, vehicles]);
 
@@ -527,23 +540,10 @@ export default function Home() {
   }, [theme]);
 
   useEffect(() => {
-    if (!hasLoadedAppState || authStatus !== 'authenticated') return;
-    const payload: RoadrAppState = { vehicles, activeVehicleId, savedPlaces, recordedRoutes };
-    const timer = window.setTimeout(() => {
-      void fetch('/api/state', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }).catch((error) => console.warn('Unable to persist Roadr state:', error));
-    }, 180);
-    return () => window.clearTimeout(timer);
-  }, [activeVehicleId, authStatus, hasLoadedAppState, recordedRoutes, savedPlaces, vehicles]);
-
-  useEffect(() => {
     if (authStatus !== 'authenticated') return;
 
     const handleFocusOrVisibility = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isSavingRef.current) {
         void refreshAppState();
       }
     };
@@ -551,18 +551,19 @@ export default function Home() {
     window.addEventListener('focus', handleFocusOrVisibility);
     document.addEventListener('visibilitychange', handleFocusOrVisibility);
 
+    const intervalMs = isGarageOpen ? 3000 : 8000;
     const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isSavingRef.current) {
         void refreshAppState();
       }
-    }, 12000);
+    }, intervalMs);
 
     return () => {
       window.removeEventListener('focus', handleFocusOrVisibility);
       document.removeEventListener('visibilitychange', handleFocusOrVisibility);
       window.clearInterval(interval);
     };
-  }, [authStatus, refreshAppState]);
+  }, [authStatus, isGarageOpen, refreshAppState]);
 
   // Calculate the initial route even if the live fuel feed is unavailable.
   useEffect(() => {
