@@ -3,8 +3,11 @@
 import React from 'react';
 import {
   CarFront,
+  Check,
   ChevronDown,
   Compass,
+  Copy,
+  ExternalLink,
   Fuel,
   GitBranch,
   Gauge,
@@ -14,6 +17,7 @@ import {
   Navigation2,
   Ruler,
   Route as RouteIcon,
+  Share2,
   SlidersHorizontal,
   Sparkles,
   Video,
@@ -22,6 +26,7 @@ import {
 } from 'lucide-react';
 import { LocationPoint, RouteData, RouteDetails, RouteOption, RouteTelemetry, VehicleProfile } from '@/types';
 import { getRouteRangeStatus } from '@/lib/vehicle';
+import { exportGoogleMapsRouteUrl } from '@/lib/googleMaps';
 
 interface TelemetryCardProps {
   telemetry: RouteTelemetry;
@@ -88,6 +93,7 @@ export default function TelemetryCard({
 }: TelemetryCardProps) {
   const [showIntelligenceInfo, setShowIntelligenceInfo] = React.useState(false);
   const [showAlternatives, setShowAlternatives] = React.useState(false);
+  const [hasCopiedUrl, setHasCopiedUrl] = React.useState(false);
   const maxSpeed = Math.max(...details.segments.map((segment) => segment.speedLimitMph || 0), 0);
   const profileValues = details.elevationProfile.map((sample) => sample.elevationM);
   const minProfile = profileValues.length ? Math.min(...profileValues) : 0;
@@ -102,6 +108,17 @@ export default function TelemetryCard({
   const originCode = getCityCode(origin.name);
   const destinationCode = getCityCode(destination.name);
   const paceNotes = telemetry.paceNotesSummary || { hairpins: 0, sweepingCurves: 0, fastStraights: 0 };
+  const googleMapsUrl = exportGoogleMapsRouteUrl(origin, destination);
+
+  const handleCopyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(googleMapsUrl);
+      setHasCopiedUrl(true);
+      setTimeout(() => setHasCopiedUrl(false), 2500);
+    } catch {
+      // Fallback
+    }
+  };
 
   return (
     <div className="theme-scope theme-panel flighty-card liquid-glass rounded-3xl border border-white/12 p-4 text-gray-100 shadow-2xl animate-fade-in space-y-4 sm:p-5">
@@ -114,6 +131,24 @@ export default function TelemetryCard({
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleCopyUrl}
+            className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-400/20"
+            title="Copy Google Maps directions link"
+          >
+            {hasCopiedUrl ? <Check className="h-3 w-3 text-emerald-400" /> : <Share2 className="h-3 w-3 text-cyan-300" />}
+            <span>{hasCopiedUrl ? 'Copied' : 'Export'}</span>
+          </button>
+          <a
+            href={googleMapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-cyan-100 transition-colors hover:bg-white/10 hover:text-white"
+            title="Open in Google Maps"
+          >
+            <ExternalLink className="h-3 w-3 text-cyan-300" />
+          </a>
           <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-mono uppercase text-gray-400">{provider}</span>
           <button type="button" onClick={() => setShowAlternatives((visible) => !visible)} disabled={alternatives.length === 0} aria-expanded={showAlternatives} className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-cyan-100 transition-colors hover:border-cyan-400/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-45" title={alternatives.length > 0 ? 'Compare up to three alternative routes' : 'No alternative routes were returned for this journey'}><GitBranch className="h-3 w-3" /> Alternatives{alternatives.length > 0 && <span className="rounded-full bg-cyan-400/20 px-1.5 text-cyan-200">{Math.min(alternatives.length, 3)}</span>}</button>
         </div>

@@ -139,3 +139,33 @@ export async function importGoogleMapsRoute(rawValue: string, token?: string): P
   }
   return points;
 }
+
+/**
+ * Export an active Roadr route (Origin, intermediate Stops, and Destination)
+ * into a shareable Google Maps Universal Directions URL.
+ */
+export function exportGoogleMapsRouteUrl(
+  origin: LocationPoint,
+  destination: LocationPoint,
+  stops: LocationPoint[] = []
+): string {
+  const formatLocationParam = (point: LocationPoint): string => {
+    if (point.name && !/^-?\d+(\.\d+)?,?\s*-?\d+(\.\d+)?$/.test(point.name.trim())) {
+      return encodeURIComponent(`${point.name.trim()}, ${point.lat},${point.lng}`);
+    }
+    return `${point.lat},${point.lng}`;
+  };
+
+  const originParam = formatLocationParam(origin);
+  const destinationParam = formatLocationParam(destination);
+
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${originParam}&destination=${destinationParam}&travelmode=driving`;
+
+  if (stops.length > 0) {
+    const waypointsParam = stops.map(formatLocationParam).join('%7C');
+    url += `&waypoints=${waypointsParam}`;
+  }
+
+  return url;
+}
+

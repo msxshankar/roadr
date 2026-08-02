@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical, Navigation, Plus, Route as RouteIcon, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, Copy, ExternalLink, GripVertical, Navigation, Plus, Route as RouteIcon, Share2, Trash2, X } from 'lucide-react';
 import { LocationPoint } from '@/types';
 import LocationSearchInput from './LocationSearchInput';
 import GoogleMapsImport from './GoogleMapsImport';
+import { exportGoogleMapsRouteUrl } from '@/lib/googleMaps';
 
 interface RouteControlsProps {
   origin: LocationPoint | null;
@@ -49,6 +50,20 @@ export default function RouteControls({
 }: RouteControlsProps) {
   const [isAddingStop, setIsAddingStop] = useState(false);
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
+  const [hasCopiedUrl, setHasCopiedUrl] = useState(false);
+
+  const googleMapsExportUrl = origin && destination ? exportGoogleMapsRouteUrl(origin, destination, stops) : null;
+
+  const handleCopyExportUrl = async () => {
+    if (!googleMapsExportUrl) return;
+    try {
+      await navigator.clipboard.writeText(googleMapsExportUrl);
+      setHasCopiedUrl(true);
+      setTimeout(() => setHasCopiedUrl(false), 2500);
+    } catch {
+      // Fallback if clipboard API fails
+    }
+  };
 
   return (
     <div className="theme-scope theme-panel flighty-card liquid-glass w-full max-w-md space-y-3 rounded-2xl border border-white/10 p-4 shadow-2xl">
@@ -170,6 +185,41 @@ export default function RouteControls({
         </button>
         <button type="button" onClick={onClearRoute} disabled={!origin && !destination && stops.length === 0} className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-red-200/70 transition-all hover:border-red-500/40 hover:bg-red-500/20 hover:text-red-100 disabled:pointer-events-none disabled:opacity-30" title="Clear journey" aria-label="Clear journey"><Trash2 className="h-4 w-4" /></button>
       </div>
+
+      {googleMapsExportUrl && (
+        <div className="theme-section space-y-2 rounded-xl border border-cyan-400/25 bg-cyan-950/20 p-3 pt-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Share2 className="h-3.5 w-3.5 text-cyan-300" />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-cyan-200">Export to Google Maps</span>
+            </div>
+            <span className="text-[9px] font-mono text-cyan-200/60">{stops.length > 0 ? `${stops.length + 2} points` : 'Direct route'}</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyExportUrl}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition-all hover:bg-cyan-400/20 hover:text-white"
+              title="Copy Google Maps directions link to clipboard"
+            >
+              {hasCopiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-cyan-300" />}
+              <span>{hasCopiedUrl ? 'Copied link!' : 'Copy Link'}</span>
+            </button>
+
+            <a
+              href={googleMapsExportUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition-all hover:border-cyan-400/40 hover:bg-white/10 hover:text-white"
+              title="Open directions directly in Google Maps"
+            >
+              <span>Open</span>
+              <ExternalLink className="h-3.5 w-3.5 text-cyan-300" />
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
