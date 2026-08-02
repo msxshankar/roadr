@@ -10,7 +10,7 @@ interface VehicleGarageModalProps {
   vehicles: VehicleProfile[];
   activeVehicleId: string | null;
   recordedRoutes: RecordedRoute[];
-  onSave: (vehicle: VehicleProfile) => void;
+  onSave: (vehicle: VehicleProfile, closeModal?: boolean) => void;
   onSelectVehicle: (vehicleId: string) => void;
   onDeleteVehicle: (vehicleId: string) => void;
   onSelectRecordedRoute: (route: RecordedRoute) => void;
@@ -103,7 +103,7 @@ export default function VehicleGarageModal({
       id: draft.id,
       nickname: vehicles.length > 0 ? `Car ${vehicles.length + 1}` : DEFAULT_VEHICLE.nickname,
     };
-    onSave(newVehicle);
+    onSave(newVehicle, false);
     setEditingVehicleId(newVehicle.id);
     setForm(createDraft(newVehicle));
   };

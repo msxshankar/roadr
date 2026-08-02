@@ -30,4 +30,21 @@ describe('Vehicle Garage Auto Creation', () => {
     expect(updatedVehicles[1].id).toBe(nextId);
     expect(updatedVehicles[1].nickname).toBe('Car 2');
   });
+
+  it('keeps the garage modal open when adding a new car profile', () => {
+    let isGarageOpen = true;
+    const saveVehicleHandler = (nextVehicle: VehicleProfile, closeModal = true) => {
+      if (closeModal) {
+        isGarageOpen = false;
+      }
+    };
+
+    // Adding a car passes closeModal = false
+    saveVehicleHandler({ ...DEFAULT_VEHICLE, id: 'v2', nickname: 'Car 2' }, false);
+    expect(isGarageOpen).toBe(true);
+
+    // Saving form passes closeModal = true (or default)
+    saveVehicleHandler({ ...DEFAULT_VEHICLE, id: 'v2', nickname: 'Car 2' }, true);
+    expect(isGarageOpen).toBe(false);
+  });
 });

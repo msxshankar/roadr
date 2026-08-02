@@ -178,7 +178,7 @@ export default function Home() {
     } : current);
   };
 
-  const handleSaveVehicle = (nextVehicle: VehicleProfile) => {
+  const handleSaveVehicle = (nextVehicle: VehicleProfile, closeModal = true) => {
     setVehicles((current) => current.some((item) => item.id === nextVehicle.id)
       ? current.map((item) => item.id === nextVehicle.id ? nextVehicle : item)
       : [...current, nextVehicle]);
@@ -192,7 +192,9 @@ export default function Home() {
         telemetry: computeTelemetry(alternative.telemetry.distanceMeters, alternative.telemetry.durationSeconds, nextVehicle.mpg, pricePerLiterPence),
       })),
     } : current);
-    setIsGarageOpen(false);
+    if (closeModal) {
+      setIsGarageOpen(false);
+    }
   };
 
   const handleSelectVehicle = (vehicleId: string) => {
