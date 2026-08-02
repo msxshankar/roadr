@@ -489,6 +489,9 @@ export default function Home() {
 
   const handleRecordRoute = (name: string) => {
     if (!activeRouteData || !vehicle) return;
+    const isElectric = vehicle.fuelType === 'electric';
+    const energyKwh = activeRouteData.telemetry.distanceMiles / 3.8;
+    const evCostGbp = (energyKwh * (homeStandardPence || 26.1)) / 100;
     const record: RecordedRoute = {
       id: `drive-${Date.now()}`,
       name,
@@ -498,8 +501,8 @@ export default function Home() {
       stops: activeRouteData.stops,
       recordedAt: new Date().toISOString(),
       distanceMiles: activeRouteData.telemetry.distanceMiles,
-      fuelLiters: activeRouteData.telemetry.estimatedFuelLiters,
-      fuelCostGbp: activeRouteData.telemetry.estimatedFuelCostGbp,
+      fuelLiters: isElectric ? Number(energyKwh.toFixed(1)) : activeRouteData.telemetry.estimatedFuelLiters,
+      fuelCostGbp: isElectric ? Number(evCostGbp.toFixed(2)) : activeRouteData.telemetry.estimatedFuelCostGbp,
       durationSeconds: activeRouteData.telemetry.durationSeconds,
     };
     const nextRoutes = [record, ...appStateRef.current.recordedRoutes].slice(0, 50);
@@ -841,7 +844,7 @@ export default function Home() {
 
       {isPreviewActive && origin && destination && activeRouteData && <RoutePreviewHUD origin={origin} destination={destination} telemetry={activeRouteData.telemetry} progress={previewProgress} isPlaying={isPlayingPreview} speedMultiplier={speedMultiplier} bearing={currentBearing} cameraZoom={cameraZoom} selectedStyleId={selectedStyleId} orientationMode={orientationMode} onStyleChange={setSelectedStyleId} onChangeCameraZoom={setCameraZoom} onChangeOrientationMode={(mode) => { setOrientationMode(mode); if (mode === 'manual') setManualBearing(currentBearing); }} onTogglePlay={handleTogglePlayPreview} onSeek={setPreviewProgress} onChangeSpeedMultiplier={setSpeedMultiplier} onExitPreview={handleExitPreview} />}
 
-      {activeRouteData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={activeRouteData} vehicle={vehicle} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
+      {activeRouteData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={activeRouteData} vehicle={vehicle} homeStandardPence={homeStandardPence} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
       <VehicleGarageModal isOpen={isGarageOpen} vehicles={vehicles} activeVehicleId={activeVehicleId} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onSelectVehicle={handleSelectVehicle} onDeleteVehicle={handleDeleteVehicle} onSelectRecordedRoute={handleLoadRecordedRoute} onDeleteRecordedRoute={handleDeleteRecordedRoute} onClose={() => setIsGarageOpen(false)} />
       <TokenModal isOpen={isTokenModalOpen} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); try { window.localStorage.setItem('roadr:mapbox-token:v1', newToken); } catch {} if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsTokenModalOpen(false)} />
       <AuthModal isOpen={isAuthModalOpen} onClose={handleCloseAuth} onAuthenticated={handleAuthenticated} />

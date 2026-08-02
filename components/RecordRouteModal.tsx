@@ -9,12 +9,13 @@ interface RecordRouteModalProps {
   isOpen: boolean;
   routeData: RouteData;
   vehicle: VehicleProfile | null;
+  homeStandardPence?: number;
   onSave: (name: string) => void;
   onOpenGarage: () => void;
   onClose: () => void;
 }
 
-export default function RecordRouteModal({ isOpen, routeData, vehicle, onSave, onOpenGarage, onClose }: RecordRouteModalProps) {
+export default function RecordRouteModal({ isOpen, routeData, vehicle, homeStandardPence = 26.1, onSave, onOpenGarage, onClose }: RecordRouteModalProps) {
   const [name, setName] = useState('');
 
   useEffect(() => {
@@ -24,7 +25,10 @@ export default function RecordRouteModal({ isOpen, routeData, vehicle, onSave, o
   if (!isOpen) return null;
 
   const isElectric = vehicle?.fuelType === 'electric';
-  const energyKwh = (routeData.telemetry.distanceMiles / 3.8).toFixed(1);
+  const energyKwhNum = routeData.telemetry.distanceMiles / 3.8;
+  const energyKwh = energyKwhNum.toFixed(1);
+  const evCostGbp = (energyKwhNum * homeStandardPence) / 100;
+  const displayCost = isElectric ? evCostGbp.toFixed(2) : routeData.telemetry.estimatedFuelCostGbp.toFixed(2);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 sm:p-6" role="presentation">
@@ -43,7 +47,7 @@ export default function RecordRouteModal({ isOpen, routeData, vehicle, onSave, o
             <p className="text-[10px] text-gray-500">{isElectric ? 'Energy' : 'Fuel'}</p>
             <p className="mt-1 text-sm font-bold text-gray-200">{isElectric ? `${energyKwh} kWh` : `${routeData.telemetry.estimatedFuelLiters} L`}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-white/5 p-2"><p className="text-[10px] text-gray-500">Cost</p><p className="mt-1 text-sm font-bold text-emerald-300">£{routeData.telemetry.estimatedFuelCostGbp.toFixed(2)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-2"><p className="text-[10px] text-gray-500">Cost</p><p className="mt-1 text-sm font-bold text-emerald-300">£{displayCost}</p></div>
         </div>
 
         <form onSubmit={(event) => { event.preventDefault(); if (vehicle && name.trim()) onSave(name.trim()); }} className="mt-5 space-y-4">
