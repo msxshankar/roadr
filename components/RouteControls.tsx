@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, Copy, ExternalLink, GripVertical, Navigation, Plus, Route as RouteIcon, Share2, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Check, Copy, ExternalLink, GripVertical, Navigation, Plus, Route as RouteIcon, Share2, Trash2, X } from 'lucide-react';
 import { LocationPoint } from '@/types';
 import { RoutingErrorDetail } from '@/lib/mapbox';
 import LocationSearchInput from './LocationSearchInput';
@@ -24,13 +24,13 @@ interface RouteControlsProps {
   onSwapLocations: () => void;
   onClearRoute: () => void;
   onCalculateRoute: () => void;
-  onImportGoogleRoute: (points: LocationPoint[]) => void;
+  onImportGoogleRoute: (routePoints: LocationPoint[]) => void;
   onCloseMobilePanel?: () => void;
-  isLoadingRoute: boolean;
+  isLoadingRoute?: boolean;
   pickingTarget?: 'origin' | 'destination' | { type: 'stop'; index: number } | null;
-  onStartMapPick?: (target: 'origin' | 'destination' | { type: 'stop'; index: number }) => void;
+  onStartMapPick?: (target: 'origin' | 'destination' | { type: 'stop'; index: number } | null) => void;
   routingErrorDetail?: RoutingErrorDetail | null;
-  onApplySuggestedLocation?: (target: 'origin' | 'destination' | number, location: LocationPoint) => void;
+  onApplySuggestedLocation?: (targetKey: 'origin' | 'destination' | `stop-${number}`, location: LocationPoint) => void;
 }
 
 export default function RouteControls({
@@ -61,10 +61,11 @@ export default function RouteControls({
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
   const [hasCopiedUrl, setHasCopiedUrl] = useState(false);
 
+  const isTooManyStopsForExport = stops.length > 9;
   const googleMapsExportUrl = origin && destination ? exportGoogleMapsRouteUrl(origin, destination, stops) : null;
 
   const handleCopyExportUrl = async () => {
-    if (!googleMapsExportUrl) return;
+    if (!googleMapsExportUrl || isTooManyStopsForExport) return;
     try {
       await navigator.clipboard.writeText(googleMapsExportUrl);
       setHasCopiedUrl(true);
@@ -236,37 +237,49 @@ export default function RouteControls({
       </div>
 
       {googleMapsExportUrl && (
-        <div className="theme-section space-y-2 rounded-xl border border-cyan-400/25 bg-cyan-950/20 p-3 pt-2.5">
+        <div className={`theme-section space-y-2 rounded-xl border p-3 pt-2.5 ${isTooManyStopsForExport ? 'border-amber-500/40 bg-amber-950/20' : 'border-cyan-400/25 bg-cyan-950/20'}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <Share2 className="h-3.5 w-3.5 text-cyan-300" />
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-cyan-200">Export to Google Maps</span>
+              <Share2 className={`h-3.5 w-3.5 ${isTooManyStopsForExport ? 'text-amber-400' : 'text-cyan-300'}`} />
+              <span className={`text-[11px] font-semibold uppercase tracking-wider ${isTooManyStopsForExport ? 'text-amber-200' : 'text-cyan-200'}`}>Export to Google Maps</span>
             </div>
             <span className="text-[9px] font-mono text-cyan-200/60">{stops.length > 0 ? `${stops.length + 2} points` : 'Direct route'}</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCopyExportUrl}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition-all hover:bg-cyan-400/20 hover:text-white"
-              title="Copy Google Maps directions link to clipboard"
-            >
-              {hasCopiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-cyan-300" />}
-              <span>{hasCopiedUrl ? 'Copied link!' : 'Copy Link'}</span>
-            </button>
+          {isTooManyStopsForExport ? (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 p-2.5 text-[11px] text-amber-200">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-100">Too many stops for Google Maps</p>
+                <p className="mt-0.5 text-[10px] leading-relaxed text-amber-300/90">
+                  Google Maps supports a maximum of 9 intermediate stops. You currently have {stops.length} stops. Please remove {stops.length - 9} stop{stops.length - 9 > 1 ? 's' : ''} to export.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyExportUrl}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition-all hover:bg-cyan-400/20 hover:text-white"
+                title="Copy Google Maps directions link to clipboard"
+              >
+                {hasCopiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-cyan-300" />}
+                <span>{hasCopiedUrl ? 'Copied link!' : 'Copy Link'}</span>
+              </button>
 
-            <a
-              href={googleMapsExportUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition-all hover:border-cyan-400/40 hover:bg-white/10 hover:text-white"
-              title="Open directions directly in Google Maps"
-            >
-              <span>Open</span>
-              <ExternalLink className="h-3.5 w-3.5 text-cyan-300" />
-            </a>
-          </div>
+              <a
+                href={googleMapsExportUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition-all hover:border-cyan-400/40 hover:bg-white/10 hover:text-white"
+                title="Open directions directly in Google Maps"
+              >
+                <span>Open</span>
+                <ExternalLink className="h-3.5 w-3.5 text-cyan-300" />
+              </a>
+            </div>
+          )}
         </div>
       )}
     </div>

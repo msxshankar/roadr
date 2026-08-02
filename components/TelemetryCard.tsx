@@ -145,7 +145,12 @@ export default function TelemetryCard({
   const paceNotes = telemetry.paceNotesSummary || { hairpins: 0, sweepingCurves: 0, fastStraights: 0 };
   const googleMapsUrl = React.useMemo(() => exportGoogleMapsRouteUrl(origin, destination, stops), [origin, destination, stops]);
 
+  const isTooManyStopsForExport = stops.length > 9;
   const handleCopyUrl = async () => {
+    if (isTooManyStopsForExport) {
+      alert(`Google Maps supports a maximum of 9 intermediate stops. You currently have ${stops.length} stops. Please remove ${stops.length - 9} stop(s) to export.`);
+      return;
+    }
     try {
       await navigator.clipboard.writeText(googleMapsUrl);
       setHasCopiedUrl(true);
@@ -169,20 +174,26 @@ export default function TelemetryCard({
           <button
             type="button"
             onClick={handleCopyUrl}
-            className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-400/20"
-            title="Copy Google Maps directions link"
+            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[9px] font-semibold transition-colors ${isTooManyStopsForExport ? 'border-amber-400/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20' : 'border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20'}`}
+            title={isTooManyStopsForExport ? `Google Maps limit: remove ${stops.length - 9} stop(s)` : 'Copy Google Maps directions link'}
           >
-            {hasCopiedUrl ? <Check className="h-3 w-3 text-emerald-400" /> : <Share2 className="h-3 w-3 text-cyan-300" />}
+            {hasCopiedUrl ? <Check className="h-3 w-3 text-emerald-400" /> : <Share2 className={`h-3 w-3 ${isTooManyStopsForExport ? 'text-amber-400' : 'text-cyan-300'}`} />}
             <span>{hasCopiedUrl ? 'Copied' : 'Export'}</span>
           </button>
           <a
-            href={googleMapsUrl}
-            target="_blank"
+            href={isTooManyStopsForExport ? undefined : googleMapsUrl}
+            target={isTooManyStopsForExport ? undefined : '_blank'}
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-cyan-100 transition-colors hover:bg-white/10 hover:text-white"
-            title="Open in Google Maps"
+            onClick={(e) => {
+              if (isTooManyStopsForExport) {
+                e.preventDefault();
+                alert(`Google Maps supports a maximum of 9 intermediate stops. You currently have ${stops.length} stops. Please remove ${stops.length - 9} stop(s) to export.`);
+              }
+            }}
+            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[9px] font-semibold transition-colors ${isTooManyStopsForExport ? 'border-amber-400/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20' : 'border-white/10 bg-white/5 text-cyan-100 hover:bg-white/10 hover:text-white'}`}
+            title={isTooManyStopsForExport ? `Google Maps limit: remove ${stops.length - 9} stop(s)` : 'Open in Google Maps'}
           >
-            <ExternalLink className="h-3 w-3 text-cyan-300" />
+            <ExternalLink className={`h-3 w-3 ${isTooManyStopsForExport ? 'text-amber-400' : 'text-cyan-300'}`} />
           </a>
           <span className="rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono uppercase text-gray-400">{provider}</span>
           {alternatives.length > 0 && (

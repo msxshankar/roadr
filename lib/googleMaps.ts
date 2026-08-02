@@ -161,9 +161,7 @@ export function exportGoogleMapsRouteUrl(
   let url = `https://www.google.com/maps/dir/?api=1&origin=${originParam}&destination=${destinationParam}&travelmode=driving`;
 
   if (stops.length > 0) {
-    // Google Maps Universal Directions URL supports up to 9 intermediate waypoints
-    const maxGoogleStops = stops.slice(0, 9);
-    const waypointsParam = maxGoogleStops.map(formatLocationParam).join('%7C');
+    const waypointsParam = stops.map(formatLocationParam).join('%7C');
     url += `&waypoints=${waypointsParam}`;
   }
 
