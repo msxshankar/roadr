@@ -50,10 +50,13 @@ export default function Header({
 
   return (
     <header className="theme-scope flighty-header safe-top fixed left-0 right-0 top-0 z-40 flex items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3 liquid-glass-header">
-      <div className="flex min-w-0 items-center space-x-2">
-        <div className="theme-primary-button flex h-8 w-8 shrink-0 items-center justify-center rounded-xl p-[1px] shadow-lg sm:h-9 sm:w-9">
-          <div className="theme-brand-surface flex h-full w-full items-center justify-center rounded-[11px]"><Compass className="h-4 w-4 text-teal-300 sm:h-5 sm:w-5" /></div>
-        </div>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className="flex min-w-0 items-center space-x-2 text-left cursor-pointer transition-opacity hover:opacity-80 focus:outline-none"
+        title="Reload ROADR application"
+        aria-label="ROADR home - reload page"
+      >
         <div className="min-w-0">
           <div className="flex items-center space-x-1.5 sm:space-x-2">
             <h1 className="font-display shrink-0 text-sm font-extrabold tracking-[0.2em] text-teal-300 sm:text-base">ROADR</h1>
@@ -61,7 +64,7 @@ export default function Header({
           </div>
           <p className="hidden text-[10px] text-gray-400 md:block sm:text-xs">Route planning &amp; drive telemetry</p>
         </div>
-      </div>
+      </button>
 
       <div className="header-control-strip flex items-center space-x-1.5 sm:space-x-2">
         <button type="button" onClick={onRecenterUK} className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-gray-300 transition-all hover:bg-white/10 hover:text-white" title="Reset map view to UK overview" aria-label="Recenter route">
