@@ -224,11 +224,7 @@ export default function TelemetryCard({
               <Zap className="h-3 w-3 text-cyan-400 shrink-0" />
               <span className="truncate">{stops.length > 0 ? `${stops.length} STOPS` : 'DIRECT'}</span>
             </div>
-            <div className="relative my-1.5 w-full border-t border-dashed border-cyan-400/40">
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-400/40 bg-black p-1 text-cyan-300">
-                <Navigation2 className="h-3 w-3 rotate-90" />
-              </div>
-            </div>
+            <div className="relative my-1.5 w-full border-t border-dashed border-cyan-400/40" />
             <span className="text-[10px] font-mono text-gray-400 font-mono-tabular">{telemetry.distanceMiles.toFixed(1)} mi</span>
           </div>
 
