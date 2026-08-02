@@ -125,9 +125,9 @@ export default function TelemetryCard({
   };
 
   return (
-    <div className="theme-scope theme-panel flighty-card liquid-glass rounded-3xl border border-white/12 p-3.5 text-gray-100 shadow-2xl animate-fade-in space-y-3.5 max-w-full overflow-hidden sm:p-5">
+    <div className="theme-scope theme-panel flighty-card liquid-glass rounded-3xl border border-white/12 p-3.5 text-gray-100 shadow-2xl animate-fade-in space-y-3.5 max-w-full sm:p-5">
       {/* Flighty Status Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5 max-w-full overflow-hidden">
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5 max-w-full">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="flighty-pulse-dot shrink-0" />
           <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-teal-300 truncate">
@@ -168,7 +168,7 @@ export default function TelemetryCard({
       </div>
 
       {/* Flighty Departure -> Arrival Airport Board Header */}
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-3.5 max-w-full overflow-hidden">
+      <div className="rounded-2xl border border-white/10 bg-black/40 p-3.5 max-w-full">
         <div className="flex items-center justify-between gap-2">
           {/* Origin */}
           <div className="min-w-0 max-w-[35%]">
@@ -200,7 +200,7 @@ export default function TelemetryCard({
 
       {/* Alternative Routes Drawer */}
       {showAlternatives && alternatives.length > 0 && (
-        <div className="space-y-1.5 rounded-2xl border border-cyan-400/25 bg-cyan-950/20 p-2.5 animate-fade-in max-w-full overflow-hidden">
+        <div className="space-y-1.5 rounded-2xl border border-cyan-400/25 bg-cyan-950/20 p-2.5 animate-fade-in max-w-full">
           <p className="text-[10px] font-mono uppercase tracking-wider text-cyan-300 mb-1">Select Route</p>
           <button
             type="button"
@@ -225,7 +225,7 @@ export default function TelemetryCard({
       )}
 
       {/* Distance & Est Duration Grid */}
-      <div className="grid grid-cols-2 gap-2.5 max-w-full overflow-hidden">
+      <div className="grid grid-cols-2 gap-2.5 max-w-full">
         <div className="flex items-center space-x-2.5 rounded-2xl border border-white/10 bg-white/5 p-3 min-w-0">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/20 text-cyan-400">
             <MapPin className="h-4 w-4" />
@@ -248,7 +248,7 @@ export default function TelemetryCard({
 
       {/* Pace Notes Telemetry Summary */}
       {paceNotes && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 max-w-full overflow-hidden">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 max-w-full">
           <div className="mb-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-gray-400">
             <span className="flex items-center gap-1 text-teal-300"><RouteIcon className="h-3.5 w-3.5" /> Pace Notes Telemetry</span>
             <span className="text-teal-200">{paceNotes.hairpins} Hairpins</span>
@@ -271,7 +271,7 @@ export default function TelemetryCard({
       )}
 
       {/* Single-Tank Range Warning */}
-      <div className={`flex items-center justify-between gap-2.5 rounded-2xl border p-3 max-w-full overflow-hidden ${rangeStatus.isBeyondRange ? 'border-rose-400/35 bg-rose-950/25' : 'border-teal-400/25 bg-teal-950/20'}`}>
+      <div className={`flex items-center justify-between gap-2.5 rounded-2xl border p-3 max-w-full ${rangeStatus.isBeyondRange ? 'border-rose-400/35 bg-rose-950/25' : 'border-teal-400/25 bg-teal-950/20'}`}>
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${rangeStatus.isBeyondRange ? 'bg-rose-400/15 text-rose-300' : 'bg-teal-400/15 text-teal-300'}`}>
             <Fuel className="h-4 w-4" />
@@ -285,7 +285,7 @@ export default function TelemetryCard({
       </div>
 
       {/* Fuel & Trip Cost Telemetry */}
-      <div className="theme-section space-y-3 rounded-2xl border border-cyan-500/25 bg-cyan-950/30 p-3.5 max-w-full overflow-hidden">
+      <div className="theme-section space-y-3 rounded-2xl border border-cyan-500/25 bg-cyan-950/30 p-3.5 max-w-full">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center space-x-1.5 min-w-0">
             <Fuel className="h-4 w-4 text-cyan-400 shrink-0" />
@@ -333,7 +333,7 @@ export default function TelemetryCard({
       </div>
 
       {/* Expandable Road Intelligence */}
-      <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+      <div className="rounded-2xl border border-white/10 bg-white/5">
         <button
           type="button"
           onClick={() => setShowIntelligence((open) => !open)}
@@ -374,7 +374,7 @@ export default function TelemetryCard({
 
       {/* 3D Drive Preview HUD Action */}
       {onStartPreview && (
-        <div className="theme-section flex items-center justify-between gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-3 max-w-full overflow-hidden">
+        <div className="theme-section flex items-center justify-between gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-3 max-w-full">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-mono uppercase tracking-wider text-cyan-300">3D Cockpit Preview</p>
             <p className="mt-0.5 truncate text-[11px] font-semibold text-gray-200">Interactive flight camera</p>
