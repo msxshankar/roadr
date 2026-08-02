@@ -903,9 +903,13 @@ export default function Map({
       if (isPreviewActive) animationFrameRef.current = requestAnimationFrame(loop);
     };
 
+    if (!isPreviewActive) return;
     animationFrameRef.current = requestAnimationFrame(loop);
     return () => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
     };
   }, [isPreviewActive, routeGeometry]);
 

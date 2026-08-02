@@ -112,19 +112,27 @@ export default function TelemetryCard({
   const [evEfficiency, setEvEfficiency] = React.useState<number>(3.8); // miles per kWh
   const [customKwRate, setCustomKwRate] = React.useState<number | null>(null);
 
-  const defaultTierRate = evTier === 'offpeak' ? homeOffPeakPence : evTier === 'rapid' ? rapidChargerPence : homeStandardPence;
-  const activeKwRatePence = customKwRate !== null ? customKwRate : defaultTierRate;
+  const activeKwRatePence = customKwRate !== null ? customKwRate : (evTier === 'offpeak' ? homeOffPeakPence : evTier === 'rapid' ? rapidChargerPence : homeStandardPence);
 
-  const energyKwh = telemetry.distanceMiles / evEfficiency;
-  const costOffPeak = (energyKwh * homeOffPeakPence) / 100;
-  const costStandard = (energyKwh * homeStandardPence) / 100;
-  const costRapid = (energyKwh * rapidChargerPence) / 100;
-  const activeEvCost = (energyKwh * activeKwRatePence) / 100;
+  const { energyKwh, costOffPeak, costStandard, costRapid, activeEvCost } = React.useMemo(() => {
+    const energy = telemetry.distanceMiles / evEfficiency;
+    return {
+      energyKwh: energy,
+      costOffPeak: (energy * homeOffPeakPence) / 100,
+      costStandard: (energy * homeStandardPence) / 100,
+      costRapid: (energy * rapidChargerPence) / 100,
+      activeEvCost: (energy * activeKwRatePence) / 100,
+    };
+  }, [telemetry.distanceMiles, evEfficiency, homeOffPeakPence, homeStandardPence, rapidChargerPence, activeKwRatePence]);
 
-  const maxSpeed = Math.max(...details.segments.map((segment) => segment.speedLimitMph || 0), 0);
-  const profileValues = details.elevationProfile.map((sample) => sample.elevationM);
-  const minProfile = profileValues.length ? Math.min(...profileValues) : 0;
-  const profileRange = Math.max((profileValues.length ? Math.max(...profileValues) : 0) - minProfile, 1);
+  const { maxSpeed, minProfile, profileRange } = React.useMemo(() => {
+    const speed = Math.max(...details.segments.map((segment) => segment.speedLimitMph || 0), 0);
+    const profile = details.elevationProfile.map((sample) => sample.elevationM);
+    const min = profile.length ? Math.min(...profile) : 0;
+    const range = Math.max((profile.length ? Math.max(...profile) : 0) - min, 1);
+    return { maxSpeed: speed, minProfile: min, profileRange: range };
+  }, [details.segments, details.elevationProfile]);
+
   const rangeStatus = getRouteRangeStatus(vehicle, telemetry.distanceMiles);
   const rangeMessage = !vehicle
     ? 'Set up car'
@@ -132,10 +140,10 @@ export default function TelemetryCard({
       ? `Beyond range by ${Math.abs(rangeStatus.remainingMiles || 0)} mi`
       : `${rangeStatus.remainingMiles} mi spare`;
 
-  const originCode = getCityCode(origin.name);
-  const destinationCode = getCityCode(destination.name);
+  const originCode = React.useMemo(() => getCityCode(origin.name), [origin.name]);
+  const destinationCode = React.useMemo(() => getCityCode(destination.name), [destination.name]);
   const paceNotes = telemetry.paceNotesSummary || { hairpins: 0, sweepingCurves: 0, fastStraights: 0 };
-  const googleMapsUrl = exportGoogleMapsRouteUrl(origin, destination, stops);
+  const googleMapsUrl = React.useMemo(() => exportGoogleMapsRouteUrl(origin, destination, stops), [origin, destination, stops]);
 
   const handleCopyUrl = async () => {
     try {
