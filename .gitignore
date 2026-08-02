@@ -17,10 +17,13 @@
 .DS_Store
 *.pem
 
-# debug
+# debug & lockfiles
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # local env files
 .env*.local

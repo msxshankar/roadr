@@ -96,6 +96,8 @@ export async function initDb(): Promise<void> {
         active_vehicle_id TEXT,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      UPDATE users SET created_at = NOW() WHERE created_at IS NULL;
     `);
 
     // 2. Auto-seeding logic for default accounts

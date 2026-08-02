@@ -56,7 +56,9 @@ export async function getSessionUser(token?: string | null): Promise<User | null
     id: row.id,
     username: row.username,
     role: row.role as UserRole,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    createdAt: row.created_at
+      ? (row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at))
+      : new Date().toISOString(),
   };
 }
 
@@ -116,6 +118,8 @@ export async function createUser(username: string, password: string): Promise<Us
     id: row.id,
     username: row.username,
     role: row.role as UserRole,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    createdAt: row.created_at
+      ? (row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at))
+      : new Date().toISOString(),
   };
 }

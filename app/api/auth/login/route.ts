@@ -53,6 +53,9 @@ export async function POST(request: Request) {
         id: user.id,
         username: user.username,
         role: user.role,
+        createdAt: user.created_at
+          ? (user.created_at instanceof Date ? user.created_at.toISOString() : String(user.created_at))
+          : new Date().toISOString(),
       },
     });
 

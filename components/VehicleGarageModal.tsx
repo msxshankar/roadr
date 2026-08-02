@@ -75,7 +75,11 @@ export default function VehicleGarageModal({
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === editingVehicleId) || null;
   const vehicleRoutes = editingVehicleId
     ? recordedRoutes.filter((route) => route.vehicleId === editingVehicleId)
-    : [];
+    : recordedRoutes;
+  const unassignedRoutes = recordedRoutes.filter(
+    (route) => !vehicles.some((vehicle) => vehicle.id === route.vehicleId)
+  );
+  const displayRoutes = Array.from(new Set([...vehicleRoutes, ...unassignedRoutes]));
   const rangePreview = calculateVehicleRangeMiles({
     ...form,
     mpg: numberInRange(form.mpg, DEFAULT_VEHICLE.mpg, 1, 200),
@@ -94,8 +98,14 @@ export default function VehicleGarageModal({
 
   const startNewVehicle = () => {
     const draft = createDraft();
-    setEditingVehicleId(draft.id);
-    setForm(draft);
+    const newVehicle: VehicleProfile = {
+      ...DEFAULT_VEHICLE,
+      id: draft.id,
+      nickname: vehicles.length > 0 ? `Car ${vehicles.length + 1}` : DEFAULT_VEHICLE.nickname,
+    };
+    onSave(newVehicle);
+    setEditingVehicleId(newVehicle.id);
+    setForm(createDraft(newVehicle));
   };
 
   const removeSelectedVehicle = () => {
@@ -211,11 +221,11 @@ export default function VehicleGarageModal({
                 <History className="h-4 w-4 text-amber-400" />
                 <div><p className="text-xs font-semibold uppercase tracking-wider text-amber-200">Recorded drives</p><p className="text-[10px] text-gray-500">{selectedVehicle ? vehicleLabel(selectedVehicle) : 'Save this car to assign route records.'}</p></div>
               </div>
-              {vehicleRoutes.length === 0 ? (
+              {displayRoutes.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-white/10 bg-black/20 p-4 text-center text-xs text-gray-500">No drives recorded for this car yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {vehicleRoutes.map((route) => (
+                  {displayRoutes.map((route) => (
                     <div key={route.id} role="button" tabIndex={0} onClick={() => onSelectRecordedRoute(route)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelectRecordedRoute(route); }} className="group flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left transition-colors hover:border-teal-300/40 hover:bg-teal-400/10">
                       <div className="min-w-0"><p className="truncate text-xs font-semibold text-white">{route.name}</p><p className="mt-0.5 text-[10px] text-gray-500">{new Date(route.recordedAt).toLocaleDateString()} · {route.distanceMiles.toFixed(1)} mi</p></div>
                       <div className="shrink-0 text-right"><p className="text-xs font-bold text-emerald-300">£{route.fuelCostGbp.toFixed(2)}</p><p className="text-[10px] text-gray-500">{route.fuelLiters.toFixed(1)} L</p></div>

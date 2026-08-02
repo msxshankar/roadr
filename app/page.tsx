@@ -472,6 +472,8 @@ export default function Home() {
     try {
       const storedTheme = window.localStorage.getItem('roadr:theme:v1');
       if (storedTheme === 'light' || storedTheme === 'dark') setTheme(storedTheme);
+      const storedToken = window.localStorage.getItem('roadr:mapbox-token:v1');
+      if (storedToken !== null && storedToken !== '') setToken(storedToken);
     } catch {
       // Keep the dark default when local storage is unavailable.
     }
@@ -607,7 +609,7 @@ export default function Home() {
 
   return (
     <main className="app-shell flighty-shell relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[var(--bg-obsidian)] text-gray-100">
-      {!isPreviewActive && <Header token={token} onOpenTokenModal={() => setIsTokenModalOpen(true)} onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} vehicles={vehicles} activeVehicleId={activeVehicleId} onSelectVehicle={handleSelectVehicle} onOpenGarage={() => setIsGarageOpen(true)} user={user} onOpenAuth={() => setIsAuthModalOpen(true)} onSignOut={() => { void handleSignOut(); }} onOpenAccount={() => setIsAccountModalOpen(true)} />}
+      {!isPreviewActive && <Header onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} vehicles={vehicles} activeVehicleId={activeVehicleId} onSelectVehicle={handleSelectVehicle} onOpenGarage={() => setIsGarageOpen(true)} user={user} onOpenAuth={() => setIsAuthModalOpen(true)} onSignOut={() => { void handleSignOut(); }} onOpenAccount={() => setIsAccountModalOpen(true)} />}
 
       <Map
         token={token}
@@ -632,7 +634,7 @@ export default function Home() {
         isSidebarOpen={isSidebarOpen}
         sidebarWidth={sidebarWidth}
         onProgressTick={handleProgressTick}
-        onOpenTokenModal={() => setIsTokenModalOpen(true)}
+        onOpenTokenModal={() => { if (user) setIsAccountModalOpen(true); else setIsTokenModalOpen(true); }}
       />
 
       {!isPreviewActive && <button type="button" onClick={() => setIsSidebarOpen((open) => !open)} className="theme-scope sidebar-toggle fixed top-24 z-40 hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/80 text-gray-300 shadow-xl transition-all hover:text-white md:flex" style={{ left: isSidebarOpen ? `calc(1rem + ${sidebarWidth}px)` : '0.75rem' }} aria-expanded={isSidebarOpen} aria-controls="mobile-route-panel" title={isSidebarOpen ? 'Hide route planner' : 'Show route planner'} aria-label={isSidebarOpen ? 'Hide route planner' : 'Show route planner'}>
@@ -657,9 +659,9 @@ export default function Home() {
 
       {activeRouteData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={activeRouteData} vehicle={vehicle} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
       <VehicleGarageModal isOpen={isGarageOpen} vehicles={vehicles} activeVehicleId={activeVehicleId} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onSelectVehicle={handleSelectVehicle} onDeleteVehicle={handleDeleteVehicle} onSelectRecordedRoute={handleLoadRecordedRoute} onDeleteRecordedRoute={handleDeleteRecordedRoute} onClose={() => setIsGarageOpen(false)} />
-      <TokenModal isOpen={isTokenModalOpen} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsTokenModalOpen(false)} />
+      <TokenModal isOpen={isTokenModalOpen} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); try { window.localStorage.setItem('roadr:mapbox-token:v1', newToken); } catch {} if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsTokenModalOpen(false)} />
       <AuthModal isOpen={isAuthModalOpen} onClose={handleCloseAuth} onAuthenticated={handleAuthenticated} />
-      <AccountModal isOpen={isAccountModalOpen} user={user} vehiclesCount={vehicles.length} routesCount={recordedRoutes.length} onClose={() => setIsAccountModalOpen(false)} onAccountDeleted={handleAccountDeleted} />
+      <AccountModal isOpen={isAccountModalOpen} user={user} vehiclesCount={vehicles.length} routesCount={recordedRoutes.length} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); try { window.localStorage.setItem('roadr:mapbox-token:v1', newToken); } catch {} if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsAccountModalOpen(false)} onAccountDeleted={handleAccountDeleted} />
     </main>
   );
 }

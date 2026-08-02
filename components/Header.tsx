@@ -7,8 +7,6 @@ import { User, VehicleProfile } from '@/types';
 import { vehicleLabel } from '@/lib/vehicle';
 
 interface HeaderProps {
-  token: string;
-  onOpenTokenModal: () => void;
   onRecenterUK: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
@@ -25,8 +23,6 @@ interface HeaderProps {
 }
 
 export default function Header({
-  token,
-  onOpenTokenModal,
   onRecenterUK,
   theme,
   onToggleTheme,
@@ -71,11 +67,6 @@ export default function Header({
         <button type="button" onClick={onRecenterUK} className="header-action flex shrink-0 items-center space-x-1 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-gray-300 transition-all hover:bg-white/10 hover:text-white sm:px-3 sm:text-xs" title="Reset map view to UK overview" aria-label="Recenter route">
           <MapPin className="h-3.5 w-3.5 text-teal-300" />
           <span className="header-action-label hidden sm:inline font-medium">Recenter</span>
-        </button>
-
-        <button type="button" onClick={onOpenTokenModal} className={`header-action flex shrink-0 items-center space-x-1 rounded-xl border px-2 py-1.5 text-[11px] transition-all active:scale-95 sm:px-3 sm:text-xs ${token ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20' : 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'}`} title={token ? 'Mapbox key active' : 'Add Mapbox key'} aria-label={token ? 'Mapbox key active' : 'Add Mapbox key'}>
-          <Key className="h-3.5 w-3.5" />
-          <span className="header-action-label font-mono font-medium">{token ? 'Key' : 'Add Key'}</span>
         </button>
 
         {user && (

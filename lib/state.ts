@@ -67,7 +67,7 @@ function normaliseRecordedRoute(value: unknown): RecordedRoute | null {
   if (!isRecord(value)) return null;
   const id = boundedText(value.id, 120);
   const name = boundedText(value.name, MAX_TEXT_LENGTH);
-  const vehicleId = boundedText(value.vehicleId, 120);
+  const vehicleId = boundedText(value.vehicleId, 120) || 'default-vehicle';
   const origin = normaliseLocation(value.origin);
   const destination = normaliseLocation(value.destination);
   const stops = Array.isArray(value.stops)
@@ -80,7 +80,6 @@ function normaliseRecordedRoute(value: unknown): RecordedRoute | null {
   if (
     !id ||
     !name ||
-    !vehicleId ||
     !origin ||
     !destination ||
     !recordedAt ||
@@ -138,7 +137,7 @@ export function normaliseAppState(value: unknown): RoadrAppState {
   const recordedRoutes = Array.isArray(value.recordedRoutes)
     ? value.recordedRoutes
       .map(normaliseRecordedRoute)
-      .filter((route): route is RecordedRoute => route !== null && vehicleIds.has(route.vehicleId))
+      .filter((route): route is RecordedRoute => route !== null)
       .filter((route) => {
         if (seenRouteIds.has(route.id)) return false;
         seenRouteIds.add(route.id);
