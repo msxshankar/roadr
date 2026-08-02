@@ -32,3 +32,7 @@ yarn-error.log*
 data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
+
+# skills
+.agents/skills/impeccable/
+

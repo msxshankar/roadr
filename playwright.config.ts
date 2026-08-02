@@ -13,31 +13,31 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'iPhone 14 Pro',
+      name: 'iPhone 16',
       use: {
         browserName: 'chromium',
-        viewport: { width: 390, height: 844 },
+        viewport: { width: 393, height: 852 },
         isMobile: true,
         hasTouch: true,
-        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
       },
     },
     {
-      name: 'iPad Pro 11',
+      name: 'iPad Air 11 M2',
       use: {
         browserName: 'chromium',
         viewport: { width: 820, height: 1180 },
         isMobile: true,
         hasTouch: true,
-        userAgent: 'Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
       },
     },
     {
-      name: 'Laptop 14in',
+      name: 'MacBook Pro 14inch M4 Pro',
       use: {
         browserName: 'chromium',
-        viewport: { width: 1440, height: 900 },
-        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        viewport: { width: 1512, height: 982 },
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
       },
     },
     {
@@ -45,7 +45,7 @@ export default defineConfig({
       use: {
         browserName: 'chromium',
         viewport: { width: 1920, height: 1080 },
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
       },
     },
   ],
