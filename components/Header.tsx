@@ -64,30 +64,30 @@ export default function Header({
       </div>
 
       <div className="header-control-strip flex items-center space-x-1.5 sm:space-x-2">
-        <button type="button" onClick={onRecenterUK} className="header-action flex shrink-0 items-center space-x-1 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-gray-300 transition-all hover:bg-white/10 hover:text-white sm:px-3 sm:text-xs" title="Reset map view to UK overview" aria-label="Recenter route">
+        <button type="button" onClick={onRecenterUK} className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2.5 sm:px-3 text-[11px] sm:text-xs text-gray-300 transition-all hover:bg-white/10 hover:text-white" title="Reset map view to UK overview" aria-label="Recenter route">
           <MapPin className="h-3.5 w-3.5 text-teal-300" />
           <span className="header-action-label hidden sm:inline font-medium">Recenter</span>
         </button>
 
         {user && (
-          <div className={`header-action header-car-picker relative flex min-w-0 max-w-[7rem] shrink-0 items-center gap-1 rounded-xl border px-1.5 py-1.5 text-[11px] transition-all sm:max-w-[11rem] sm:px-2.5 sm:text-xs ${vehicle ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200' : 'border-white/10 bg-white/5 text-cyan-100'}`} title={vehicle ? vehicleLabel(vehicle) : 'Select a car or manage the garage'}>
+          <div className={`header-action header-car-picker relative h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-[11px] sm:text-xs transition-all ${vehicle ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200' : 'border-white/10 bg-white/5 text-cyan-100'}`} title={vehicle ? vehicleLabel(vehicle) : 'Select a car or manage the garage'}>
             <CarFront className="h-3.5 w-3.5 shrink-0" />
-            <select aria-label="Select car from garage" value={activeVehicleId || '__none__'} onChange={handleVehicleChange} className="header-car-select min-w-0 flex-1 cursor-pointer appearance-none truncate border-0 bg-transparent p-0 pr-3 text-[11px] font-medium outline-none sm:text-xs">
+            <select aria-label="Select car from garage" value={activeVehicleId || '__none__'} onChange={handleVehicleChange} className="header-car-select min-w-0 flex-1 cursor-pointer appearance-none truncate border-0 bg-transparent p-0 pr-3.5 text-[11px] font-medium outline-none sm:text-xs">
               <option value="__none__">No car</option>
               {vehicles.map((item) => <option key={item.id} value={item.id}>{item.nickname}</option>)}
               <option value="__manage__">Manage garage…</option>
             </select>
-            <ChevronDown aria-hidden="true" className="header-car-chevron pointer-events-none absolute right-1 h-3 w-3 shrink-0 text-current opacity-70" />
+            <ChevronDown aria-hidden="true" className="header-car-chevron pointer-events-none absolute right-1.5 h-3 w-3 shrink-0 text-current opacity-70" />
           </div>
         )}
 
-        <button type="button" onClick={onToggleTheme} className="header-action flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] text-gray-300 transition-all hover:bg-white/10 hover:text-white sm:px-3 sm:text-xs" title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+        <button type="button" onClick={onToggleTheme} className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2.5 sm:px-3 text-[11px] sm:text-xs text-gray-300 transition-all hover:bg-white/10 hover:text-white" title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
           {theme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-300" /> : <Moon className="h-3.5 w-3.5 text-violet-300" />}
           <span className="header-action-label hidden sm:inline font-medium">{theme === 'dark' ? 'Light' : 'Dark'}</span>
         </button>
 
         {user?.role === 'admin' && (
-          <Link href="/admin" className="header-action flex shrink-0 items-center gap-1 rounded-xl border border-violet-400/30 bg-violet-500/10 px-2 py-1.5 text-[11px] text-violet-200 transition-all hover:bg-violet-500/20 hover:text-white sm:px-3 sm:text-xs" title="Open admin dashboard" aria-label="Open admin dashboard">
+          <Link href="/admin" className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-violet-400/30 bg-violet-500/10 px-2.5 sm:px-3 text-[11px] sm:text-xs text-violet-200 transition-all hover:bg-violet-500/20 hover:text-white" title="Open admin dashboard" aria-label="Open admin dashboard">
             <ShieldCheck className="h-3.5 w-3.5" />
             <span className="header-action-label font-semibold">Admin</span>
           </Link>
@@ -98,20 +98,20 @@ export default function Header({
             <button
               type="button"
               onClick={onOpenAccount}
-              className="header-profile flex shrink-0 cursor-pointer items-center gap-1 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-1.5 py-1.5 transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20 sm:px-2"
+              className="header-profile h-8 sm:h-9 inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-2 sm:px-2.5 text-[11px] sm:text-xs transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20"
               title={`Signed in as ${user.username} — Click to manage account`}
               aria-label={`Signed in as ${user.username}. Manage account`}
             >
-              <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-cyan-400/20 text-[9px] font-bold text-cyan-100 sm:h-6 sm:w-6">{initials}</span>
+              <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-cyan-400/20 text-[9px] font-bold text-cyan-100">{initials}</span>
               <span className="header-profile-name hidden max-w-16 truncate text-[11px] font-semibold text-cyan-100 sm:inline sm:max-w-24 sm:text-xs">{user.username}</span>
             </button>
-            <button type="button" onClick={onSignOut} className="header-action flex shrink-0 items-center gap-1 rounded-xl border border-red-400/25 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-200 transition-all hover:bg-red-500/20 hover:text-white sm:px-3 sm:text-xs" title="Sign out of Roadr" aria-label="Sign out of Roadr">
+            <button type="button" onClick={onSignOut} className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-red-400/25 bg-red-500/10 px-2.5 sm:px-3 text-[11px] sm:text-xs text-red-200 transition-all hover:bg-red-500/20 hover:text-white" title="Sign out of Roadr" aria-label="Sign out of Roadr">
               <LogOut className="h-3.5 w-3.5" />
               <span className="header-action-label hidden sm:inline font-medium">Sign out</span>
             </button>
           </>
         ) : (
-          <button type="button" onClick={onOpenAuth} className="header-action flex shrink-0 items-center gap-1 rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-2.5 py-1.5 text-[11px] font-semibold text-cyan-100 transition-all hover:bg-cyan-500/25 hover:text-white sm:px-3 sm:text-xs" title="Sign in to Roadr" aria-label="Sign in to Roadr">
+          <button type="button" onClick={onOpenAuth} className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 text-[11px] sm:text-xs font-semibold text-cyan-100 transition-all hover:bg-cyan-500/25 hover:text-white" title="Sign in to Roadr" aria-label="Sign in to Roadr">
             <LogIn className="h-3.5 w-3.5" />
             <span className="header-action-label font-semibold">Sign in</span>
           </button>
