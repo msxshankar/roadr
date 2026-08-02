@@ -178,7 +178,7 @@ export default function VehicleGarageModal({
               className="space-y-4"
             >
               <div className="flex items-start justify-between gap-3">
-                <div><p className="text-xs font-semibold uppercase tracking-wider text-cyan-200">{selectedVehicle ? 'Edit car' : 'New car'}</p><p className="mt-0.5 text-[10px] text-gray-500">Use real-world figures for accurate trip estimates.</p></div>
+                <div><p className="text-xs font-semibold uppercase tracking-wider text-cyan-200">{selectedVehicle ? 'Edit car' : 'New car'}</p></div>
                 {selectedVehicle && <button type="button" onClick={removeSelectedVehicle} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-red-400/25 bg-red-400/10 px-2 py-1.5 text-[10px] text-red-200 hover:bg-red-400/20" title={`Remove ${selectedVehicle.nickname}`}><Trash2 className="h-3 w-3" /> Remove car</button>}
               </div>
 

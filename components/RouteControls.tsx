@@ -80,7 +80,6 @@ export default function RouteControls({
       <div className="flex items-center justify-between">
         <div>
           <p className="font-display text-sm font-bold text-white">Plan a journey</p>
-          <p className="mt-0.5 text-[10px] text-gray-400">Search a place or use a saved destination.</p>
         </div>
         <div className="flex items-center gap-2">
           <RouteIcon className="h-5 w-5 text-teal-300" />
@@ -113,7 +112,6 @@ export default function RouteControls({
         <div className="flex items-center justify-between gap-2">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-300">Journey stops</p>
-            <p className="text-[10px] text-gray-500">Drag stops to reorder them between origin and destination.</p>
           </div>
           {!isAddingStop && (
             <button type="button" onClick={() => setIsAddingStop(true)} className="inline-flex items-center gap-1 rounded-lg border border-teal-400/30 bg-teal-400/10 px-2 py-1 text-[10px] font-semibold text-teal-200 hover:bg-teal-400/20">
@@ -243,7 +241,7 @@ export default function RouteControls({
               <Share2 className={`h-3.5 w-3.5 ${isTooManyStopsForExport ? 'text-amber-400' : 'text-cyan-300'}`} />
               <span className={`text-[11px] font-semibold uppercase tracking-wider ${isTooManyStopsForExport ? 'text-amber-200' : 'text-cyan-200'}`}>Export to Google Maps</span>
             </div>
-            <span className="text-[9px] font-mono text-cyan-200/60">{stops.length > 0 ? `${stops.length + 2} points` : 'Direct route'}</span>
+            {stops.length > 0 && <span className="text-[9px] font-mono text-cyan-200/60">{stops.length + 2} points</span>}
           </div>
 
           {isTooManyStopsForExport ? (
