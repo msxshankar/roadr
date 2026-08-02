@@ -1,3 +1,5 @@
+import type GeoJSON from 'geojson';
+
 export interface LocationPoint {
   name: string;
   lng: number;

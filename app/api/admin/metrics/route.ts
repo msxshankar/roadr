@@ -7,7 +7,8 @@ import { AdminMetrics } from '@/types';
 export const dynamic = 'force-dynamic';
 
 async function requireAdmin() {
-  const token = cookies().get(SESSION_COOKIE_NAME)?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const user = await getSessionUser(token);
   if (!user) return { response: NextResponse.json({ error: 'Authentication required.' }, { status: 401 }) };
   if (user.role !== 'admin') return { response: NextResponse.json({ error: 'Admin access required.' }, { status: 403 }) };

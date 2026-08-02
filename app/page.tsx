@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type GeoJSON from 'geojson';
 import dynamic from 'next/dynamic';
 import Header from '@/components/Header';
 import RouteControls from '@/components/RouteControls';

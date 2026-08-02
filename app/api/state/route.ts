@@ -8,7 +8,8 @@ import { RoadrAppState } from '@/types';
 export const dynamic = 'force-dynamic';
 
 async function currentUser() {
-  const token = cookies().get(SESSION_COOKIE_NAME)?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   return getSessionUser(token);
 }
 

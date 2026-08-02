@@ -6,9 +6,7 @@ const connectionString =
   'postgres://postgres:postgres@localhost:5432/roadr';
 
 declare global {
-  // eslint-disable-next-line no-var
   var roadrPgPool: Pool | undefined;
-  // eslint-disable-next-line no-var
   var roadrDbInitPromise: Promise<void> | undefined;
 }
 
