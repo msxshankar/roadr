@@ -50,9 +50,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `${process.env.HOME}/.bun/bin/bun run dev`,
+    command: `${process.env.HOME}/.bun/bin/bun run start`,
     url: 'http://localhost:3000',
     reuseExistingServer: true,
-    timeout: 120 * 1000,
+    ignoreHTTPSErrors: true,
   },
 });
