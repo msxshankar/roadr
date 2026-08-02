@@ -30,7 +30,7 @@ interface RouteControlsProps {
   pickingTarget?: 'origin' | 'destination' | { type: 'stop'; index: number } | null;
   onStartMapPick?: (target: 'origin' | 'destination' | { type: 'stop'; index: number } | null) => void;
   routingErrorDetail?: RoutingErrorDetail | null;
-  onApplySuggestedLocation?: (targetKey: 'origin' | 'destination' | `stop-${number}`, location: LocationPoint) => void;
+  onApplySuggestedLocation?: (target: 'origin' | 'destination' | number, location: LocationPoint) => void;
 }
 
 export default function RouteControls({
