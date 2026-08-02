@@ -33,6 +33,7 @@ interface TelemetryCardProps {
   details: RouteDetails;
   origin: LocationPoint;
   destination: LocationPoint;
+  stops?: LocationPoint[];
   provider?: 'mapbox' | 'osrm';
   originalRoute: RouteData;
   alternatives: RouteOption[];
@@ -73,6 +74,7 @@ export default function TelemetryCard({
   details,
   origin,
   destination,
+  stops = [],
   provider = 'mapbox',
   originalRoute,
   alternatives,
@@ -108,7 +110,7 @@ export default function TelemetryCard({
   const originCode = getCityCode(origin.name);
   const destinationCode = getCityCode(destination.name);
   const paceNotes = telemetry.paceNotesSummary || { hairpins: 0, sweepingCurves: 0, fastStraights: 0 };
-  const googleMapsUrl = exportGoogleMapsRouteUrl(origin, destination);
+  const googleMapsUrl = exportGoogleMapsRouteUrl(origin, destination, stops);
 
   const handleCopyUrl = async () => {
     try {
