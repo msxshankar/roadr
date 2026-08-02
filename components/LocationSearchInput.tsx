@@ -63,6 +63,7 @@ export default function LocationSearchInput({
     if (!query.trim() || isCommittedValue) {
       setSuggestions([]);
       setIsLoading(false);
+      setIsOpen(false);
       return;
     }
 
@@ -70,19 +71,22 @@ export default function LocationSearchInput({
     const timer = setTimeout(async () => {
       setIsLoading(true);
       const results = await searchLocations(query, token);
-      if (isCancelled) return;
+      if (isCancelled || isCommittedValue) {
+        setIsLoading(false);
+        return;
+      }
 
       setSuggestions(results);
       setIsLoading(false);
       setActiveSuggestionIndex(0);
-      setIsOpen(savedSuggestions.length > 0 || results.length > 0);
+      setIsOpen(results.length > 0 || savedSuggestions.length > 0);
     }, 250);
 
     return () => {
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [query, token, isCommittedValue, savedSuggestions]);
+  }, [query, token, isCommittedValue, savedSuggestions.length]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -102,6 +106,7 @@ export default function LocationSearchInput({
       lat: item.lat,
     };
     setQuery(location.name);
+    setSuggestions([]);
     setIsOpen(false);
     onSelectLocation(location);
   };
