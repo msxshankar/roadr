@@ -143,6 +143,8 @@ export async function importGoogleMapsRoute(rawValue: string, token?: string): P
 /**
  * Export an active Roadr route (Origin, intermediate Stops, and Destination)
  * into a shareable Google Maps Universal Directions URL.
+ * Uses exact latitude & longitude coordinates so Google Maps routes accurately
+ * without failing on custom place names or combined text queries.
  */
 export function exportGoogleMapsRouteUrl(
   origin: LocationPoint,
@@ -150,10 +152,7 @@ export function exportGoogleMapsRouteUrl(
   stops: LocationPoint[] = []
 ): string {
   const formatLocationParam = (point: LocationPoint): string => {
-    if (point.name && !/^-?\d+(\.\d+)?,?\s*-?\d+(\.\d+)?$/.test(point.name.trim())) {
-      return encodeURIComponent(`${point.name.trim()}, ${point.lat},${point.lng}`);
-    }
-    return `${point.lat},${point.lng}`;
+    return `${Number(point.lat.toFixed(6))},${Number(point.lng.toFixed(6))}`;
   };
 
   const originParam = formatLocationParam(origin);
@@ -168,4 +167,5 @@ export function exportGoogleMapsRouteUrl(
 
   return url;
 }
+
 
