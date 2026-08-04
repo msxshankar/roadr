@@ -648,7 +648,13 @@ export default function Map({
         const bounds = new mapboxgl.LngLatBounds(coordinates[0] as [number, number], coordinates[0] as [number, number]);
         coordinates.forEach((coordinate) => bounds.extend(coordinate as [number, number]));
         const isCompactViewport = window.innerWidth < 640;
-        map.fitBounds(bounds, { padding: { top: isCompactViewport ? 120 : 120, bottom: isCompactViewport ? 120 : 120, left: isCompactViewport ? 28 : (isSidebarOpen ? sidebarWidth + 30 : 120), right: isCompactViewport ? 28 : 120 }, maxZoom: 13, duration: 700 });
+        map.fitBounds(bounds, {
+          padding: { top: isCompactViewport ? 120 : 120, bottom: isCompactViewport ? 120 : 120, left: isCompactViewport ? 28 : (isSidebarOpen ? sidebarWidth + 30 : 120), right: isCompactViewport ? 28 : 120 },
+          maxZoom: 13,
+          pitch: 0,
+          bearing: 0,
+          duration: 900,
+        });
       }
     };
 

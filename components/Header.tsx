@@ -2,20 +2,20 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { CarFront, ChevronDown, Compass, Key, LogIn, LogOut, MapPin, Moon, ShieldCheck, Sun } from 'lucide-react';
+import { CarFront, ChevronDown, LogIn, Palette, Route as RouteIcon, ShieldCheck } from 'lucide-react';
 import { User, VehicleProfile } from '@/types';
 import { vehicleLabel } from '@/lib/vehicle';
 
 interface HeaderProps {
   onRecenterUK: () => void;
-  theme: 'dark' | 'light';
-  onToggleTheme: () => void;
+  onOpenTheme: () => void;
   provider?: 'mapbox' | 'osrm';
   vehicle: VehicleProfile | null;
   vehicles: VehicleProfile[];
   activeVehicleId: string | null;
   onSelectVehicle: (vehicleId: string) => void;
   onOpenGarage: () => void;
+  onOpenDrives: () => void;
   user?: User | null;
   onOpenAuth?: () => void;
   onSignOut?: () => void;
@@ -24,52 +24,48 @@ interface HeaderProps {
 
 export default function Header({
   onRecenterUK,
-  theme,
-  onToggleTheme,
+  onOpenTheme,
   provider,
   vehicle,
   vehicles,
   activeVehicleId,
   onSelectVehicle,
   onOpenGarage,
+  onOpenDrives,
   user = null,
   onOpenAuth,
   onSignOut,
   onOpenAccount,
 }: HeaderProps) {
   const handleVehicleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const nextId = event.target.value;
-    if (nextId === '__manage__') {
+    const selectedValue = event.target.value;
+    if (selectedValue === '__manage__') {
       onOpenGarage();
       return;
     }
-    if (nextId !== '__none__') onSelectVehicle(nextId);
+    if (selectedValue === '__none__') {
+      onSelectVehicle('');
+      return;
+    }
+    onSelectVehicle(selectedValue);
   };
 
   const initials = user?.username.slice(0, 2).toUpperCase() || '';
 
   return (
-    <header className="theme-scope flighty-header safe-top fixed left-0 right-0 top-0 z-40 flex items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3 liquid-glass-header">
-      <button
-        type="button"
-        onClick={() => window.location.reload()}
-        className="flex min-w-0 items-center space-x-2 text-left cursor-pointer transition-opacity hover:opacity-80 focus:outline-none"
-        title="Reload ROADR application"
-        aria-label="ROADR home - reload page"
-      >
-        <div className="min-w-0">
-          <h1 className="font-display shrink-0 text-base font-black tracking-[0.2em] text-teal-300 sm:text-lg lg:text-xl">ROADR</h1>
-        </div>
-      </button>
-
-      <div className="header-control-strip flex items-center space-x-1.5 sm:space-x-2">
-        <button type="button" onClick={onRecenterUK} className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-gray-300 transition-all hover:bg-white/10 hover:text-white" title="Reset map view to UK overview" aria-label="Recenter route">
-          <MapPin className="h-3.5 w-3.5 text-teal-300" />
-          <span className="header-action-label hidden lg:inline font-medium">Recenter</span>
+    <header className="theme-scope liquid-glass-header absolute left-0 right-0 top-0 z-40 flex items-center justify-between border-b px-3 py-2 text-white sm:px-4 lg:px-6">
+      <div className="flex items-center space-x-2 sm:space-x-3">
+        <button type="button" onClick={onRecenterUK} className="header-logo-group flex cursor-pointer items-center space-x-2 rounded-xl p-1 text-left transition-opacity hover:opacity-90" title="Roadr UK Route Planner — Click to recenter map" aria-label="Recenter Mapbox Map">
+          <div className="header-logo-badge flex h-8 w-8 items-center justify-center rounded-xl font-display text-lg font-black">R</div>
+          <span className="header-logo-text font-display text-lg font-black tracking-tight sm:text-xl">ROADR</span>
         </button>
+        <span className="hidden text-xs text-gray-400 md:inline">|</span>
+        <span className="hidden text-xs font-medium text-gray-300 md:inline">UK Scenic Route Planner</span>
+      </div>
 
-        {user && (
-          <div className={`header-action header-car-picker relative h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-1.5 sm:px-2 text-[11px] sm:text-xs transition-all ${vehicle ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200' : 'border-white/10 bg-white/5 text-cyan-100'}`} title={vehicle ? vehicleLabel(vehicle) : 'Select a car or manage the garage'}>
+      <div className="flex items-center space-x-1.5 sm:space-x-2">
+        {user && vehicles.length > 0 && (
+          <div className="header-car-picker relative flex h-8 sm:h-9 max-w-[140px] sm:max-w-[180px] shrink-0 items-center gap-1 sm:gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-2 text-[11px] sm:text-xs text-cyan-200 transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20 hover:text-white">
             <CarFront className="h-3.5 w-3.5 shrink-0" />
             <select aria-label="Select car from garage" value={activeVehicleId || '__none__'} onChange={handleVehicleChange} className="header-car-select min-w-0 flex-1 cursor-pointer appearance-none truncate border-0 bg-transparent p-0 pr-3.5 text-[11px] font-medium outline-none sm:text-xs">
               <option value="__none__">No car</option>
@@ -80,9 +76,28 @@ export default function Header({
           </div>
         )}
 
-        <button type="button" onClick={onToggleTheme} className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-gray-300 transition-all hover:bg-white/10 hover:text-white" title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
-          {theme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-300" /> : <Moon className="h-3.5 w-3.5 text-violet-300" />}
-          <span className="header-action-label hidden lg:inline font-medium">{theme === 'dark' ? 'Light' : 'Dark'}</span>
+        {user && (
+          <button
+            type="button"
+            onClick={onOpenDrives}
+            className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-teal-400/30 bg-teal-500/10 px-2 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-teal-200 transition-all hover:border-teal-400/50 hover:bg-teal-500/20 hover:text-white"
+            title="Open drives manager (Past &amp; Planned drives)"
+            aria-label="Open drives manager"
+          >
+            <RouteIcon className="h-3.5 w-3.5 text-teal-300" />
+            <span className="header-action-label hidden sm:inline font-medium">Drives</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onOpenTheme}
+          className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-gray-300 transition-all hover:bg-white/10 hover:text-white"
+          title="Open theme &amp; appearance manager"
+          aria-label="Open theme manager"
+        >
+          <Palette className="h-3.5 w-3.5 text-amber-300" />
+          <span className="header-action-label hidden sm:inline font-medium">Theme</span>
         </button>
 
         {user?.role === 'admin' && (

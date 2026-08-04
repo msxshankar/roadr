@@ -25,10 +25,12 @@ type VehicleDraft = Omit<VehicleProfile, 'mpg' | 'tankLiters' | 'rangeMiles'> & 
 };
 
 const FUEL_OPTIONS: Array<{ value: VehicleFuelType; label: string }> = [
-  { value: 'petrol', label: 'Petrol' },
-  { value: 'diesel', label: 'Diesel' },
-  { value: 'hybrid', label: 'Hybrid' },
-  { value: 'electric', label: 'Electric' },
+  { value: 'petrol', label: 'Petrol (E10)' },
+  { value: 'premium_petrol', label: 'Premium Petrol (E5)' },
+  { value: 'diesel', label: 'Diesel (B7)' },
+  { value: 'premium_diesel', label: 'Premium Diesel (B7 Premium)' },
+  { value: 'hybrid', label: 'Hybrid (E10)' },
+  { value: 'electric', label: 'Electric (EV)' },
 ];
 
 function createDraft(vehicle?: VehicleProfile): VehicleDraft {
@@ -92,6 +94,17 @@ export default function VehicleGarageModal({
     tankLiters: numberInRange(form.tankLiters, DEFAULT_VEHICLE.tankLiters, 1, 200),
     rangeMiles: numberInRange(form.rangeMiles, 250, 1, 2000),
   });
+
+  const initialDraft = createDraft(selectedVehicle || undefined);
+  const isDirty =
+    form.nickname !== initialDraft.nickname ||
+    form.fuelType !== initialDraft.fuelType ||
+    form.make !== initialDraft.make ||
+    form.model !== initialDraft.model ||
+    form.year !== initialDraft.year ||
+    form.mpg !== initialDraft.mpg ||
+    form.tankLiters !== initialDraft.tankLiters ||
+    form.rangeMiles !== initialDraft.rangeMiles;
 
   const update = <K extends keyof VehicleDraft>(key: K, value: VehicleDraft[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -225,12 +238,24 @@ export default function VehicleGarageModal({
                 )}
               </div>
 
-              <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className={`flex flex-col gap-3 rounded-2xl border p-3.5 sm:flex-row sm:items-center sm:justify-between transition-colors ${isDirty ? 'border-cyan-400/40 bg-cyan-950/20' : 'border-white/10 bg-white/5'}`}>
                 <div>
-                  <p className="text-xs font-semibold text-gray-200">{form.nickname || 'This car'} · {form.fuelType === 'electric' ? 'Electric' : `${numberInRange(form.mpg, DEFAULT_VEHICLE.mpg, 1, 200)} MPG`}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold text-gray-200">{form.nickname || 'This car'} · {form.fuelType === 'electric' ? 'Electric' : `${numberInRange(form.mpg, DEFAULT_VEHICLE.mpg, 1, 200)} MPG`}</p>
+                    {isDirty && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold text-cyan-300 animate-pulse">
+                        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" /> Unsaved changes
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-0.5 text-[10px] text-gray-500">{form.fuelType === 'electric' ? 'Estimated full-charge range: ' : 'Estimated full-tank range: '}<span className="text-gray-300">{rangePreview ?? '—'} mi</span></p>
                 </div>
-                <button type="submit" className="theme-primary-button inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-extrabold hover:brightness-110"><Save className="h-4 w-4" /> Save car</button>
+                <button
+                  type="submit"
+                  className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-6 py-3 text-xs font-extrabold whitespace-nowrap transition-all ${isDirty ? 'theme-save-button-dirty' : 'theme-primary-button hover:brightness-110'}`}
+                >
+                  <Save className="h-4 w-4 shrink-0" /> Save car
+                </button>
               </div>
             </form>
 

@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Check, Copy, ExternalLink, GripVertical, Navigation, Plus, Route as RouteIcon, Share2, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Calendar, Clock, Check, Copy, ExternalLink, GripVertical, Navigation, Plus, RotateCw, Route as RouteIcon, Share2, Trash2, X } from 'lucide-react';
 import { LocationPoint } from '@/types';
-import { RoutingErrorDetail } from '@/lib/mapbox';
+import { RoutingErrorDetail, isSameLocation } from '@/lib/mapbox';
 import LocationSearchInput from './LocationSearchInput';
 import GoogleMapsImport from './GoogleMapsImport';
 import { exportGoogleMapsRouteUrl } from '@/lib/googleMaps';
@@ -24,6 +24,7 @@ interface RouteControlsProps {
   onSwapLocations: () => void;
   onClearRoute: () => void;
   onCalculateRoute: () => void;
+  onAddDrive?: (type: 'past' | 'planned') => void;
   onImportGoogleRoute: (routePoints: LocationPoint[]) => void;
   onCloseMobilePanel?: () => void;
   isLoadingRoute?: boolean;
@@ -49,19 +50,22 @@ export default function RouteControls({
   onSwapLocations,
   onClearRoute,
   onCalculateRoute,
+  onAddDrive,
   onImportGoogleRoute,
   onCloseMobilePanel,
-  isLoadingRoute,
-  pickingTarget,
+  isLoadingRoute = false,
+  pickingTarget = null,
   onStartMapPick,
-  routingErrorDetail,
+  routingErrorDetail = null,
   onApplySuggestedLocation,
 }: RouteControlsProps) {
   const [isAddingStop, setIsAddingStop] = useState(false);
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
   const [hasCopiedUrl, setHasCopiedUrl] = useState(false);
+  const [isAddDriveMenuOpen, setIsAddDriveMenuOpen] = useState(false);
 
-  const isTooManyStopsForExport = stops.length > 9;
+  const isLoop = isSameLocation(origin, destination);
+  const isTooManyStopsForExport = stops.length > 7;
   const googleMapsExportUrl = origin && destination ? exportGoogleMapsRouteUrl(origin, destination, stops) : null;
 
   const handleCopyExportUrl = async () => {
@@ -206,31 +210,133 @@ export default function RouteControls({
         )}
       </div>
 
-      <LocationSearchInput
-        label="Destination"
-        badgeColor="amber"
-        value={destination}
-        placeholder="Search a town, landmark, postcode or business..."
-        token={token}
-        savedPlaces={savedPlaces}
-        onSelectLocation={onSelectDestination}
-        onClear={onClearDestination}
-        isPickingOnMap={pickingTarget === 'destination'}
-        onStartMapPick={() => onStartMapPick?.('destination')}
-        routingError={routingErrorDetail?.targetKey === 'destination' ? routingErrorDetail : null}
-        onApplySuggestedLocation={(location) => onApplySuggestedLocation?.('destination', location)}
-      />
+      <div className="relative">
+        <LocationSearchInput
+          label="Destination"
+          badgeColor="amber"
+          value={destination}
+          placeholder="Search a town, landmark, postcode or business..."
+          token={token}
+          savedPlaces={savedPlaces}
+          sameAsOriginLocation={origin}
+          onSelectLocation={onSelectDestination}
+          onClear={onClearDestination}
+          isPickingOnMap={pickingTarget === 'destination'}
+          onStartMapPick={() => onStartMapPick?.('destination')}
+          routingError={isLoop && stops.length === 0 ? null : (routingErrorDetail?.targetKey === 'destination' ? routingErrorDetail : null)}
+          onApplySuggestedLocation={(location) => onApplySuggestedLocation?.('destination', location)}
+        />
+        {origin && !destination && (
+          <button
+            type="button"
+            onClick={() => onSelectDestination(origin)}
+            className="absolute right-9 top-2.5 inline-flex items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-200 hover:bg-amber-500/25 hover:text-white transition-colors"
+            title="Set destination same as origin to create a loop drive"
+          >
+            <span>Loop 🔁</span>
+          </button>
+        )}
+      </div>
+
+      {isLoop && origin && (
+        stops.length === 0 ? (
+          <div className="rounded-2xl border border-red-500/60 bg-red-950/40 p-3 space-y-2 animate-fade-in text-red-200">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-red-300">
+                <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" /> Round-Trip Loop Requires Waypoint
+              </span>
+              <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[9px] font-semibold text-red-300">
+                0 Waypoints
+              </span>
+            </div>
+            <p className="text-[11px] text-red-200/90 leading-relaxed">
+              To calculate a round-trip loop back to <strong className="text-white">{origin.name}</strong>, please add at least one intermediate stop (waypoint).
+            </p>
+            <div className="flex items-center gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setIsAddingStop(true)}
+                className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl bg-red-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-400 transition-colors shadow-md"
+              >
+                <Plus className="h-3.5 w-3.5" /> Search Waypoint
+              </button>
+              <button
+                type="button"
+                onClick={() => onStartMapPick?.({ type: 'stop', index: 0 })}
+                className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl border border-red-400/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <Navigation className="h-3.5 w-3.5 text-red-300" /> Pick on Map
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-3 space-y-2 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-amber-200">
+                <span>🔁</span> Round-Trip Loop
+              </span>
+              <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[9px] font-semibold text-amber-200">
+                {stops.length} Waypoint{stops.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            <p className="text-[10px] text-gray-300">
+              Loop drive ready from <strong className="text-white">{origin.name}</strong> back to <strong className="text-white">{destination?.name}</strong> via {stops.length} stop{stops.length > 1 ? 's' : ''}.
+            </p>
+          </div>
+        )
+      )}
 
       <div className="flex justify-center">
-        <button type="button" onClick={onSwapLocations} disabled={!origin || !destination} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-[#12141d] px-3 py-1.5 text-[10px] text-teal-200/70 shadow-md transition-all hover:border-teal-300/50 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30" title="Swap origin and destination">
+        <button type="button" onClick={onSwapLocations} disabled={!origin || !destination || isLoop} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-[#12141d] px-3 py-1.5 text-[10px] text-teal-200/70 shadow-md transition-all hover:border-teal-300/50 hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30" title="Swap origin and destination">
           <ArrowUpDown className="h-3.5 w-3.5" /> Swap route
         </button>
       </div>
 
       <div className="flex items-center space-x-2 pt-0.5">
-        <button type="button" onClick={onCalculateRoute} disabled={!origin || !destination || isLoadingRoute} className="theme-primary-button flex flex-1 items-center justify-center space-x-2 rounded-xl px-4 py-2.5 text-xs font-extrabold transition-all hover:brightness-110 active:scale-95 disabled:pointer-events-none disabled:opacity-40">
-          {isLoadingRoute ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" /><span>Calculating route...</span></> : <><Navigation className="h-4 w-4 fill-current" /><span>Calculate route</span></>}
+        <button type="button" onClick={onCalculateRoute} disabled={!origin || !destination || isLoadingRoute} className="theme-primary-button flex flex-1 items-center justify-center space-x-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-all hover:brightness-110 active:scale-95 disabled:pointer-events-none disabled:opacity-40" title="Refresh route calculation">
+          {isLoadingRoute ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" /><span>Refreshing...</span></> : <><RotateCw className="h-4 w-4" /><span>Refresh</span></>}
         </button>
+
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsAddDriveMenuOpen((prev) => !prev)}
+            disabled={!origin || !destination}
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-teal-400/30 bg-teal-500/15 px-3 py-2.5 text-xs font-bold text-teal-200 transition-all hover:bg-teal-500/25 hover:text-white disabled:pointer-events-none disabled:opacity-40"
+            title="Save route as past or planned drive"
+          >
+            <Plus className="h-4 w-4 text-teal-300" />
+            <span>Add Drive</span>
+          </button>
+
+          {isAddDriveMenuOpen && (
+            <div className="absolute right-0 bottom-full mb-2 z-50 w-44 rounded-2xl border border-teal-400/30 bg-[#090a0f]/95 p-1.5 shadow-2xl backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddDriveMenuOpen(false);
+                  onAddDrive?.('past');
+                }}
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 hover:text-white transition-colors"
+              >
+                <Clock className="h-3.5 w-3.5 text-cyan-300" />
+                <span>Add as Past Drive</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddDriveMenuOpen(false);
+                  onAddDrive?.('planned');
+                }}
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-amber-200 hover:bg-amber-500/20 hover:text-white transition-colors"
+              >
+                <Calendar className="h-3.5 w-3.5 text-amber-300" />
+                <span>Add as Planned Drive</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         <button type="button" onClick={onClearRoute} disabled={!origin && !destination && stops.length === 0} className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-red-200/70 transition-all hover:border-red-500/40 hover:bg-red-500/20 hover:text-red-100 disabled:pointer-events-none disabled:opacity-30" title="Clear journey" aria-label="Clear journey"><Trash2 className="h-4 w-4" /></button>
       </div>
 
@@ -250,7 +356,7 @@ export default function RouteControls({
               <div>
                 <p className="font-bold text-amber-100">Too many stops for Google Maps</p>
                 <p className="mt-0.5 text-[10px] leading-relaxed text-amber-300/90">
-                  Google Maps supports a maximum of 9 intermediate stops. You currently have {stops.length} stops. Please remove {stops.length - 9} stop{stops.length - 9 > 1 ? 's' : ''} to export.
+                  Google Maps supports a maximum of 7 intermediate stops. You currently have {stops.length} stops. Please remove {stops.length - 7} stop{stops.length - 7 > 1 ? 's' : ''} to export.
                 </p>
               </div>
             </div>

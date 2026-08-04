@@ -25,7 +25,7 @@ export async function GET() {
     const [vehicleRows, placeRows, routeRows, settingRows] = await Promise.all([
       query('SELECT id, nickname, make, model, year, fuel_type, mpg, tank_liters, range_miles FROM vehicles WHERE user_id = $1 ORDER BY created_at ASC', [user.id]),
       query('SELECT name, lng, lat FROM saved_places WHERE user_id = $1 ORDER BY created_at ASC', [user.id]),
-      query('SELECT id, vehicle_id, name, origin, destination, stops, recorded_at, distance_miles, fuel_liters, fuel_cost_gbp, duration_seconds FROM recorded_routes WHERE user_id = $1 ORDER BY created_at ASC', [user.id]),
+      query('SELECT id, vehicle_id, name, origin, destination, stops, recorded_at, distance_miles, fuel_liters, fuel_cost_gbp, duration_seconds, is_planned, time_of_day, no_specific_date FROM recorded_routes WHERE user_id = $1 ORDER BY created_at ASC', [user.id]),
       query('SELECT active_vehicle_id FROM user_settings WHERE user_id = $1', [user.id]),
     ]);
 
@@ -86,8 +86,8 @@ export async function PUT(request: Request) {
       for (const route of state.recordedRoutes) {
         await client.query(
           `INSERT INTO recorded_routes
-            (id, user_id, vehicle_id, name, origin, destination, stops, recorded_at, distance_miles, fuel_liters, fuel_cost_gbp, duration_seconds)
-           VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12)`,
+            (id, user_id, vehicle_id, name, origin, destination, stops, recorded_at, distance_miles, fuel_liters, fuel_cost_gbp, duration_seconds, is_planned, time_of_day, no_specific_date)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [
             route.id,
             user.id,
@@ -101,6 +101,9 @@ export async function PUT(request: Request) {
             route.fuelLiters,
             route.fuelCostGbp,
             route.durationSeconds,
+            Boolean(route.isPlanned),
+            route.timeOfDay || 'morning',
+            Boolean(route.noSpecificDate),
           ]
         );
       }

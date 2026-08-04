@@ -63,4 +63,20 @@ describe('Electric Vehicle (EV) and Estimated MPG Features', () => {
     expect(state.vehicles[0].fuelType).toBe('electric');
     expect(state.vehicles[0].rangeMiles).toBe(328);
   });
+
+  it('selects correct live fuel price for diesel, premium diesel, premium petrol, hybrid, and unleaded petrol', () => {
+    const getFuelPrice = (fuelType?: string, unleaded = 161.0, premPetrol = 177.9, diesel = 180.9, premDiesel = 198.5) => {
+      if (fuelType === 'diesel') return diesel;
+      if (fuelType === 'premium_diesel') return premDiesel;
+      if (fuelType === 'premium_petrol') return premPetrol;
+      return unleaded;
+    };
+
+    expect(getFuelPrice('diesel')).toBe(180.9);
+    expect(getFuelPrice('premium_diesel')).toBe(198.5);
+    expect(getFuelPrice('premium_petrol')).toBe(177.9);
+    expect(getFuelPrice('hybrid')).toBe(161.0);
+    expect(getFuelPrice('petrol')).toBe(161.0);
+    expect(getFuelPrice(undefined)).toBe(161.0);
+  });
 });

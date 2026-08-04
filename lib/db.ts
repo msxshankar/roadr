@@ -91,8 +91,15 @@ export async function initDb(): Promise<void> {
         fuel_liters DOUBLE PRECISION NOT NULL,
         fuel_cost_gbp DOUBLE PRECISION NOT NULL,
         duration_seconds INTEGER NOT NULL,
+        is_planned BOOLEAN DEFAULT false,
+        time_of_day VARCHAR(20) DEFAULT 'morning',
+        no_specific_date BOOLEAN DEFAULT false,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE recorded_routes ADD COLUMN IF NOT EXISTS is_planned BOOLEAN DEFAULT false;
+      ALTER TABLE recorded_routes ADD COLUMN IF NOT EXISTS time_of_day VARCHAR(20) DEFAULT 'morning';
+      ALTER TABLE recorded_routes ADD COLUMN IF NOT EXISTS no_specific_date BOOLEAN DEFAULT false;
 
       CREATE TABLE IF NOT EXISTS user_settings (
         user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

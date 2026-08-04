@@ -95,6 +95,12 @@ function normaliseRecordedRoute(value: unknown): RecordedRoute | null {
     return null;
   }
 
+  const isPlanned = typeof value.isPlanned === 'boolean' ? value.isPlanned : undefined;
+  const timeOfDay = (value.timeOfDay === 'morning' || value.timeOfDay === 'afternoon' || value.timeOfDay === 'evening' || value.timeOfDay === 'night')
+    ? value.timeOfDay
+    : undefined;
+  const noSpecificDate = typeof value.noSpecificDate === 'boolean' ? value.noSpecificDate : undefined;
+
   return {
     id,
     name,
@@ -107,6 +113,9 @@ function normaliseRecordedRoute(value: unknown): RecordedRoute | null {
     fuelLiters: Math.max(value.fuelLiters, 0),
     fuelCostGbp: Math.max(value.fuelCostGbp, 0),
     durationSeconds: Math.max(Math.round(value.durationSeconds), 0),
+    ...(isPlanned !== undefined ? { isPlanned } : {}),
+    ...(timeOfDay ? { timeOfDay } : {}),
+    ...(noSpecificDate !== undefined ? { noSpecificDate } : {}),
   };
 }
 
@@ -193,6 +202,9 @@ export function stateFromRows(rows: {
       fuelLiters: row.fuel_liters,
       fuelCostGbp: row.fuel_cost_gbp,
       durationSeconds: row.duration_seconds,
+      isPlanned: Boolean(row.is_planned),
+      timeOfDay: row.time_of_day,
+      noSpecificDate: Boolean(row.no_specific_date),
     })),
   });
 }

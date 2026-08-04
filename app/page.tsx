@@ -9,10 +9,12 @@ import TelemetryCard from '@/components/TelemetryCard';
 import TokenModal from '@/components/TokenModal';
 import RoutePreviewHUD from '@/components/RoutePreviewHUD';
 import VehicleGarageModal from '@/components/VehicleGarageModal';
+import DrivesModal from '@/components/DrivesModal';
 import RecordRouteModal from '@/components/RecordRouteModal';
 import AuthModal from '@/components/AuthModal';
 import AccountModal from '@/components/AccountModal';
-import { LocationPoint, RecordedRoute, RouteData, RoadrAppState, User, VehicleProfile } from '@/types';
+import ThemeModal, { ThemeMode, ThemePalette } from '@/components/ThemeModal';
+import { LocationPoint, RecordedRoute, RouteData, RoadrAppState, TimeOfDay, User, VehicleProfile } from '@/types';
 import { DEFAULT_DESTINATION, DEFAULT_ORIGIN } from '@/lib/defaultRoute';
 import { parseSavedPlaces, upsertSavedPlace } from '@/lib/savedPlaces';
 import { snapToNearestRoad } from '@/lib/geocoding';
@@ -39,6 +41,11 @@ export default function Home() {
   const [token, setToken] = useState(DEFAULT_MAPBOX_TOKEN);
   const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
   const [isGarageOpen, setIsGarageOpen] = useState(false);
+  const [isDrivesOpen, setIsDrivesOpen] = useState(false);
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
+  const [themePalette, setThemePalette] = useState<ThemePalette>('monochrome');
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
+  const [initialAddDriveIsPlanned, setInitialAddDriveIsPlanned] = useState<boolean>(false);
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
 
@@ -58,11 +65,17 @@ export default function Home() {
   const [mpg, setMpg] = useState(DEFAULT_UK_MPG);
   const [pricePerLiterPence, setPricePerLiterPence] = useState(DEFAULT_UK_PETROL_PRICE_PENCE);
   const [liveFuelPricePence, setLiveFuelPricePence] = useState(DEFAULT_UK_PETROL_PRICE_PENCE);
+  const [liveUnleadedPence, setLiveUnleadedPence] = useState(DEFAULT_UK_PETROL_PRICE_PENCE);
+  const [livePremiumPetrolPence, setLivePremiumPetrolPence] = useState(177.9);
+  const [liveDieselPence, setLiveDieselPence] = useState(180.9);
+  const [livePremiumDieselPence, setLivePremiumDieselPence] = useState(198.5);
   const [liveFuelSource, setLiveFuelSource] = useState('fuelmap.co.uk');
+  const [liveFuelSourceUrl, setLiveFuelSourceUrl] = useState('https://www.fuelmap.co.uk');
   const [homeOffPeakPence, setHomeOffPeakPence] = useState(8.0);
   const [homeStandardPence, setHomeStandardPence] = useState(26.1);
   const [rapidChargerPence, setRapidChargerPence] = useState(79.0);
   const [evSource, setEvSource] = useState('Ofgem & Zapmap UK (Live)');
+  const [evSourceUrl, setEvSourceUrl] = useState('https://www.zap-map.com');
   const [isLiveFuelFetching, setIsLiveFuelFetching] = useState(true);
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
@@ -148,6 +161,7 @@ export default function Home() {
     setIsPreviewActive(false);
     setIsPlayingPreview(false);
     setPreviewProgress(0);
+    setOrientationMode('follow');
   };
 
   const handleCalculateRoute = async (
@@ -172,13 +186,16 @@ export default function Home() {
       setRouteData(data);
     } catch (error: any) {
       if (requestId !== routeRequestIdRef.current) return;
-      console.error(error);
+      if (!error?.routingErrorDetail) {
+        console.error('Route calculation error:', error);
+      }
       if (error?.routingErrorDetail) {
         setRoutingErrorDetail(error.routingErrorDetail);
+        setErrorMsg(null);
       } else {
         setRoutingErrorDetail(null);
+        setErrorMsg(error?.message || 'Unable to calculate route.');
       }
-      setErrorMsg(error?.message || 'Unable to calculate route.');
     } finally {
       if (requestId === routeRequestIdRef.current) setIsLoadingRoute(false);
     }
@@ -348,6 +365,13 @@ export default function Home() {
     void handleCalculateRoute(record.origin, record.destination, mpg, pricePerLiterPence, nextStops);
   };
 
+  const handleUpdateRecordedRoute = (updatedRoute: RecordedRoute) => {
+    const nextRoutes = appStateRef.current.recordedRoutes.map((route) =>
+      route.id === updatedRoute.id ? updatedRoute : route
+    );
+    updateAppState({ recordedRoutes: nextRoutes });
+  };
+
   const handleDeleteRecordedRoute = (routeId: string) => {
     const nextRoutes = appStateRef.current.recordedRoutes.filter((route) => route.id !== routeId);
     updateAppState({ recordedRoutes: nextRoutes });
@@ -486,7 +510,7 @@ export default function Home() {
 
   const [activeEvCostGbp, setActiveEvCostGbp] = useState<number | null>(null);
 
-  const handleRecordRoute = (name: string) => {
+  const handleRecordRoute = (name: string, isPlannedParam?: boolean, timeOfDayParam?: TimeOfDay, noSpecificDateParam?: boolean) => {
     if (!activeRouteData || !vehicle) return;
     const isElectric = vehicle.fuelType === 'electric';
     const energyKwh = activeRouteData.telemetry.distanceMiles / 3.8;
@@ -504,6 +528,9 @@ export default function Home() {
       fuelLiters: isElectric ? Number(energyKwh.toFixed(1)) : activeRouteData.telemetry.estimatedFuelLiters,
       fuelCostGbp: isElectric ? Number(evCostGbp.toFixed(2)) : activeRouteData.telemetry.estimatedFuelCostGbp,
       durationSeconds: activeRouteData.telemetry.durationSeconds,
+      isPlanned: isPlannedParam ?? initialAddDriveIsPlanned,
+      timeOfDay: timeOfDayParam || 'morning',
+      noSpecificDate: Boolean(noSpecificDateParam),
     };
     const nextRoutes = [record, ...appStateRef.current.recordedRoutes].slice(0, 50);
     setIsRecordModalOpen(false);
@@ -605,23 +632,72 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const storedTheme = window.localStorage.getItem('roadr:theme:v1');
-      if (storedTheme === 'light' || storedTheme === 'dark') setTheme(storedTheme);
+      const storedMode = window.localStorage.getItem('roadr:theme-mode:v1') as ThemeMode | null;
+      if (storedMode === 'light' || storedMode === 'dark' || storedMode === 'system') {
+        setThemeMode(storedMode);
+      }
+      const storedPalette = window.localStorage.getItem('roadr:theme-palette:v1') as ThemePalette | null;
+      if (storedPalette && ['monochrome', 'desert', 'jungle', 'cyberpunk', 'coastal', 'lava'].includes(storedPalette)) {
+        setThemePalette(storedPalette);
+      }
       const storedToken = window.localStorage.getItem('roadr:mapbox-token:v1');
       if (storedToken !== null && storedToken !== '') setToken(storedToken);
     } catch {
-      // Keep the dark default when local storage is unavailable.
+      // Keep defaults when local storage is unavailable.
     }
   }, []);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    try {
-      window.localStorage.setItem('roadr:theme:v1', theme);
-    } catch {
-      // Theme still applies for the current session when storage is unavailable.
+    const updateThemeAttributes = () => {
+      let computedTheme: 'dark' | 'light' = 'dark';
+      if (themeMode === 'system') {
+        computedTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      } else {
+        computedTheme = themeMode;
+      }
+      document.documentElement.dataset.theme = computedTheme;
+      document.documentElement.dataset.themeMode = themeMode;
+      document.documentElement.dataset.themePalette = themePalette;
+
+      // Dynamic theme-aware favicon update
+      const THEME_ACCENTS: Record<ThemePalette, { dark: string; light: string; bgDark: string; bgLight: string }> = {
+        monochrome: { dark: '#e4e4e7', light: '#18181b', bgDark: '#050505', bgLight: '#f4f4f5' },
+        desert: { dark: '#f59e0b', light: '#d97706', bgDark: '#140d0a', bgLight: '#fdf6ee' },
+        jungle: { dark: '#10b981', light: '#059669', bgDark: '#06120e', bgLight: '#effcf6' },
+        cyberpunk: { dark: '#ec4899', light: '#db2777', bgDark: '#090a18', bgLight: '#f6f3ff' },
+        coastal: { dark: '#38bdf8', light: '#0284c7', bgDark: '#060d1a', bgLight: '#f0f7ff' },
+        lava: { dark: '#ef4444', light: '#dc2626', bgDark: '#120909', bgLight: '#fdf2f2' },
+      };
+      const paletteColors = THEME_ACCENTS[themePalette] || THEME_ACCENTS.monochrome;
+      const isLight = computedTheme === 'light';
+      const accentHex = isLight ? paletteColors.light : paletteColors.dark;
+      const bgHex = isLight ? paletteColors.bgLight : paletteColors.bgDark;
+
+      let link = document.getElementById('dynamic-favicon') as HTMLLinkElement | null;
+      if (!link) {
+        link = document.createElement('link');
+        link.id = 'dynamic-favicon';
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="${bgHex}"/><rect x="0.75" y="0.75" width="30.5" height="30.5" rx="7.25" stroke="${accentHex}" stroke-opacity="0.3" stroke-width="1.5"/><text x="16" y="22.5" text-anchor="middle" font-family="'Outfit', 'Inter', sans-serif" font-weight="900" fill="${accentHex}" font-size="21">R</text></svg>`;
+      link.href = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+
+      try {
+        window.localStorage.setItem('roadr:theme-mode:v1', themeMode);
+        window.localStorage.setItem('roadr:theme-palette:v1', themePalette);
+      } catch {}
+    };
+
+    updateThemeAttributes();
+
+    if (themeMode === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => updateThemeAttributes();
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
     }
-  }, [theme]);
+  }, [themeMode, themePalette]);
 
   useEffect(() => {
     if (authStatus !== 'authenticated') return;
@@ -664,14 +740,30 @@ export default function Home() {
         if (!response.ok) return;
         const data = await response.json();
         if (cancelled || !data.unleadedPence) return;
-        setLiveFuelPricePence(data.unleadedPence);
-        setPricePerLiterPence(data.unleadedPence);
+        const unleaded = data.unleadedPence || DEFAULT_UK_PETROL_PRICE_PENCE;
+        const premPetrol = data.premiumPetrolPence || 177.9;
+        const diesel = data.dieselPence || 180.9;
+        const premDiesel = data.premiumDieselPence || 198.5;
+        setLiveUnleadedPence(unleaded);
+        setLivePremiumPetrolPence(premPetrol);
+        setLiveDieselPence(diesel);
+        setLivePremiumDieselPence(premDiesel);
+
+        let initialFuelPrice = unleaded;
+        if (vehicle?.fuelType === 'diesel') initialFuelPrice = diesel;
+        else if (vehicle?.fuelType === 'premium_diesel') initialFuelPrice = premDiesel;
+        else if (vehicle?.fuelType === 'premium_petrol') initialFuelPrice = premPetrol;
+
+        setLiveFuelPricePence(initialFuelPrice);
+        setPricePerLiterPence(initialFuelPrice);
         setLiveFuelSource(data.source || 'fuelmap.co.uk');
+        if (data.sourceUrl) setLiveFuelSourceUrl(data.sourceUrl);
         if (data.homeOffPeakPence) setHomeOffPeakPence(data.homeOffPeakPence);
         if (data.homeStandardPence) setHomeStandardPence(data.homeStandardPence);
         if (data.rapidChargerPence) setRapidChargerPence(data.rapidChargerPence);
         if (data.evSource) setEvSource(data.evSource);
-        void handleCalculateRoute(origin, destination, mpg, data.unleadedPence, stops);
+        if (data.evSourceUrl) setEvSourceUrl(data.evSourceUrl);
+        void handleCalculateRoute(origin, destination, mpg, initialFuelPrice, stops);
       } catch (error) {
         console.warn('Failed to load live fuel price feed:', error);
       } finally {
@@ -683,6 +775,17 @@ export default function Home() {
     // Live pricing is intentionally fetched once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Switch fuel price automatically based on vehicle fuelType
+  useEffect(() => {
+    let targetPrice = liveUnleadedPence;
+    if (vehicle?.fuelType === 'diesel') targetPrice = liveDieselPence;
+    else if (vehicle?.fuelType === 'premium_diesel') targetPrice = livePremiumDieselPence;
+    else if (vehicle?.fuelType === 'premium_petrol') targetPrice = livePremiumPetrolPence;
+
+    setLiveFuelPricePence(targetPrice);
+    setPricePerLiterPence(targetPrice);
+  }, [vehicle?.fuelType, liveUnleadedPence, livePremiumPetrolPence, liveDieselPence, livePremiumDieselPence]);
 
   // A saved car may load after the first route request; reconcile that response so the
   // persisted MPG is never silently replaced by the generic UK average.
@@ -765,7 +868,7 @@ export default function Home() {
 
   return (
     <main className="app-shell flighty-shell relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[var(--bg-obsidian)] text-gray-100">
-      {!isPreviewActive && <Header onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} provider={routeData?.provider} vehicle={vehicle} vehicles={vehicles} activeVehicleId={activeVehicleId} onSelectVehicle={handleSelectVehicle} onOpenGarage={() => { if (authStatus === 'authenticated') void refreshAppState(); setIsGarageOpen(true); }} user={user} onOpenAuth={() => setIsAuthModalOpen(true)} onSignOut={() => { void handleSignOut(); }} onOpenAccount={() => { if (authStatus === 'authenticated') void refreshAppState(); setIsAccountModalOpen(true); }} />}
+      {!isPreviewActive && <Header onRecenterUK={() => { if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops); }} onOpenTheme={() => setIsThemeModalOpen(true)} provider={routeData?.provider} vehicle={vehicle} vehicles={vehicles} activeVehicleId={activeVehicleId} onSelectVehicle={handleSelectVehicle} onOpenGarage={() => { if (authStatus === 'authenticated') void refreshAppState(); setIsGarageOpen(true); }} onOpenDrives={() => { if (authStatus === 'authenticated') void refreshAppState(); setIsDrivesOpen(true); }} user={user} onOpenAuth={() => setIsAuthModalOpen(true)} onSignOut={() => { void handleSignOut(); }} onOpenAccount={() => { if (authStatus === 'authenticated') void refreshAppState(); setIsAccountModalOpen(true); }} />}
 
       <Map
         token={token}
@@ -834,6 +937,15 @@ export default function Home() {
           onSwapLocations={handleSwapLocations}
           onClearRoute={handleClearRoute}
           onCalculateRoute={() => void handleCalculateRoute()}
+          onAddDrive={(type) => {
+            setInitialAddDriveIsPlanned(type === 'planned');
+            if (activeRouteData) {
+              setIsRecordModalOpen(true);
+            } else {
+              setIsSidebarOpen(true);
+              setIsMobilePanelOpen(true);
+            }
+          }}
           onImportGoogleRoute={handleImportGoogleRoute}
           onCloseMobilePanel={() => setIsMobilePanelOpen(false)}
           isLoadingRoute={isLoadingRoute}
@@ -842,14 +954,39 @@ export default function Home() {
           routingErrorDetail={routingErrorDetail}
           onApplySuggestedLocation={handleApplySuggestedLocation}
         />
-        {activeRouteData && origin && destination && routeData && <TelemetryCard telemetry={activeRouteData.telemetry} details={activeRouteData.details} originalRoute={routeData} selectedRouteId={selectedRouteId} alternatives={routeData.alternatives || []} origin={origin} destination={destination} stops={stops} provider={activeRouteData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} isLiveFuelFetching={isLiveFuelFetching} homeOffPeakPence={homeOffPeakPence} homeStandardPence={homeStandardPence} rapidChargerPence={rapidChargerPence} evSource={evSource} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectRoute={handleSelectRoute} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={(evCost) => { setActiveEvCostGbp(evCost ?? null); setIsRecordModalOpen(true); }} />}
+        {activeRouteData && origin && destination && routeData && <TelemetryCard telemetry={activeRouteData.telemetry} details={activeRouteData.details} originalRoute={routeData} selectedRouteId={selectedRouteId} alternatives={routeData.alternatives || []} origin={origin} destination={destination} stops={stops} provider={activeRouteData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} liveFuelSourceUrl={liveFuelSourceUrl} isLiveFuelFetching={isLiveFuelFetching} homeOffPeakPence={homeOffPeakPence} homeStandardPence={homeStandardPence} rapidChargerPence={rapidChargerPence} evSource={evSource} evSourceUrl={evSourceUrl} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectRoute={handleSelectRoute} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={(evCost) => { setActiveEvCostGbp(evCost ?? null); setIsRecordModalOpen(true); }} />}
         <div className="route-sidebar-resizer hidden md:block" role="separator" aria-label="Resize route planner sidebar" aria-orientation="vertical" onPointerDown={handleSidebarResizeStart} />
       </div>}
 
       {isPreviewActive && origin && destination && activeRouteData && <RoutePreviewHUD origin={origin} destination={destination} telemetry={activeRouteData.telemetry} progress={previewProgress} isPlaying={isPlayingPreview} speedMultiplier={speedMultiplier} bearing={currentBearing} cameraZoom={cameraZoom} selectedStyleId={selectedStyleId} orientationMode={orientationMode} onStyleChange={setSelectedStyleId} onChangeCameraZoom={setCameraZoom} onChangeOrientationMode={(mode) => { setOrientationMode(mode); if (mode === 'manual') setManualBearing(currentBearing); }} onTogglePlay={handleTogglePlayPreview} onSeek={setPreviewProgress} onChangeSpeedMultiplier={setSpeedMultiplier} onExitPreview={handleExitPreview} />}
 
-      {activeRouteData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={activeRouteData} vehicle={vehicle} homeStandardPence={homeStandardPence} customEvCostGbp={activeEvCostGbp !== null ? activeEvCostGbp : undefined} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
+      {activeRouteData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={activeRouteData} vehicle={vehicle} homeStandardPence={homeStandardPence} customEvCostGbp={activeEvCostGbp !== null ? activeEvCostGbp : undefined} initialIsPlanned={initialAddDriveIsPlanned} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
       <VehicleGarageModal isOpen={isGarageOpen} vehicles={vehicles} activeVehicleId={activeVehicleId} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onSelectVehicle={handleSelectVehicle} onDeleteVehicle={handleDeleteVehicle} onSelectRecordedRoute={handleLoadRecordedRoute} onDeleteRecordedRoute={handleDeleteRecordedRoute} onClose={() => setIsGarageOpen(false)} />
+      <DrivesModal
+        isOpen={isDrivesOpen}
+        recordedRoutes={recordedRoutes}
+        vehicles={vehicles}
+        onSelectRecordedRoute={handleLoadRecordedRoute}
+        onUpdateRecordedRoute={handleUpdateRecordedRoute}
+        onDeleteRecordedRoute={handleDeleteRecordedRoute}
+        onClose={() => setIsDrivesOpen(false)}
+        onOpenAddDrive={(type) => {
+          setInitialAddDriveIsPlanned(type === 'planned');
+          setIsSidebarOpen(true);
+          setIsMobilePanelOpen(true);
+          if (activeRouteData) {
+            setIsRecordModalOpen(true);
+          }
+        }}
+      />
+      <ThemeModal
+        isOpen={isThemeModalOpen}
+        themeMode={themeMode}
+        themePalette={themePalette}
+        onSelectMode={setThemeMode}
+        onSelectPalette={setThemePalette}
+        onClose={() => setIsThemeModalOpen(false)}
+      />
       <TokenModal isOpen={isTokenModalOpen} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); try { window.localStorage.setItem('roadr:mapbox-token:v1', newToken); } catch {} if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsTokenModalOpen(false)} />
       <AuthModal isOpen={isAuthModalOpen} onClose={handleCloseAuth} onAuthenticated={handleAuthenticated} />
       <AccountModal isOpen={isAccountModalOpen} user={user} vehiclesCount={vehicles.length} routesCount={recordedRoutes.length} currentToken={token} onSaveToken={(newToken) => { setToken(newToken); try { window.localStorage.setItem('roadr:mapbox-token:v1', newToken); } catch {} if (origin && destination) void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, stops, newToken); }} onClose={() => setIsAccountModalOpen(false)} onAccountDeleted={handleAccountDeleted} onSignOut={() => { void handleSignOut(); setIsAccountModalOpen(false); }} />

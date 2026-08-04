@@ -24,9 +24,21 @@ import {
   Waves,
   Zap,
 } from 'lucide-react';
-import { LocationPoint, RouteData, RouteDetails, RouteOption, RouteTelemetry, VehicleProfile } from '@/types';
+import { LocationPoint, RouteData, RouteDetails, RouteOption, RouteTelemetry, VehicleFuelType, VehicleProfile } from '@/types';
 import { getRouteRangeStatus } from '@/lib/vehicle';
 import { exportGoogleMapsRouteUrl } from '@/lib/googleMaps';
+
+import { isSameLocation } from '@/lib/mapbox';
+
+function fuelTypeLabel(fuelType?: VehicleFuelType): string {
+  switch (fuelType) {
+    case 'diesel': return 'Diesel (B7)';
+    case 'premium_diesel': return 'Premium Diesel (B7 Premium)';
+    case 'premium_petrol': return 'Premium Petrol (E5)';
+    case 'hybrid': return 'Hybrid (E10)';
+    default: return 'Petrol (E10)';
+  }
+}
 
 interface TelemetryCardProps {
   telemetry: RouteTelemetry;
@@ -43,11 +55,13 @@ interface TelemetryCardProps {
   pricePerLiterPence: number;
   liveFuelPricePence: number;
   liveFuelSource: string;
+  liveFuelSourceUrl?: string;
   isLiveFuelFetching: boolean;
   homeOffPeakPence?: number;
   homeStandardPence?: number;
   rapidChargerPence?: number;
   evSource?: string;
+  evSourceUrl?: string;
   onChangeMpg: (newMpg: number) => void;
   onChangePricePerLiterPence: (newPricePence: number) => void;
   onResetFuelDefaults: () => void;
@@ -88,11 +102,13 @@ export default function TelemetryCard({
   pricePerLiterPence,
   liveFuelPricePence,
   liveFuelSource,
+  liveFuelSourceUrl = 'https://www.fuelmap.co.uk',
   isLiveFuelFetching,
   homeOffPeakPence = 8.0,
   homeStandardPence = 26.1,
   rapidChargerPence = 79.0,
   evSource = 'Ofgem & Zapmap UK (Live)',
+  evSourceUrl = 'https://www.zap-map.com',
   onChangeMpg,
   onChangePricePerLiterPence,
   onResetFuelDefaults,
@@ -162,27 +178,19 @@ export default function TelemetryCard({
 
   return (
     <div className="theme-scope theme-panel flighty-card liquid-glass rounded-3xl border border-white/12 p-3.5 text-gray-100 shadow-2xl animate-fade-in space-y-3.5 max-w-full sm:p-5">
-      {/* Flighty Status Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2.5 max-w-full">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="flighty-pulse-dot shrink-0" />
-          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-teal-300 truncate">
-            Route Active · Telemetry Live
-          </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {alternatives.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowAlternatives((open) => !open)}
-              className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-semibold text-cyan-100 transition-colors hover:bg-cyan-400/20"
-            >
-              <GitBranch className="h-3 w-3 text-cyan-300" />
-              <span>Routes ({alternatives.length})</span>
-            </button>
-          )}
-        </div>
-      </div>
+      {alternatives.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAlternatives((open) => !open)}
+          className="flex w-full items-center justify-between gap-2 rounded-2xl border border-cyan-400/35 bg-cyan-500/15 px-3.5 py-2.5 text-xs font-bold text-cyan-200 transition-all hover:border-cyan-400/60 hover:bg-cyan-500/25 hover:text-white"
+        >
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-cyan-300" />
+            <span>Alternative Routes ({alternatives.length + 1} available)</span>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-cyan-300 transition-transform duration-200 ${showAlternatives ? 'rotate-180' : ''}`} />
+        </button>
+      )}
 
       {/* Flighty Departure -> Arrival Airport Board Header */}
       <div className="rounded-2xl border border-white/10 bg-black/40 p-3.5 max-w-full">
@@ -197,7 +205,7 @@ export default function TelemetryCard({
           <div className="flex min-w-0 flex-1 flex-col items-center px-1">
             <div className="flex items-center gap-1 text-[9px] font-mono text-cyan-300">
               <Zap className="h-3 w-3 text-cyan-400 shrink-0" />
-              <span className="truncate">{stops.length > 0 ? `${stops.length} STOPS` : 'DIRECT'}</span>
+              <span className="truncate">{isSameLocation(origin, destination) ? `LOOP · ${stops.length} STOPS` : (stops.length > 0 ? `${stops.length} STOPS` : 'DIRECT')}</span>
             </div>
             <div className="relative my-1.5 w-full border-t border-dashed border-cyan-400/40" />
             <span className="text-[10px] font-mono text-gray-400 font-mono-tabular">{telemetry.distanceMiles.toFixed(1)} mi</span>
@@ -413,6 +421,20 @@ export default function TelemetryCard({
               </button>
               <button type="button" onClick={onOpenGarage} className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-gray-300 hover:text-white"><CarFront className="h-3 w-3 text-amber-400" />{vehicle ? 'Garage' : 'Set up car'}</button>
             </div>
+
+            <div className="flex items-center justify-between text-[10px] text-gray-400 pt-2 border-t border-white/5 font-mono">
+              <span>Power: <strong className="text-gray-200">EV Battery</strong></span>
+              <a
+                href={evSourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 transition-colors"
+                title="View live EV tariff source"
+              >
+                <span>Live data via {evSource}</span>
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            </div>
           </div>
         </div>
       ) : (
@@ -424,7 +446,7 @@ export default function TelemetryCard({
             </div>
             <div className="flex shrink-0 items-center space-x-1 rounded-full border border-emerald-500/30 bg-emerald-950/60 px-2 py-0.5 text-[9px] text-emerald-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              <span className="font-mono">{isLiveFuelFetching ? 'Loading' : `${liveFuelPricePence}p/L`}</span>
+              <span className="font-mono">{isLiveFuelFetching ? 'Loading' : `${liveFuelPricePence}p/L (${fuelTypeLabel(vehicle?.fuelType)})`}</span>
             </div>
           </div>
 
@@ -450,7 +472,7 @@ export default function TelemetryCard({
 
             <div className="space-y-1">
               <div className="flex justify-between text-[11px] font-mono">
-                <span className="text-gray-300">Fuel rate</span>
+                <span className="text-gray-300">Fuel rate ({fuelTypeLabel(vehicle?.fuelType)})</span>
                 <span className="font-bold text-amber-400 font-mono-tabular shrink-0">{pricePerLiterPence.toFixed(1)}p / L</span>
               </div>
               <input type="range" min={110} max={220} step={0.5} value={pricePerLiterPence} onChange={(event) => onChangePricePerLiterPence(parseFloat(event.target.value))} className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-amber-400" />
@@ -459,6 +481,20 @@ export default function TelemetryCard({
             <div className="flex items-center justify-between gap-2 pt-1">
               <button onClick={onResetFuelDefaults} className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-mono text-cyan-400 hover:bg-cyan-500/20">Reset rate</button>
               <button type="button" onClick={onOpenGarage} className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-gray-300 hover:text-white"><CarFront className="h-3 w-3 text-cyan-400" />{vehicle ? 'Garage' : 'Set up car'}</button>
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] text-gray-400 pt-2 border-t border-white/5 font-mono">
+              <span>Fuel: <strong className="text-gray-200 capitalize">{fuelTypeLabel(vehicle?.fuelType)}</strong></span>
+              <a
+                href={liveFuelSourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 transition-colors"
+                title="View live fuel price source"
+              >
+                <span>Live data via {liveFuelSource}</span>
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
             </div>
           </div>
         </div>

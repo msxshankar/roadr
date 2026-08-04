@@ -15,7 +15,7 @@ export const DEFAULT_VEHICLE: Omit<VehicleProfile, 'id'> = {
   rangeMiles: 250,
 };
 
-const FUEL_TYPES: VehicleFuelType[] = ['petrol', 'diesel', 'hybrid', 'electric'];
+const FUEL_TYPES: VehicleFuelType[] = ['petrol', 'premium_petrol', 'diesel', 'premium_diesel', 'hybrid', 'electric'];
 
 function isVehicleFuelType(value: unknown): value is VehicleFuelType {
   return typeof value === 'string' && FUEL_TYPES.includes(value as VehicleFuelType);

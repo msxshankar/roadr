@@ -718,6 +718,13 @@ export async function isolateRoutingError(
   };
 }
 
+export function isSameLocation(a: LocationPoint | null, b: LocationPoint | null): boolean {
+  if (!a || !b) return false;
+  const sameCoordinates = Math.abs(a.lng - b.lng) < 0.0001 && Math.abs(a.lat - b.lat) < 0.0001;
+  const sameName = a.name.trim().toLowerCase() === b.name.trim().toLowerCase();
+  return sameCoordinates || sameName;
+}
+
 /** Fetch a route through Mapbox when configured, with an OSRM fallback. */
 export async function fetchRoute(
   origin: LocationPoint,
@@ -727,6 +734,17 @@ export async function fetchRoute(
   pricePerLiterPence: number = DEFAULT_UK_PETROL_PRICE_PENCE,
   stops: LocationPoint[] = []
 ): Promise<RouteData> {
+  if (isSameLocation(origin, destination) && stops.length === 0) {
+    const err = new Error(`To calculate a round-trip loop back to ${origin.name}, please add at least one intermediate stop.`);
+    (err as any).routingErrorDetail = {
+      failingIndex: 0,
+      targetKey: 'destination',
+      failingLocation: destination,
+      message: `To calculate a round-trip loop back to ${origin.name}, please add at least one intermediate stop.`,
+    };
+    throw err;
+  }
+
   const points = [origin, ...stops, destination];
   const coordinateString = points.map((point) => `${point.lng},${point.lat}`).join(';');
   const hasValidToken = Boolean(token && token.trim().startsWith('pk.'));

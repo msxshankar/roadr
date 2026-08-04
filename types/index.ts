@@ -6,7 +6,7 @@ export interface LocationPoint {
   lat: number;
 }
 
-export type VehicleFuelType = 'petrol' | 'diesel' | 'hybrid' | 'electric';
+export type VehicleFuelType = 'petrol' | 'premium_petrol' | 'diesel' | 'premium_diesel' | 'hybrid' | 'electric';
 
 export interface VehicleProfile {
   id: string;
@@ -108,6 +108,8 @@ export interface RouteOption {
   provider: 'mapbox' | 'osrm';
 }
 
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night';
+
 export interface RecordedRoute {
   id: string;
   name: string;
@@ -120,6 +122,9 @@ export interface RecordedRoute {
   fuelLiters: number;
   fuelCostGbp: number;
   durationSeconds: number;
+  isPlanned?: boolean;
+  timeOfDay?: TimeOfDay;
+  noSpecificDate?: boolean;
 }
 
 export interface RoadrAppState {

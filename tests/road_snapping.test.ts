@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { snapToNearestRoad } from '../lib/geocoding';
-import { isolateRoutingError } from '../lib/mapbox';
+import { isolateRoutingError, isSameLocation, fetchRoute } from '../lib/mapbox';
 
 describe('Map Click Road Snapping & Routing Error Isolation', () => {
   it('snaps arbitrary coordinates to a formatted location with road details', async () => {
@@ -26,5 +26,19 @@ describe('Map Click Road Snapping & Routing Error Isolation', () => {
     expect(errorDetail).toHaveProperty('message');
     expect(errorDetail).toHaveProperty('suggestedLocation');
     expect(errorDetail.suggestedLocation).toHaveProperty('name');
+  });
+
+  it('identifies identical or matching locations for round-trip loop drives', () => {
+    const locA = { name: 'London', lng: -0.1276, lat: 51.5074 };
+    const locB = { name: 'London, UK', lng: -0.1276, lat: 51.5074 };
+    const locC = { name: 'Oxford', lng: -1.2577, lat: 51.752 };
+
+    expect(isSameLocation(locA, locB)).toBe(true);
+    expect(isSameLocation(locA, locC)).toBe(false);
+  });
+
+  it('rejects loop route calculation when no intermediate stops are provided', async () => {
+    const locA = { name: 'London', lng: -0.1276, lat: 51.5074 };
+    await expect(fetchRoute(locA, locA)).rejects.toThrow('To calculate a round-trip loop');
   });
 });

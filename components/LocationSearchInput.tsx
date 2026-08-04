@@ -12,6 +12,7 @@ interface LocationSearchInputProps {
   placeholder: string;
   token?: string;
   savedPlaces: LocationPoint[];
+  sameAsOriginLocation?: LocationPoint | null;
   onSelectLocation: (location: LocationPoint) => void;
   onClear: () => void;
   isPickingOnMap?: boolean;
@@ -30,6 +31,7 @@ export default function LocationSearchInput({
   placeholder,
   token,
   savedPlaces,
+  sameAsOriginLocation = null,
   onSelectLocation,
   onClear,
   isPickingOnMap,
@@ -267,8 +269,29 @@ export default function LocationSearchInput({
       )}
 
       {/* Autocomplete Dropdown List */}
-      {isOpen && (savedSuggestions.length > 0 || suggestions.length > 0) && (
+      {isOpen && (sameAsOriginLocation || savedSuggestions.length > 0 || suggestions.length > 0) && (
         <div id={suggestionsId} role="listbox" aria-label={`${label} suggestions`} className="theme-scope absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto overflow-hidden rounded-xl border border-white/15 liquid-glass shadow-2xl animate-fade-in">
+          {sameAsOriginLocation && (
+            <button
+              type="button"
+              role="option"
+              onClick={() => {
+                onSelectLocation(sameAsOriginLocation);
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2.5 transition-colors border-b border-white/10 flex items-center space-x-2.5 bg-amber-500/10 hover:bg-amber-500/20 group"
+            >
+              <span className="text-sm">🔁</span>
+              <div className="flex-1 min-w-0">
+                <span className="block text-xs font-bold text-amber-200 group-hover:text-white truncate">
+                  Same as Origin ({sameAsOriginLocation.name})
+                </span>
+                <span className="block text-[10px] text-gray-400 truncate">
+                  Create a round-trip loop drive
+                </span>
+              </div>
+            </button>
+          )}
           {savedSuggestions.length > 0 && (
             <>
               <div className="px-3.5 py-2 flex items-center space-x-1.5 bg-black/20 border-b border-white/10">
