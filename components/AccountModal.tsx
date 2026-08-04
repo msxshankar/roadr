@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Calendar, CarFront, CheckCircle2, ExternalLink, Key, MapPinned, Shield, Trash2, User, X } from 'lucide-react';
+import { AlertTriangle, Calendar, CarFront, CheckCircle2, ExternalLink, Key, LogOut, MapPinned, Shield, Trash2, User, X } from 'lucide-react';
 import { User as UserType } from '@/types';
 
 interface AccountModalProps {
@@ -13,6 +13,7 @@ interface AccountModalProps {
   onSaveToken: (token: string) => void;
   onClose: () => void;
   onAccountDeleted: () => void;
+  onSignOut: () => void;
 }
 
 export default function AccountModal({
@@ -24,6 +25,7 @@ export default function AccountModal({
   onSaveToken,
   onClose,
   onAccountDeleted,
+  onSignOut,
 }: AccountModalProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -118,14 +120,29 @@ export default function AccountModal({
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-            aria-label="Close account settings"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onSignOut();
+                onClose();
+              }}
+              className="flex items-center gap-1.5 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition-all hover:bg-red-500/20 hover:text-white cursor-pointer"
+              title="Sign out of Roadr"
+              aria-label="Sign out of Roadr"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span>Sign out</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl p-2 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Close account settings"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <div className="mt-6 space-y-4">

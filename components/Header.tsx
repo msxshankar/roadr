@@ -93,22 +93,16 @@ export default function Header({
         )}
 
         {user ? (
-          <>
-            <button
-              type="button"
-              onClick={onOpenAccount}
-              className="header-profile h-8 sm:h-9 inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-1.5 sm:px-2 text-[11px] sm:text-xs transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20"
-              title={`Signed in as ${user.username} — Click to manage account`}
-              aria-label={`Signed in as ${user.username}. Manage account`}
-            >
-              <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-cyan-400/20 text-[9px] font-bold text-cyan-100">{initials}</span>
-              <span className="header-profile-name hidden max-w-16 truncate text-[11px] font-semibold text-cyan-100 lg:inline sm:max-w-24 sm:text-xs">{user.username}</span>
-            </button>
-            <button type="button" onClick={onSignOut} className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-red-400/25 bg-red-500/10 px-2 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-red-200 transition-all hover:bg-red-500/20 hover:text-white" title="Sign out of Roadr" aria-label="Sign out of Roadr">
-              <LogOut className="h-3.5 w-3.5" />
-              <span className="header-action-label hidden lg:inline font-medium">Sign out</span>
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={onOpenAccount}
+            className="header-profile h-8 sm:h-9 inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-1.5 sm:px-2 text-[11px] sm:text-xs transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20"
+            title={`Signed in as ${user.username} — Click to manage account & sign out`}
+            aria-label={`Signed in as ${user.username}. Manage account`}
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-cyan-400/20 text-[9px] font-bold text-cyan-100">{initials}</span>
+            <span className="header-profile-name hidden max-w-16 truncate text-[11px] font-semibold text-cyan-100 lg:inline sm:max-w-24 sm:text-xs">{user.username}</span>
+          </button>
         ) : (
           <button type="button" onClick={onOpenAuth} className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 text-[11px] sm:text-xs font-semibold text-cyan-100 transition-all hover:bg-cyan-500/25 hover:text-white" title="Sign in to Roadr" aria-label="Sign in to Roadr">
             <LogIn className="h-3.5 w-3.5" />
