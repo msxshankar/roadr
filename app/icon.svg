@@ -5,15 +5,15 @@
       .logo-r {
         font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-weight: 900;
-        fill: #5eead4;
+        fill: #78a9ff;
       }
     </style>
   </defs>
 
   <!-- Dark Obsidian Background Card matching header logo badge -->
   <rect width="32" height="32" rx="8" fill="#090A0F"/>
-  <rect x="0.75" y="0.75" width="30.5" height="30.5" rx="7.25" stroke="#5eead4" stroke-opacity="0.3" stroke-width="1.5"/>
+  <rect x="0.75" y="0.75" width="30.5" height="30.5" rx="7.25" stroke="#78a9ff" stroke-opacity="0.3" stroke-width="1.5"/>
 
-  <!-- Centered 'R' letter in ROADR brand font & color -->
+  <!-- Centered 'R' letter in ROADR brand font & exact heading blue color (#78a9ff) -->
   <text x="16" y="22.5" text-anchor="middle" class="logo-r" font-size="21">R</text>
 </svg>
