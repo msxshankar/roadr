@@ -16,8 +16,9 @@ import AccountModal from '@/components/AccountModal';
 import ThemeModal, { ThemeMode, ThemePalette } from '@/components/ThemeModal';
 import { LocationPoint, RecordedRoute, RouteData, RoadrAppState, TimeOfDay, User, VehicleProfile } from '@/types';
 import { DEFAULT_DESTINATION, DEFAULT_ORIGIN } from '@/lib/defaultRoute';
-import { parseSavedPlaces, upsertSavedPlace } from '@/lib/savedPlaces';
+import { parseSavedPlaces, SAVED_PLACES_STORAGE_KEY, upsertSavedPlace } from '@/lib/savedPlaces';
 import { snapToNearestRoad } from '@/lib/geocoding';
+import type { SearchProximity } from '@/lib/places';
 import {
   fetchRoute,
   fetchRouteDetails,
@@ -48,6 +49,7 @@ export default function Home() {
   const [initialAddDriveIsPlanned, setInitialAddDriveIsPlanned] = useState<boolean>(false);
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [isRouteControlsHighlighted, setIsRouteControlsHighlighted] = useState(false);
 
   const [origin, setOrigin] = useState<LocationPoint | null>(DEFAULT_ORIGIN);
   const [destination, setDestination] = useState<LocationPoint | null>(DEFAULT_DESTINATION);
@@ -82,6 +84,7 @@ export default function Home() {
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
+  const [searchProximity, setSearchProximity] = useState<SearchProximity | undefined>();
 
   const [selectedStyleId, setSelectedStyleId] = useState('satellite');
   const [isPreviewActive, setIsPreviewActive] = useState(false);
@@ -302,10 +305,6 @@ export default function Home() {
     updateAppState({ vehicles: nextVehicles, activeVehicleId: nextActiveId });
   };
 
-  const rememberPlace = (location: LocationPoint) => {
-    setSavedPlaces((currentPlaces) => upsertSavedPlace(currentPlaces, location));
-  };
-
   const handleSelectOrigin = (location: LocationPoint) => {
     handleExitPreview();
     rememberPlace(location);
@@ -490,6 +489,18 @@ export default function Home() {
 
     void syncStateToServer(updated);
   }, [syncStateToServer]);
+
+  const rememberPlace = useCallback((location: LocationPoint) => {
+    const nextPlaces = upsertSavedPlace(appStateRef.current.savedPlaces, location);
+    updateAppState({ savedPlaces: nextPlaces });
+    if (authStatus !== 'authenticated' && allowLegacyState) {
+      try {
+        window.localStorage.setItem(SAVED_PLACES_STORAGE_KEY, JSON.stringify(nextPlaces));
+      } catch {
+        // Saved places remain available for this session if local storage is unavailable.
+      }
+    }
+  }, [allowLegacyState, authStatus, updateAppState]);
 
   const refreshAppState = useCallback(async () => {
     if (authStatus !== 'authenticated' || isSavingRef.current) return;
@@ -906,6 +917,7 @@ export default function Home() {
         }
         onMapClick={handleMapClick}
         onCancelMapPick={() => setPickingTarget(null)}
+        onViewportChange={setSearchProximity}
       />
 
       {!isPreviewActive && <button type="button" onClick={() => setIsSidebarOpen((open) => !open)} className="theme-scope sidebar-toggle fixed top-24 z-40 hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/80 text-gray-300 shadow-xl transition-all hover:text-white md:flex" style={{ left: isSidebarOpen ? `calc(1rem + ${sidebarWidth}px)` : '0.75rem' }} aria-expanded={isSidebarOpen} aria-controls="mobile-route-panel" title={isSidebarOpen ? 'Hide route planner' : 'Show route planner'} aria-label={isSidebarOpen ? 'Hide route planner' : 'Show route planner'}>
@@ -924,8 +936,8 @@ export default function Home() {
         <RouteControls
           origin={origin}
           destination={destination}
-          token={token}
           savedPlaces={savedPlaces}
+          searchProximity={searchProximity}
           stops={stops}
           onSelectOrigin={handleSelectOrigin}
           onSelectDestination={handleSelectDestination}
@@ -953,6 +965,7 @@ export default function Home() {
           onStartMapPick={(target) => setPickingTarget(target)}
           routingErrorDetail={routingErrorDetail}
           onApplySuggestedLocation={handleApplySuggestedLocation}
+          isHighlighted={isRouteControlsHighlighted}
         />
         {activeRouteData && origin && destination && routeData && <TelemetryCard telemetry={activeRouteData.telemetry} details={activeRouteData.details} originalRoute={routeData} selectedRouteId={selectedRouteId} alternatives={routeData.alternatives || []} origin={origin} destination={destination} stops={stops} provider={activeRouteData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} liveFuelSourceUrl={liveFuelSourceUrl} isLiveFuelFetching={isLiveFuelFetching} homeOffPeakPence={homeOffPeakPence} homeStandardPence={homeStandardPence} rapidChargerPence={rapidChargerPence} evSource={evSource} evSourceUrl={evSourceUrl} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectRoute={handleSelectRoute} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={(evCost) => { setActiveEvCostGbp(evCost ?? null); setIsRecordModalOpen(true); }} />}
         <div className="route-sidebar-resizer hidden md:block" role="separator" aria-label="Resize route planner sidebar" aria-orientation="vertical" onPointerDown={handleSidebarResizeStart} />
@@ -971,12 +984,13 @@ export default function Home() {
         onDeleteRecordedRoute={handleDeleteRecordedRoute}
         onClose={() => setIsDrivesOpen(false)}
         onOpenAddDrive={(type) => {
+          setIsDrivesOpen(false);
+          setIsRecordModalOpen(false);
           setInitialAddDriveIsPlanned(type === 'planned');
           setIsSidebarOpen(true);
           setIsMobilePanelOpen(true);
-          if (activeRouteData) {
-            setIsRecordModalOpen(true);
-          }
+          setIsRouteControlsHighlighted(true);
+          setTimeout(() => setIsRouteControlsHighlighted(false), 3000);
         }}
       />
       <ThemeModal

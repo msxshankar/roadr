@@ -6,11 +6,10 @@ import { LocationPoint } from '@/types';
 import { importGoogleMapsRoute } from '@/lib/googleMaps';
 
 interface GoogleMapsImportProps {
-  token?: string;
   onImport: (points: LocationPoint[]) => void;
 }
 
-export default function GoogleMapsImport({ token, onImport }: GoogleMapsImportProps) {
+export default function GoogleMapsImport({ onImport }: GoogleMapsImportProps) {
   const [value, setValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +20,7 @@ export default function GoogleMapsImport({ token, onImport }: GoogleMapsImportPr
     setIsLoading(true);
     setError(null);
     try {
-      const points = await importGoogleMapsRoute(value, token);
+      const points = await importGoogleMapsRoute(value);
       if (points.length < 2) throw new Error('The link needs at least an origin and destination.');
       onImport(points);
       setValue('');

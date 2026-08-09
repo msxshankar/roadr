@@ -48,6 +48,7 @@ interface MapProps {
   pickingTargetName?: string;
   onMapClick?: (coords: { lng: number; lat: number }) => void;
   onCancelMapPick?: () => void;
+  onViewportChange?: (center: { lng: number; lat: number }) => void;
 }
 
 const FREE_CARTO_DARK: mapboxgl.Style = {
@@ -293,6 +294,7 @@ export default function Map({
   pickingTargetName,
   onMapClick,
   onCancelMapPick,
+  onViewportChange,
 }: MapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -333,9 +335,13 @@ export default function Map({
   const [isManualHintVisible, setIsManualHintVisible] = useState(false);
 
   const onMapClickRef = useRef(onMapClick);
+  const onViewportChangeRef = useRef(onViewportChange);
   useEffect(() => {
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
+  useEffect(() => {
+    onViewportChangeRef.current = onViewportChange;
+  }, [onViewportChange]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -361,6 +367,18 @@ export default function Map({
 
   const routeGeometry = routeData?.geometry;
   const primaryRouteGeometry = primaryRouteData?.geometry || routeGeometry;
+
+  const isPreviewActiveRef = useRef(isPreviewActive);
+  useEffect(() => {
+    isPreviewActiveRef.current = isPreviewActive;
+    if (!isPreviewActive) {
+      isPlayingRef.current = false;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    }
+  }, [isPreviewActive]);
 
   useEffect(() => {
     isPlayingRef.current = isPlayingPreview;
@@ -502,6 +520,12 @@ export default function Map({
 
       map.on('style.load', applyMapQualitySettings);
       map.on('error', (event) => console.warn('Map or tile error:', event.error));
+      const reportViewport = () => {
+        const center = map.getCenter();
+        onViewportChangeRef.current?.({ lng: center.lng, lat: center.lat });
+      };
+      map.once('load', reportViewport);
+      map.on('moveend', reportViewport);
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
       mapRef.current = map;
 
@@ -515,6 +539,8 @@ export default function Map({
         vehicleMarkerRef.current = null;
         stopMarkers.forEach((marker) => marker.remove());
         stopMarkers.clear();
+        map.off('moveend', reportViewport);
+        map.off('load', reportViewport);
         map.remove();
         mapRef.current = null;
       };
@@ -858,6 +884,13 @@ export default function Map({
 
     let lastTime = performance.now();
     const loop = (now: number) => {
+      if (!isPreviewActiveRef.current) {
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+        return;
+      }
       const deltaMs = Math.min(Math.max(now - lastTime, 0), 80);
       lastTime = now;
 
@@ -907,7 +940,7 @@ export default function Map({
         onProgressTickRef.current(progressRef.current, currentBearingRef.current);
       }
 
-      if (isPreviewActive) animationFrameRef.current = requestAnimationFrame(loop);
+      if (isPreviewActiveRef.current) animationFrameRef.current = requestAnimationFrame(loop);
     };
 
     if (!isPreviewActive) return;

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Calendar, Clock, Check, Copy, ExternalLink, GripVertical, Navigation, Plus, RotateCw, Route as RouteIcon, Share2, Trash2, X } from 'lucide-react';
 import { LocationPoint } from '@/types';
 import { RoutingErrorDetail, isSameLocation } from '@/lib/mapbox';
+import { SearchProximity } from '@/lib/places';
 import LocationSearchInput from './LocationSearchInput';
 import GoogleMapsImport from './GoogleMapsImport';
 import { exportGoogleMapsRouteUrl } from '@/lib/googleMaps';
@@ -11,8 +12,8 @@ import { exportGoogleMapsRouteUrl } from '@/lib/googleMaps';
 interface RouteControlsProps {
   origin: LocationPoint | null;
   destination: LocationPoint | null;
-  token?: string;
   savedPlaces: LocationPoint[];
+  searchProximity?: SearchProximity;
   stops: LocationPoint[];
   onSelectOrigin: (location: LocationPoint) => void;
   onSelectDestination: (location: LocationPoint) => void;
@@ -32,13 +33,14 @@ interface RouteControlsProps {
   onStartMapPick?: (target: 'origin' | 'destination' | { type: 'stop'; index: number } | null) => void;
   routingErrorDetail?: RoutingErrorDetail | null;
   onApplySuggestedLocation?: (target: 'origin' | 'destination' | number, location: LocationPoint) => void;
+  isHighlighted?: boolean;
 }
 
 export default function RouteControls({
   origin,
   destination,
-  token,
   savedPlaces,
+  searchProximity,
   stops,
   onSelectOrigin,
   onSelectDestination,
@@ -58,6 +60,7 @@ export default function RouteControls({
   onStartMapPick,
   routingErrorDetail = null,
   onApplySuggestedLocation,
+  isHighlighted = false,
 }: RouteControlsProps) {
   const [isAddingStop, setIsAddingStop] = useState(false);
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
@@ -80,7 +83,7 @@ export default function RouteControls({
   };
 
   return (
-    <div className="theme-scope theme-panel flighty-card liquid-glass w-full max-w-md space-y-3 rounded-2xl border border-white/10 p-4 shadow-2xl">
+    <div className={`theme-scope theme-panel flighty-card liquid-glass w-full max-w-md space-y-3 rounded-2xl border p-4 shadow-2xl transition-all duration-300 ${isHighlighted ? 'border-cyan-400 ring-2 ring-cyan-400/80 shadow-[0_0_30px_rgba(6,182,212,0.4)] animate-pulse' : 'border-white/10'}`}>
       <div className="flex items-center justify-between">
         <div>
           <p className="font-display text-sm font-bold text-white">Plan a journey</p>
@@ -95,15 +98,15 @@ export default function RouteControls({
         </div>
       </div>
 
-      <GoogleMapsImport token={token} onImport={onImportGoogleRoute} />
+      <GoogleMapsImport onImport={onImportGoogleRoute} />
 
       <LocationSearchInput
         label="Origin"
         badgeColor="cyan"
         value={origin}
         placeholder="Search a town, landmark, postcode or business..."
-        token={token}
         savedPlaces={savedPlaces}
+        searchProximity={searchProximity}
         onSelectLocation={onSelectOrigin}
         onClear={onClearOrigin}
         isPickingOnMap={pickingTarget === 'origin'}
@@ -198,8 +201,8 @@ export default function RouteControls({
               badgeColor="cyan"
               value={null}
               placeholder="Search for the next stop..."
-              token={token}
               savedPlaces={savedPlaces}
+              searchProximity={searchProximity}
               onSelectLocation={(location) => { onAddStop(location); setIsAddingStop(false); }}
               onClear={() => setIsAddingStop(false)}
               isPickingOnMap={typeof pickingTarget === 'object' && pickingTarget?.type === 'stop' && pickingTarget.index === stops.length}
@@ -216,8 +219,8 @@ export default function RouteControls({
           badgeColor="amber"
           value={destination}
           placeholder="Search a town, landmark, postcode or business..."
-          token={token}
           savedPlaces={savedPlaces}
+          searchProximity={searchProximity}
           sameAsOriginLocation={origin}
           onSelectLocation={onSelectDestination}
           onClear={onClearDestination}
@@ -293,24 +296,24 @@ export default function RouteControls({
       </div>
 
       <div className="flex items-center space-x-2 pt-0.5">
-        <button type="button" onClick={onCalculateRoute} disabled={!origin || !destination || isLoadingRoute} className="theme-primary-button flex flex-1 items-center justify-center space-x-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-all hover:brightness-110 active:scale-95 disabled:pointer-events-none disabled:opacity-40" title="Refresh route calculation">
+        <button type="button" onClick={onCalculateRoute} disabled={!origin || !destination || isLoadingRoute} className="theme-primary-button flex items-center justify-center space-x-1.5 rounded-xl px-3 py-2.5 text-xs font-extrabold shrink-0 transition-all hover:brightness-110 active:scale-95 disabled:pointer-events-none disabled:opacity-40" title="Refresh route calculation">
           {isLoadingRoute ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" /><span>Refreshing...</span></> : <><RotateCw className="h-4 w-4" /><span>Refresh</span></>}
         </button>
 
-        <div className="relative">
+        <div className="relative flex-1">
           <button
             type="button"
             onClick={() => setIsAddDriveMenuOpen((prev) => !prev)}
             disabled={!origin || !destination}
-            className="flex items-center justify-center space-x-1.5 rounded-xl border border-teal-400/30 bg-teal-500/15 px-3 py-2.5 text-xs font-bold text-teal-200 transition-all hover:bg-teal-500/25 hover:text-white disabled:pointer-events-none disabled:opacity-40"
-            title="Save route as past or planned drive"
+            className="w-full flex items-center justify-center space-x-1.5 rounded-xl border border-teal-400/30 bg-teal-500/15 px-3 py-2.5 text-xs font-bold text-teal-200 transition-all hover:bg-teal-500/25 hover:text-white disabled:pointer-events-none disabled:opacity-40"
+            title="Record route as past or planned drive"
           >
             <Plus className="h-4 w-4 text-teal-300" />
-            <span>Add Drive</span>
+            <span>Record drive</span>
           </button>
 
           {isAddDriveMenuOpen && (
-            <div className="absolute right-0 bottom-full mb-2 z-50 w-44 rounded-2xl border border-teal-400/30 bg-[#090a0f]/95 p-1.5 shadow-2xl backdrop-blur-md">
+            <div className="absolute right-0 bottom-full mb-2 z-50 w-48 rounded-2xl border border-teal-400/30 bg-[#090a0f]/95 p-1.5 shadow-2xl backdrop-blur-md">
               <button
                 type="button"
                 onClick={() => {
@@ -320,7 +323,7 @@ export default function RouteControls({
                 className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 hover:text-white transition-colors"
               >
                 <Clock className="h-3.5 w-3.5 text-cyan-300" />
-                <span>Add as Past Drive</span>
+                <span>Record as Past Drive</span>
               </button>
               <button
                 type="button"
@@ -331,7 +334,7 @@ export default function RouteControls({
                 className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-amber-200 hover:bg-amber-500/20 hover:text-white transition-colors"
               >
                 <Calendar className="h-3.5 w-3.5 text-amber-300" />
-                <span>Add as Planned Drive</span>
+                <span>Record as Planned Drive</span>
               </button>
             </div>
           )}

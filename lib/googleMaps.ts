@@ -1,5 +1,5 @@
 import { LocationPoint } from '@/types';
-import { searchLocations } from './geocoding';
+import { resolveLocation } from './places';
 
 const GOOGLE_HOST_PATTERN = /(^|\.)google\.[a-z.]+$|(^|\.)google\.com$/i;
 const SHORT_GOOGLE_HOSTS = new Set(['goo.gl', 'maps.app.goo.gl']);
@@ -122,7 +122,7 @@ function pointFromCoordinate(coordinate: { lat: number; lng: number }, label: st
  * links are used as-is; text-only links are resolved one point at a time so a
  * malformed URL can never silently rewrite the route.
  */
-export async function importGoogleMapsRoute(rawValue: string, token?: string): Promise<LocationPoint[]> {
+export async function importGoogleMapsRoute(rawValue: string): Promise<LocationPoint[]> {
   const parsed = parseGoogleMapsRoute(rawValue);
   if (parsed.coordinates.length >= 2) {
     return parsed.coordinates.map((coordinate, index) => pointFromCoordinate(coordinate, parsed.labels[index] || '', index));
@@ -131,10 +131,9 @@ export async function importGoogleMapsRoute(rawValue: string, token?: string): P
   const points: LocationPoint[] = [];
   for (let index = 0; index < parsed.labels.length; index += 1) {
     const label = parsed.labels[index];
-    const results = await searchLocations(label, token);
-    const match = results[0];
+    const match = await resolveLocation(label);
     if (!match) throw new Error(`Google Maps point “${label}” could not be located. Check the link or enter this point manually.`);
-    points.push({ name: match.fullName || match.name || label, lat: match.lat, lng: match.lng });
+    points.push({ name: match.name || label, lat: match.lat, lng: match.lng });
     if (index < parsed.labels.length - 1) await new Promise((resolve) => window.setTimeout(resolve, 80));
   }
   return points;
@@ -167,5 +166,4 @@ export function exportGoogleMapsRouteUrl(
 
   return url;
 }
-
 

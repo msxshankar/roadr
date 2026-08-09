@@ -50,7 +50,7 @@ export default function Header({
     onSelectVehicle(selectedValue);
   };
 
-  const initials = user?.username.slice(0, 2).toUpperCase() || '';
+  const initials = user?.username.slice(0, 1).toUpperCase() || '';
 
   return (
     <header className="theme-scope liquid-glass-header absolute left-0 right-0 top-0 z-40 flex items-center justify-between border-b px-3 py-2 text-white sm:px-4 lg:px-6">
