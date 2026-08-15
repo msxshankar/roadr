@@ -39,3 +39,7 @@ data/*.sqlite-wal
 # skills
 .agents/skills/impeccable/
 
+# test artifacts
+test-results/
+playwright-report/
+

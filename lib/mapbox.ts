@@ -118,6 +118,161 @@ export function lerpAngle(currentAngle: number, targetAngle: number, alpha: numb
   return (currentAngle + delta * Math.min(Math.max(alpha, 0), 1) + 360) % 360;
 }
 
+/** Project point p onto line segment ab */
+export function projectPointOnSegment(
+  p: [number, number],
+  a: [number, number],
+  b: [number, number]
+): { point: [number, number]; distanceMeters: number; fraction: number } {
+  const [px, py] = p;
+  const [ax, ay] = a;
+  const [bx, by] = b;
+
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+
+  if (lenSq === 0) {
+    return {
+      point: a,
+      distanceMeters: haversineDistance(p, a),
+      fraction: 0,
+    };
+  }
+
+  const fraction = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+  const projectedPoint: [number, number] = [
+    ax + fraction * dx,
+    ay + fraction * dy,
+  ];
+
+  return {
+    point: projectedPoint,
+    distanceMeters: haversineDistance(p, projectedPoint),
+    fraction,
+  };
+}
+
+/** Find the closest point and segment on a polyline for a given coordinate */
+export function findNearestPointOnPolyline(
+  target: [number, number],
+  polyline: [number, number][]
+): {
+  point: [number, number];
+  distanceMeters: number;
+  segmentIndex: number;
+  distanceAlongPolyline: number;
+} {
+  if (!polyline || polyline.length === 0) {
+    return { point: target, distanceMeters: 0, segmentIndex: 0, distanceAlongPolyline: 0 };
+  }
+  if (polyline.length === 1) {
+    return {
+      point: polyline[0],
+      distanceMeters: haversineDistance(target, polyline[0]),
+      segmentIndex: 0,
+      distanceAlongPolyline: 0,
+    };
+  }
+
+  const cumulative = computeCumulativeDistances(polyline);
+  let bestDist = Infinity;
+  let bestPoint: [number, number] = polyline[0];
+  let bestSegmentIndex = 0;
+  let bestDistanceAlong = 0;
+
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const a = polyline[i];
+    const b = polyline[i + 1];
+    const result = projectPointOnSegment(target, a, b);
+
+    if (result.distanceMeters < bestDist) {
+      bestDist = result.distanceMeters;
+      bestPoint = result.point;
+      bestSegmentIndex = i;
+      const segmentDistance = (cumulative[i + 1] || 0) - (cumulative[i] || 0);
+      bestDistanceAlong = (cumulative[i] || 0) + result.fraction * segmentDistance;
+    }
+  }
+
+  return {
+    point: bestPoint,
+    distanceMeters: bestDist,
+    segmentIndex: bestSegmentIndex,
+    distanceAlongPolyline: bestDistanceAlong,
+  };
+}
+
+/**
+ * Determine which leg index in stops a dragged point belongs to.
+ * Waypoints list is [origin, ...stops, destination].
+ * Returns stop insertion index (0 <= index <= stops.length).
+ */
+export function findWaypointLegIndex(
+  target: [number, number],
+  polyline: [number, number][],
+  stops: LocationPoint[]
+): number {
+  if (!polyline || polyline.length < 2) return stops.length;
+
+  const targetProjection = findNearestPointOnPolyline(target, polyline);
+  const targetDist = targetProjection.distanceAlongPolyline;
+
+  const stopDistances = stops.map((stop) => {
+    return findNearestPointOnPolyline([stop.lng, stop.lat], polyline).distanceAlongPolyline;
+  });
+
+  for (let i = 0; i < stopDistances.length; i++) {
+    if (targetDist < stopDistances[i]) {
+      return i;
+    }
+  }
+
+  return stops.length;
+}
+
+/**
+ * Fast client-side routing helper for continuous live route dragging preview.
+ * Queries Mapbox Directions (if token is valid) or public OSRM.
+ */
+export async function fetchLiveDragRoute(
+  coords: [number, number][],
+  token?: string,
+  signal?: AbortSignal
+): Promise<[number, number][] | null> {
+  if (!coords || coords.length < 2) return null;
+  const coordString = coords.map(([lng, lat]) => `${lng.toFixed(6)},${lat.toFixed(6)}`).join(';');
+  const hasValidToken = Boolean(token && token.trim().startsWith('pk.'));
+
+  if (hasValidToken) {
+    try {
+      const mapboxUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordString}?overview=full&geometries=geojson&steps=false&access_token=${token?.trim()}`;
+      const res = await fetch(mapboxUrl, { signal });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.routes?.[0]?.geometry?.coordinates) {
+          return data.routes[0].geometry.coordinates as [number, number][];
+        }
+      }
+    } catch {
+      // Fallback to OSRM
+    }
+  }
+
+  const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson&steps=false`;
+  try {
+    const res = await fetch(osrmUrl, { signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.code === 'Ok' && data.routes?.[0]?.geometry?.coordinates) {
+      return data.routes[0].geometry.coordinates as [number, number][];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function findDistanceIndex(cumulative: number[], targetMeters: number): number {
   let low = 0;
   let high = Math.max(cumulative.length - 2, 0);

@@ -709,7 +709,7 @@ html[data-theme='light'] .theme-modal {
   background: var(--app-panel);
 }
 
-/* Map markers use the same restrained palette without animated neon halos. */
+/* Map markers use the same restrained palette with responsive drag states. */
 .marker-origin {
   width: 22px;
   height: 22px;
@@ -717,7 +717,19 @@ html[data-theme='light'] .theme-modal {
   border: 3px solid #ffffff;
   border-radius: 50%;
   box-shadow: 0 2px 8px var(--app-shadow);
-  cursor: pointer;
+  cursor: grab;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease;
+}
+
+.marker-origin:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 14px var(--app-accent-strong);
+  z-index: 10;
+}
+
+.marker-origin:active {
+  cursor: grabbing !important;
+  transform: scale(1.38) !important;
 }
 
 .marker-destination {
@@ -727,7 +739,19 @@ html[data-theme='light'] .theme-modal {
   border: 3px solid #ffffff;
   border-radius: 50%;
   box-shadow: 0 2px 8px var(--app-shadow);
-  cursor: pointer;
+  cursor: grab;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease;
+}
+
+.marker-destination:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 14px var(--app-warm-strong);
+  z-index: 10;
+}
+
+.marker-destination:active {
+  cursor: grabbing !important;
+  transform: scale(1.38) !important;
 }
 
 .marker-stop {
@@ -742,6 +766,40 @@ html[data-theme='light'] .theme-modal {
   border: 2px solid var(--app-warm);
   box-shadow: 0 2px 8px var(--app-shadow);
   font: 700 11px 'JetBrains Mono', monospace;
+  cursor: grab;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease;
+}
+
+.marker-stop:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 14px var(--app-warm);
+  z-index: 10;
+}
+
+.marker-stop:active {
+  cursor: grabbing !important;
+  transform: scale(1.38) !important;
+}
+
+.route-hover-handle {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--app-accent);
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 0 12px var(--app-accent), 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: grab;
+  pointer-events: auto;
+  transition: transform 0.12s ease;
+}
+
+.route-hover-handle:hover {
+  transform: scale(1.35);
+}
+
+.route-hover-handle:active {
+  cursor: grabbing;
+  transform: scale(1.5);
 }
 
 .vehicle-avatar {
@@ -782,6 +840,16 @@ html[data-theme='light'] .theme-modal {
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
   border-bottom: 9px solid var(--app-accent);
+}
+
+.mini-hover-marker {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00f0ff;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 8px #00f0ff;
+  pointer-events: none;
 }
 
 /* Mapbox Popup Overrides */

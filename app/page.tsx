@@ -49,11 +49,11 @@ export default function Home() {
   const [initialAddDriveIsPlanned, setInitialAddDriveIsPlanned] = useState<boolean>(false);
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
-  const [isRouteControlsHighlighted, setIsRouteControlsHighlighted] = useState(false);
 
   const [origin, setOrigin] = useState<LocationPoint | null>(DEFAULT_ORIGIN);
   const [destination, setDestination] = useState<LocationPoint | null>(DEFAULT_DESTINATION);
   const [stops, setStops] = useState<LocationPoint[]>([]);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [savedPlaces, setSavedPlaces] = useState<LocationPoint[]>([]);
   const [vehicles, setVehicles] = useState<VehicleProfile[]>([]);
   const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
@@ -233,6 +233,84 @@ export default function Home() {
     } catch (error) {
       console.warn('Failed to snap map click to road:', error);
       setPickingTarget(null);
+    }
+  };
+
+  const handleDragOrigin = async ({ lng, lat }: { lng: number; lat: number }) => {
+    try {
+      const snapped = await snapToNearestRoad(lng, lat, token);
+      rememberPlace(snapped);
+      setOrigin(snapped);
+      if (destination) {
+        void handleCalculateRoute(snapped, destination, mpg, pricePerLiterPence, stops);
+      }
+    } catch (err) {
+      console.warn('Failed to snap dragged origin:', err);
+    }
+  };
+
+  const handleDragDestination = async ({ lng, lat }: { lng: number; lat: number }) => {
+    try {
+      const snapped = await snapToNearestRoad(lng, lat, token);
+      rememberPlace(snapped);
+      setDestination(snapped);
+      if (origin) {
+        void handleCalculateRoute(origin, snapped, mpg, pricePerLiterPence, stops);
+      }
+    } catch (err) {
+      console.warn('Failed to snap dragged destination:', err);
+    }
+  };
+
+  const handleDragStop = async (index: number, { lng, lat }: { lng: number; lat: number }) => {
+    try {
+      const snapped = await snapToNearestRoad(lng, lat, token);
+      rememberPlace(snapped);
+      const nextStops = [...stops];
+      if (index >= 0 && index < nextStops.length) {
+        nextStops[index] = snapped;
+        setStops(nextStops);
+        if (origin && destination) {
+          void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, nextStops);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to snap dragged stop:', err);
+    }
+  };
+
+  const handleInsertStopAt = async (legIndex: number, { lng, lat }: { lng: number; lat: number }) => {
+    try {
+      const snapped = await snapToNearestRoad(lng, lat, token);
+      rememberPlace(snapped);
+      const nextStops = [...stops];
+      const targetIndex = Math.min(Math.max(legIndex, 0), nextStops.length);
+      nextStops.splice(targetIndex, 0, snapped);
+      setStops(nextStops);
+      if (origin && destination) {
+        void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, nextStops);
+      }
+    } catch (err) {
+      console.warn('Failed to snap inserted stop on route:', err);
+    }
+  };
+
+  const handleMapAddWaypoint = async ({ lng, lat }: { lng: number; lat: number }) => {
+    try {
+      const snapped = await snapToNearestRoad(lng, lat, token);
+      rememberPlace(snapped);
+      if (!origin) {
+        setOrigin(snapped);
+      } else if (!destination) {
+        setDestination(snapped);
+        void handleCalculateRoute(origin, snapped, mpg, pricePerLiterPence, stops);
+      } else {
+        const nextStops = [...stops, snapped];
+        setStops(nextStops);
+        void handleCalculateRoute(origin, destination, mpg, pricePerLiterPence, nextStops);
+      }
+    } catch (err) {
+      console.warn('Failed to snap added waypoint:', err);
     }
   };
 
@@ -894,6 +972,7 @@ export default function Home() {
         isPreviewActive={isPreviewActive}
         isPlayingPreview={isPlayingPreview}
         previewProgress={previewProgress}
+        onSeekPreview={setPreviewProgress}
         speedMultiplier={speedMultiplier}
         cameraZoom={cameraZoom}
         onCameraZoomChange={setCameraZoom}
@@ -916,8 +995,25 @@ export default function Home() {
                 : 'location'
         }
         onMapClick={handleMapClick}
-        onCancelMapPick={() => setPickingTarget(null)}
+        onCancelMapPick={() => {
+          setPickingTarget(null);
+          setIsMobilePanelOpen(true);
+        }}
         onViewportChange={setSearchProximity}
+        isEditMode={isEditMode}
+        onToggleEditMode={() => {
+          setIsEditMode((prev) => {
+            const next = !prev;
+            if (next) setIsMobilePanelOpen(false);
+            else setIsMobilePanelOpen(true);
+            return next;
+          });
+        }}
+        onDragOrigin={handleDragOrigin}
+        onDragDestination={handleDragDestination}
+        onDragStop={handleDragStop}
+        onInsertStopAt={handleInsertStopAt}
+        onMapAddWaypoint={handleMapAddWaypoint}
       />
 
       {!isPreviewActive && <button type="button" onClick={() => setIsSidebarOpen((open) => !open)} className="theme-scope sidebar-toggle fixed top-24 z-40 hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/80 text-gray-300 shadow-xl transition-all hover:text-white md:flex" style={{ left: isSidebarOpen ? `calc(1rem + ${sidebarWidth}px)` : '0.75rem' }} aria-expanded={isSidebarOpen} aria-controls="mobile-route-panel" title={isSidebarOpen ? 'Hide route planner' : 'Show route planner'} aria-label={isSidebarOpen ? 'Hide route planner' : 'Show route planner'}>
@@ -931,7 +1027,7 @@ export default function Home() {
         {activeRouteData && <div className="flighty-dock-status flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-[10px] font-semibold text-gray-300"><MapPinned className="h-3.5 w-3.5 text-cyan-300" /><span>{activeRouteData.telemetry.distanceMiles.toFixed(1)} mi</span></div>}
       </div>}
 
-      {!isPreviewActive && <div id="mobile-route-panel" data-mobile-panel-open={isMobilePanelOpen} className={`theme-scope route-sidebar mobile-route-sheet fixed inset-x-2 bottom-16 top-16 z-30 flex max-h-[calc(100dvh-8rem)] w-auto max-w-none flex-col space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1 transition-all duration-300 md:absolute md:bottom-auto md:left-4 md:right-auto md:top-20 md:max-h-[calc(100dvh-6rem)] md:pb-6 ${isMobilePanelOpen ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0 md:pointer-events-auto md:translate-y-0 md:opacity-100'} ${isSidebarOpen ? 'md:translate-x-0' : 'md:pointer-events-none md:-translate-x-[calc(100%+1.5rem)] md:opacity-0'}`} style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
+      {!isPreviewActive && <div id="mobile-route-panel" data-mobile-panel-open={isMobilePanelOpen} className={`theme-scope route-sidebar mobile-route-sheet fixed inset-x-2 bottom-16 top-16 z-50 flex max-h-[calc(100dvh-8rem)] w-auto max-w-none flex-col space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1 transition-all duration-300 md:z-30 md:absolute md:bottom-auto md:left-4 md:right-auto md:top-20 md:max-h-[calc(100dvh-6rem)] md:pb-6 ${isMobilePanelOpen ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0 md:pointer-events-auto md:translate-y-0 md:opacity-100'} ${isSidebarOpen ? 'md:translate-x-0' : 'md:pointer-events-none md:-translate-x-[calc(100%+1.5rem)] md:opacity-0'}`} style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
         {errorMsg && <div className="theme-section flex items-start space-x-2 rounded-2xl border border-red-500/30 bg-red-950/80 p-3 text-xs text-red-200 shadow-xl"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" /><div><strong className="block font-semibold">Route error</strong><span>{errorMsg}</span></div></div>}
         <RouteControls
           origin={origin}
@@ -962,16 +1058,49 @@ export default function Home() {
           onCloseMobilePanel={() => setIsMobilePanelOpen(false)}
           isLoadingRoute={isLoadingRoute}
           pickingTarget={pickingTarget}
-          onStartMapPick={(target) => setPickingTarget(target)}
+          onStartMapPick={(target) => {
+            setPickingTarget(target);
+            setIsMobilePanelOpen(false);
+          }}
           routingErrorDetail={routingErrorDetail}
           onApplySuggestedLocation={handleApplySuggestedLocation}
-          isHighlighted={isRouteControlsHighlighted}
+          isEditMode={isEditMode}
+          onToggleEditMode={() => {
+            setIsEditMode((prev) => {
+              const next = !prev;
+              if (next) setIsMobilePanelOpen(false);
+              else setIsMobilePanelOpen(true);
+              return next;
+            });
+          }}
         />
         {activeRouteData && origin && destination && routeData && <TelemetryCard telemetry={activeRouteData.telemetry} details={activeRouteData.details} originalRoute={routeData} selectedRouteId={selectedRouteId} alternatives={routeData.alternatives || []} origin={origin} destination={destination} stops={stops} provider={activeRouteData.provider} vehicle={vehicle} mpg={mpg} pricePerLiterPence={pricePerLiterPence} liveFuelPricePence={liveFuelPricePence} liveFuelSource={liveFuelSource} liveFuelSourceUrl={liveFuelSourceUrl} isLiveFuelFetching={isLiveFuelFetching} homeOffPeakPence={homeOffPeakPence} homeStandardPence={homeStandardPence} rapidChargerPence={rapidChargerPence} evSource={evSource} evSourceUrl={evSourceUrl} onChangeMpg={(newMpg) => handleUpdateFuelConfig(newMpg, pricePerLiterPence)} onChangePricePerLiterPence={(newPrice) => handleUpdateFuelConfig(mpg, newPrice)} onResetFuelDefaults={() => handleUpdateFuelConfig(vehicle?.mpg || DEFAULT_UK_MPG, liveFuelPricePence)} onStartPreview={handleStartPreview} onSelectRoute={handleSelectRoute} onOpenGarage={() => setIsGarageOpen(true)} onRecordRoute={(evCost) => { setActiveEvCostGbp(evCost ?? null); setIsRecordModalOpen(true); }} />}
         <div className="route-sidebar-resizer hidden md:block" role="separator" aria-label="Resize route planner sidebar" aria-orientation="vertical" onPointerDown={handleSidebarResizeStart} />
       </div>}
 
-      {isPreviewActive && origin && destination && activeRouteData && <RoutePreviewHUD origin={origin} destination={destination} telemetry={activeRouteData.telemetry} progress={previewProgress} isPlaying={isPlayingPreview} speedMultiplier={speedMultiplier} bearing={currentBearing} cameraZoom={cameraZoom} selectedStyleId={selectedStyleId} orientationMode={orientationMode} onStyleChange={setSelectedStyleId} onChangeCameraZoom={setCameraZoom} onChangeOrientationMode={(mode) => { setOrientationMode(mode); if (mode === 'manual') setManualBearing(currentBearing); }} onTogglePlay={handleTogglePlayPreview} onSeek={setPreviewProgress} onChangeSpeedMultiplier={setSpeedMultiplier} onExitPreview={handleExitPreview} />}
+      {isPreviewActive && origin && destination && activeRouteData && (
+        <RoutePreviewHUD
+          origin={origin}
+          destination={destination}
+          stops={stops}
+          telemetry={activeRouteData.telemetry}
+          routeData={activeRouteData}
+          progress={previewProgress}
+          isPlaying={isPlayingPreview}
+          speedMultiplier={speedMultiplier}
+          bearing={currentBearing}
+          cameraZoom={cameraZoom}
+          selectedStyleId={selectedStyleId}
+          orientationMode={orientationMode}
+          onStyleChange={setSelectedStyleId}
+          onChangeCameraZoom={setCameraZoom}
+          onChangeOrientationMode={(mode) => { setOrientationMode(mode); if (mode === 'manual') setManualBearing(currentBearing); }}
+          onTogglePlay={handleTogglePlayPreview}
+          onSeek={setPreviewProgress}
+          onChangeSpeedMultiplier={setSpeedMultiplier}
+          onExitPreview={handleExitPreview}
+        />
+      )}
 
       {activeRouteData && <RecordRouteModal isOpen={isRecordModalOpen} routeData={activeRouteData} vehicle={vehicle} homeStandardPence={homeStandardPence} customEvCostGbp={activeEvCostGbp !== null ? activeEvCostGbp : undefined} initialIsPlanned={initialAddDriveIsPlanned} onSave={handleRecordRoute} onOpenGarage={() => setIsGarageOpen(true)} onClose={() => setIsRecordModalOpen(false)} />}
       <VehicleGarageModal isOpen={isGarageOpen} vehicles={vehicles} activeVehicleId={activeVehicleId} recordedRoutes={recordedRoutes} onSave={handleSaveVehicle} onSelectVehicle={handleSelectVehicle} onDeleteVehicle={handleDeleteVehicle} onSelectRecordedRoute={handleLoadRecordedRoute} onDeleteRecordedRoute={handleDeleteRecordedRoute} onClose={() => setIsGarageOpen(false)} />
@@ -989,8 +1118,6 @@ export default function Home() {
           setInitialAddDriveIsPlanned(type === 'planned');
           setIsSidebarOpen(true);
           setIsMobilePanelOpen(true);
-          setIsRouteControlsHighlighted(true);
-          setTimeout(() => setIsRouteControlsHighlighted(false), 3000);
         }}
       />
       <ThemeModal

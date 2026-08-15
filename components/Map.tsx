@@ -9,11 +9,14 @@ import React, {
   useCallback,
 } from 'react';
 import mapboxgl from 'mapbox-gl';
-import { ChevronDown, ChevronUp, Key, MapPinned, MousePointer2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Edit3, Key, MapPinned, MousePointer2 } from 'lucide-react';
 import { LocationPoint, RouteData, RouteDetails } from '@/types';
 import {
   computeCumulativeDistances,
+  fetchLiveDragRoute,
+  findNearestPointOnPolyline,
   findRouteSegmentAtDistance,
+  findWaypointLegIndex,
   interpolateRoutePosition,
   lerpAngle,
   MAX_PREVIEW_ZOOM,
@@ -33,6 +36,7 @@ interface MapProps {
   isPreviewActive?: boolean;
   isPlayingPreview?: boolean;
   previewProgress?: number;
+  onSeekPreview?: (progress: number) => void;
   speedMultiplier?: number;
   cameraZoom?: number;
   onCameraZoomChange?: (zoom: number) => void;
@@ -49,6 +53,13 @@ interface MapProps {
   onMapClick?: (coords: { lng: number; lat: number }) => void;
   onCancelMapPick?: () => void;
   onViewportChange?: (center: { lng: number; lat: number }) => void;
+  isEditMode?: boolean;
+  onToggleEditMode?: () => void;
+  onDragOrigin?: (coords: { lng: number; lat: number }) => void;
+  onDragDestination?: (coords: { lng: number; lat: number }) => void;
+  onDragStop?: (index: number, coords: { lng: number; lat: number }) => void;
+  onInsertStopAt?: (legIndex: number, coords: { lng: number; lat: number }) => void;
+  onMapAddWaypoint?: (coords: { lng: number; lat: number }) => void;
 }
 
 const FREE_CARTO_DARK: mapboxgl.Style = {
@@ -102,7 +113,7 @@ export const MAPBOX_STYLES = [
 ];
 
 function getPreviewPitch(zoom: number): number {
-  return 34 + Math.min(Math.max((zoom - 14) * 9, 0), 40);
+  return 36 + Math.min(Math.max((zoom - 14) * 6, 0), 24);
 }
 
 function normaliseBearing(value: number): number {
@@ -117,10 +128,21 @@ interface MiniMapHandle {
   update: (progress: number, position: [number, number], bearing: number) => void;
 }
 
-const MiniMap = React.memo(forwardRef<MiniMapHandle, { routeData: RouteData; token: string; selectedStyleId: string; expanded: boolean; onToggleExpanded: () => void }>(function MiniMap({ routeData, token, selectedStyleId, expanded, onToggleExpanded }, ref) {
+const MiniMap = React.memo(forwardRef<MiniMapHandle, {
+  routeData: RouteData;
+  token: string;
+  selectedStyleId: string;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+  onSeek?: (progress: number) => void;
+}>(function MiniMap({ routeData, token, selectedStyleId, expanded, onToggleExpanded, onSeek }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const vehicleMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const hoverMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const progressRef = useRef<HTMLSpanElement>(null);
+  const [isWide, setIsWide] = useState(false);
+  const onSeekRef = useRef(onSeek);
+  useEffect(() => { onSeekRef.current = onSeek; }, [onSeek]);
 
   useImperativeHandle(ref, () => ({
     update(progress, position, bearing) {
@@ -141,10 +163,16 @@ const MiniMap = React.memo(forwardRef<MiniMapHandle, { routeData: RouteData; tok
       center: geometry[0],
       zoom: 8,
       attributionControl: false,
-      interactive: false,
+      interactive: true,
+      dragPan: false,
+      scrollZoom: false,
+      doubleClickZoom: false,
       fadeDuration: 0,
       logoPosition: 'bottom-left',
     });
+
+    const cumulative = computeCumulativeDistances(geometry);
+    const totalDistance = cumulative[cumulative.length - 1] || 1;
 
     const addRoute = () => {
       if (!miniMap.isStyleLoaded()) return;
@@ -152,43 +180,114 @@ const MiniMap = React.memo(forwardRef<MiniMapHandle, { routeData: RouteData; tok
       miniMap.addSource('mini-route-source', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: routeData.geometry } });
       miniMap.addLayer({ id: 'mini-route-glow', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#2f80ff', 'line-width': 9, 'line-opacity': 0.45, 'line-blur': 2 } });
       miniMap.addLayer({ id: 'mini-route-line', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#f8fbff', 'line-width': 3.5, 'line-opacity': 0.98 } });
+      miniMap.addLayer({ id: 'mini-route-hit-target', type: 'line', source: 'mini-route-source', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-width': 28, 'line-opacity': 0.0001 } });
+
       const bounds = new mapboxgl.LngLatBounds(geometry[0], geometry[0]);
       geometry.forEach((coordinate) => bounds.extend(coordinate));
-      miniMap.fitBounds(bounds, { padding: 24, maxZoom: 13, duration: 0 });
+      miniMap.fitBounds(bounds, { padding: isWide ? 28 : 18, maxZoom: 13, duration: 0 });
+
       const markerElement = document.createElement('div');
       markerElement.className = 'mini-vehicle-marker';
       markerElement.innerHTML = '<span></span>';
       vehicleMarkerRef.current = new mapboxgl.Marker({ element: markerElement, rotationAlignment: 'map' }).setLngLat(geometry[0]).addTo(miniMap);
+
+      // Interactive Click seeking on mini-map route
+      const handleSeekClick = (e: mapboxgl.MapMouseEvent) => {
+        const nearest = findNearestPointOnPolyline([e.lngLat.lng, e.lngLat.lat], geometry);
+        const progress = clampProgress(nearest.distanceAlongPolyline / totalDistance);
+        onSeekRef.current?.(progress);
+      };
+
+      const handleMouseEnter = () => {
+        miniMap.getCanvas().style.cursor = 'pointer';
+      };
+
+      const handleMouseLeave = () => {
+        miniMap.getCanvas().style.cursor = '';
+        hoverMarkerRef.current?.remove();
+        hoverMarkerRef.current = null;
+      };
+
+      const handleMouseMove = (e: mapboxgl.MapMouseEvent) => {
+        const nearest = findNearestPointOnPolyline([e.lngLat.lng, e.lngLat.lat], geometry);
+        if (!hoverMarkerRef.current) {
+          const el = document.createElement('div');
+          el.className = 'mini-hover-marker';
+          hoverMarkerRef.current = new mapboxgl.Marker({ element: el }).setLngLat(nearest.point).addTo(miniMap);
+        } else {
+          hoverMarkerRef.current.setLngLat(nearest.point);
+        }
+      };
+
+      miniMap.on('click', handleSeekClick);
+      miniMap.on('mouseenter', 'mini-route-hit-target', handleMouseEnter);
+      miniMap.on('mousemove', 'mini-route-hit-target', handleMouseMove);
+      miniMap.on('mouseleave', 'mini-route-hit-target', handleMouseLeave);
     };
+
     miniMap.once('load', addRoute);
     miniMap.on('error', (event) => console.warn('Mini-map tile error:', event.error));
 
     return () => {
       vehicleMarkerRef.current?.remove();
       vehicleMarkerRef.current = null;
+      hoverMarkerRef.current?.remove();
+      hoverMarkerRef.current = null;
       miniMap.remove();
     };
-  }, [expanded, routeData.geometry, selectedStyleId, token]);
+  }, [expanded, isWide, routeData.geometry, selectedStyleId, token]);
 
   return (
     <div className="pointer-events-none map-overlay-safe absolute right-2 z-30 sm:right-4">
       {expanded ? (
-        <div className="theme-scope flighty-map-card pointer-events-auto w-[calc(50vw-1.25rem)] max-w-[240px] rounded-2xl border border-white/20 p-2 shadow-2xl shadow-black/50 sm:w-60 sm:p-2.5">
+        <div className={`theme-scope flighty-map-card pointer-events-auto rounded-2xl border border-white/20 p-2 shadow-2xl shadow-black/50 transition-all ${isWide ? 'w-[calc(90vw-2rem)] sm:w-96 max-w-[420px]' : 'w-[calc(50vw-1.25rem)] max-w-[260px] sm:w-64 sm:p-2.5'}`}>
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-teal-200">Route close-up</span>
+            <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-teal-200">Route timeline</span>
             <div className="flex items-center gap-1">
-              <span ref={progressRef} className="text-[9px] font-mono text-gray-400">0%</span>
-                <button type="button" onClick={onToggleExpanded} className="rounded-lg p-1 text-gray-400 hover:bg-white/10 hover:text-white" title="Collapse route close-up" aria-label="Collapse route close-up">
+              <span ref={progressRef} className="text-[9px] font-mono text-cyan-300 font-bold font-mono-tabular">0%</span>
+              <button
+                type="button"
+                onClick={() => setIsWide((w) => !w)}
+                className="hidden sm:inline-flex rounded-lg p-1 text-gray-400 hover:bg-white/10 hover:text-white"
+                title={isWide ? 'Compact size' : 'Expand size'}
+                aria-label={isWide ? 'Compact route close-up size' : 'Expand route close-up size'}
+              >
+                {isWide ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                type="button"
+                onClick={onToggleExpanded}
+                className="rounded-lg p-1 text-gray-400 hover:bg-white/10 hover:text-white"
+                title="Collapse route close-up"
+                aria-label="Collapse route close-up"
+              >
                 <ChevronUp className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
-          <div ref={containerRef} className="h-28 w-full overflow-hidden rounded-xl border border-white/15 bg-[#071421] sm:h-36" role="img" aria-label="Satellite route close-up mini-map" />
-          <div className="mt-1.5 flex items-center justify-between text-[9px] font-mono text-gray-500"><span>Actual route</span><span>{token.trim().startsWith('pk.') ? 'Mapbox satellite' : 'Satellite fallback'}</span></div>
+          <div
+            ref={containerRef}
+            className={`w-full overflow-hidden rounded-xl border border-white/15 bg-[#071421] cursor-pointer ${isWide ? 'h-44 sm:h-52' : 'h-28 sm:h-36'}`}
+            role="img"
+            aria-label="Satellite route close-up mini-map"
+          />
+          <div className="mt-1.5 flex items-center justify-between text-[9px] font-mono text-gray-400">
+            <span className="text-cyan-300">Click route to jump</span>
+            <span>{token.trim().startsWith('pk.') ? 'Mapbox 3D' : 'Satellite'}</span>
+          </div>
         </div>
       ) : (
-        <button type="button" onClick={onToggleExpanded} className="theme-scope flighty-map-chip pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/20 px-3 py-2 text-[10px] font-semibold shadow-xl" title="Expand route close-up" aria-label="Expand route close-up">
-          <MapPinned className="h-3.5 w-3.5 text-cyan-300" /><span>Route map</span><span ref={progressRef} className="font-mono text-gray-400">0%</span><ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          className="theme-scope flighty-map-chip pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/20 px-3 py-2 text-[10px] font-semibold shadow-xl"
+          title="Expand route close-up"
+          aria-label="Expand route close-up"
+        >
+          <MapPinned className="h-3.5 w-3.5 text-cyan-300" />
+          <span>Route map</span>
+          <span ref={progressRef} className="font-mono text-gray-400 font-mono-tabular">0%</span>
+          <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
         </button>
       )}
     </div>
@@ -279,6 +378,7 @@ export default function Map({
   isPreviewActive = false,
   isPlayingPreview = false,
   previewProgress = 0,
+  onSeekPreview,
   speedMultiplier = 1,
   cameraZoom = 16.8,
   onCameraZoomChange,
@@ -295,12 +395,20 @@ export default function Map({
   onMapClick,
   onCancelMapPick,
   onViewportChange,
+  isEditMode = false,
+  onToggleEditMode,
+  onDragOrigin,
+  onDragDestination,
+  onDragStop,
+  onInsertStopAt,
+  onMapAddWaypoint,
 }: MapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const originMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const destinationMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const stopMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new globalThis.Map());
+  const routeHoverMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const vehicleMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const miniMapRef = useRef<MiniMapHandle>(null);
@@ -334,14 +442,154 @@ export default function Map({
   const [isMiniMapExpanded, setIsMiniMapExpanded] = useState(true);
   const [isManualHintVisible, setIsManualHintVisible] = useState(false);
 
+  const tokenRef = useRef(token);
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+
   const onMapClickRef = useRef(onMapClick);
   const onViewportChangeRef = useRef(onViewportChange);
+  const onDragOriginRef = useRef(onDragOrigin);
+  const onDragDestinationRef = useRef(onDragDestination);
+  const onDragStopRef = useRef(onDragStop);
+  const onInsertStopAtRef = useRef(onInsertStopAt);
+  const onMapAddWaypointRef = useRef(onMapAddWaypoint);
+
+  const isDraggingPolylineRef = useRef(false);
+  const dragLegIndexRef = useRef(0);
+  const dragPrevCoordRef = useRef<[number, number] | null>(null);
+  const dragNextCoordRef = useRef<[number, number] | null>(null);
+
   useEffect(() => {
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
   useEffect(() => {
     onViewportChangeRef.current = onViewportChange;
   }, [onViewportChange]);
+  useEffect(() => {
+    onDragOriginRef.current = onDragOrigin;
+  }, [onDragOrigin]);
+  useEffect(() => {
+    onDragDestinationRef.current = onDragDestination;
+  }, [onDragDestination]);
+  useEffect(() => {
+    onDragStopRef.current = onDragStop;
+  }, [onDragStop]);
+  useEffect(() => {
+    onInsertStopAtRef.current = onInsertStopAt;
+  }, [onInsertStopAt]);
+  useEffect(() => {
+    onMapAddWaypointRef.current = onMapAddWaypoint;
+  }, [onMapAddWaypoint]);
+
+  const liveDragActiveRef = useRef(false);
+  const pendingWaypointsRef = useRef<[number, number][] | null>(null);
+  const lastDragTimeRef = useRef(0);
+
+  const updateGhostLine = useCallback((coords: [number, number][]) => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    const source = map.getSource('uk-ghost-drag-source') as mapboxgl.GeoJSONSource | undefined;
+    if (source) {
+      source.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: coords,
+        },
+      });
+    } else {
+      map.addSource('uk-ghost-drag-source', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: coords,
+          },
+        },
+      });
+      map.addLayer({
+        id: 'uk-ghost-drag-glow',
+        type: 'line',
+        source: 'uk-ghost-drag-source',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#00f0ff',
+          'line-width': 10,
+          'line-opacity': 0.6,
+          'line-blur': 2,
+        },
+      });
+      map.addLayer({
+        id: 'uk-ghost-drag-line',
+        type: 'line',
+        source: 'uk-ghost-drag-source',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 3.5,
+          'line-dasharray': [2, 2],
+          'line-opacity': 0.95,
+        },
+      });
+    }
+  }, []);
+
+  const processLiveDragRoute = useCallback(async () => {
+    if (liveDragActiveRef.current) return;
+    const waypoints = pendingWaypointsRef.current;
+    if (!waypoints || waypoints.length < 2) return;
+
+    liveDragActiveRef.current = true;
+    const currentToken = tokenRef.current;
+    try {
+      const roadCoords = await fetchLiveDragRoute(waypoints, currentToken);
+      if (roadCoords && roadCoords.length > 1) {
+        updateGhostLine(roadCoords);
+      }
+    } catch {
+      // Keep previous line
+    } finally {
+      liveDragActiveRef.current = false;
+      if (pendingWaypointsRef.current && pendingWaypointsRef.current !== waypoints) {
+        window.requestAnimationFrame(() => void processLiveDragRoute());
+      }
+    }
+  }, [updateGhostLine]);
+
+  const updateLiveDragRoute = useCallback((fullWaypoints: [number, number][]) => {
+    // 1. Immediately render raw polyline for instant feedback
+    updateGhostLine(fullWaypoints);
+    pendingWaypointsRef.current = fullWaypoints;
+
+    // 2. Unblocked continuous streaming with high-frequency check (~35ms)
+    const now = Date.now();
+    if (now - lastDragTimeRef.current > 35) {
+      lastDragTimeRef.current = now;
+      void processLiveDragRoute();
+    }
+  }, [updateGhostLine, processLiveDragRoute]);
+
+  const clearGhostLine = useCallback(() => {
+    pendingWaypointsRef.current = null;
+    liveDragActiveRef.current = false;
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    const source = map.getSource('uk-ghost-drag-source') as mapboxgl.GeoJSONSource | undefined;
+    if (source) {
+      source.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: [],
+        },
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -350,10 +598,12 @@ export default function Map({
     const handleMapClick = (e: mapboxgl.MapMouseEvent) => {
       if (isPickingMapLocation) {
         onMapClickRef.current?.({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+      } else if (isEditMode) {
+        onMapAddWaypointRef.current?.({ lng: e.lngLat.lng, lat: e.lngLat.lat });
       }
     };
 
-    if (isPickingMapLocation) {
+    if (isPickingMapLocation || isEditMode) {
       map.getCanvas().style.cursor = 'crosshair';
       map.on('click', handleMapClick);
     } else {
@@ -363,7 +613,7 @@ export default function Map({
     return () => {
       map.off('click', handleMapClick);
     };
-  }, [isPickingMapLocation]);
+  }, [isPickingMapLocation, isEditMode]);
 
   const routeGeometry = routeData?.geometry;
   const primaryRouteGeometry = primaryRouteData?.geometry || routeGeometry;
@@ -495,8 +745,8 @@ export default function Map({
         bearing: 0,
         attributionControl: false,
         fadeDuration: 0,
-        minTileCacheSize: 256,
-        maxTileCacheSize: 1500,
+        minTileCacheSize: 512,
+        maxTileCacheSize: 3000,
         refreshExpiredTiles: true,
       });
 
@@ -510,6 +760,16 @@ export default function Map({
             maxzoom: 14,
           });
           map.setTerrain({ source: 'roadr-terrain', exaggeration: 1.05 });
+        }
+        if (typeof map.setFog === 'function') {
+          map.setFog({
+            range: [0.5, 10],
+            color: '#090a0f',
+            'horizon-blend': 0.08,
+            'high-color': '#0f172a',
+            'space-color': '#020617',
+            'star-intensity': 0.4,
+          });
         }
         for (const layer of map.getStyle().layers || []) {
           if (layer.type !== 'raster' || !map.getLayer(layer.id)) continue;
@@ -568,17 +828,50 @@ export default function Map({
     if (origin) {
       if (!originMarkerRef.current) {
         const element = document.createElement('div');
-        element.className = 'marker-origin';
-        originMarkerRef.current = new mapboxgl.Marker(element).setLngLat([origin.lng, origin.lat]).addTo(map);
+        element.className = 'marker-origin cursor-grab active:cursor-grabbing';
+        const marker = new mapboxgl.Marker({ element, draggable: !isPreviewActive })
+          .setLngLat([origin.lng, origin.lat])
+          .addTo(map);
+
+        marker.on('dragstart', () => {
+          element.classList.add('marker-drag-active');
+          if (stops.length > 0) {
+            dragNextCoordRef.current = [stops[0].lng, stops[0].lat];
+          } else if (destination) {
+            dragNextCoordRef.current = [destination.lng, destination.lat];
+          } else {
+            dragNextCoordRef.current = null;
+          }
+        });
+
+        marker.on('drag', () => {
+          const lngLat = marker.getLngLat();
+          const fullWaypoints: [number, number][] = [
+            [lngLat.lng, lngLat.lat],
+            ...stops.map((s) => [s.lng, s.lat] as [number, number]),
+            ...(destination ? [[destination.lng, destination.lat] as [number, number]] : []),
+          ];
+          updateLiveDragRoute(fullWaypoints);
+        });
+
+        marker.on('dragend', () => {
+          element.classList.remove('marker-drag-active');
+          clearGhostLine();
+          const lngLat = marker.getLngLat();
+          onDragOriginRef.current?.({ lng: lngLat.lng, lat: lngLat.lat });
+        });
+
+        originMarkerRef.current = marker;
       } else {
         originMarkerRef.current.setLngLat([origin.lng, origin.lat]);
+        originMarkerRef.current.setDraggable(!isPreviewActive);
       }
       originMarkerRef.current.setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(`<strong>Origin</strong><br/>${origin.name}`));
     } else if (originMarkerRef.current) {
       originMarkerRef.current.remove();
       originMarkerRef.current = null;
     }
-  }, [origin]);
+  }, [origin, destination, stops, isPreviewActive, updateLiveDragRoute, clearGhostLine]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -586,17 +879,50 @@ export default function Map({
     if (destination) {
       if (!destinationMarkerRef.current) {
         const element = document.createElement('div');
-        element.className = 'marker-destination';
-        destinationMarkerRef.current = new mapboxgl.Marker(element).setLngLat([destination.lng, destination.lat]).addTo(map);
+        element.className = 'marker-destination cursor-grab active:cursor-grabbing';
+        const marker = new mapboxgl.Marker({ element, draggable: !isPreviewActive })
+          .setLngLat([destination.lng, destination.lat])
+          .addTo(map);
+
+        marker.on('dragstart', () => {
+          element.classList.add('marker-drag-active');
+          if (stops.length > 0) {
+            dragPrevCoordRef.current = [stops[stops.length - 1].lng, stops[stops.length - 1].lat];
+          } else if (origin) {
+            dragPrevCoordRef.current = [origin.lng, origin.lat];
+          } else {
+            dragPrevCoordRef.current = null;
+          }
+        });
+
+        marker.on('drag', () => {
+          const lngLat = marker.getLngLat();
+          const fullWaypoints: [number, number][] = [
+            ...(origin ? [[origin.lng, origin.lat] as [number, number]] : []),
+            ...stops.map((s) => [s.lng, s.lat] as [number, number]),
+            [lngLat.lng, lngLat.lat],
+          ];
+          updateLiveDragRoute(fullWaypoints);
+        });
+
+        marker.on('dragend', () => {
+          element.classList.remove('marker-drag-active');
+          clearGhostLine();
+          const lngLat = marker.getLngLat();
+          onDragDestinationRef.current?.({ lng: lngLat.lng, lat: lngLat.lat });
+        });
+
+        destinationMarkerRef.current = marker;
       } else {
         destinationMarkerRef.current.setLngLat([destination.lng, destination.lat]);
+        destinationMarkerRef.current.setDraggable(!isPreviewActive);
       }
       destinationMarkerRef.current.setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(`<strong>Destination</strong><br/>${destination.name}`));
     } else if (destinationMarkerRef.current) {
       destinationMarkerRef.current.remove();
       destinationMarkerRef.current = null;
     }
-  }, [destination]);
+  }, [destination, origin, stops, isPreviewActive, updateLiveDragRoute, clearGhostLine]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -613,16 +939,50 @@ export default function Map({
       const current = stopMarkersRef.current.get(key);
       if (current) {
         current.setLngLat([stop.lng, stop.lat]);
+        current.setDraggable(!isPreviewActive);
         return;
       }
       const element = document.createElement('div');
-      element.className = 'marker-stop';
+      element.className = 'marker-stop cursor-grab active:cursor-grabbing';
       element.textContent = String(index + 1);
-      const marker = new mapboxgl.Marker({ element }).setLngLat([stop.lng, stop.lat]).addTo(map);
+      const marker = new mapboxgl.Marker({ element, draggable: !isPreviewActive })
+        .setLngLat([stop.lng, stop.lat])
+        .addTo(map);
+
+      marker.on('dragstart', () => {
+        element.classList.add('marker-drag-active');
+        const prevCoord: [number, number] = index === 0
+          ? (origin ? [origin.lng, origin.lat] : [stop.lng, stop.lat])
+          : [stops[index - 1].lng, stops[index - 1].lat];
+        const nextCoord: [number, number] = index >= stops.length - 1
+          ? (destination ? [destination.lng, destination.lat] : [stop.lng, stop.lat])
+          : [stops[index + 1].lng, stops[index + 1].lat];
+        dragPrevCoordRef.current = prevCoord;
+        dragNextCoordRef.current = nextCoord;
+      });
+
+      marker.on('drag', () => {
+        const lngLat = marker.getLngLat();
+        const stopsCoords = stops.map((s, i) => (i === index ? [lngLat.lng, lngLat.lat] : [s.lng, s.lat]) as [number, number]);
+        const fullWaypoints: [number, number][] = [
+          ...(origin ? [[origin.lng, origin.lat] as [number, number]] : []),
+          ...stopsCoords,
+          ...(destination ? [[destination.lng, destination.lat] as [number, number]] : []),
+        ];
+        updateLiveDragRoute(fullWaypoints);
+      });
+
+      marker.on('dragend', () => {
+        element.classList.remove('marker-drag-active');
+        clearGhostLine();
+        const lngLat = marker.getLngLat();
+        onDragStopRef.current?.(index, { lng: lngLat.lng, lat: lngLat.lat });
+      });
+
       marker.setPopup(new mapboxgl.Popup({ offset: 20 }).setHTML(`<strong>Stop ${index + 1}</strong><br/>${stop.name}`));
       stopMarkersRef.current.set(key, marker);
     });
-  }, [stops]);
+  }, [stops, origin, destination, isPreviewActive, updateLiveDragRoute, clearGhostLine]);
 
   // Keep the route rendering lightweight. When an alternative is selected, the
   // original stays visible as a muted comparison line while the selected route
@@ -630,7 +990,7 @@ export default function Map({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const routeLayerIds = ['uk-route-primary-glow', 'uk-route-primary-line', 'uk-route-glow', 'uk-route-line'];
+    const routeLayerIds = ['uk-route-primary-glow', 'uk-route-primary-line', 'uk-route-glow', 'uk-route-line', 'uk-route-hit-target'];
     const routeSourceIds = ['uk-route-primary-source', 'uk-route-source'];
 
     const updateLayer = () => {
@@ -668,6 +1028,16 @@ export default function Map({
         });
       });
 
+      if (!isPreviewActive) {
+        map.addLayer({
+          id: 'uk-route-hit-target',
+          type: 'line',
+          source: 'uk-route-source',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-width': 28, 'line-opacity': 0.0001 },
+        });
+      }
+
       if (!isPreviewActive && routes.length > 0) {
         const coordinates = routes.flatMap((route) => route.geometry.coordinates) as [number, number][];
         if (coordinates.length === 0) return;
@@ -688,6 +1058,120 @@ export default function Map({
     else map.once('style.load', updateLayer);
     return () => { map.off('style.load', updateLayer); };
   }, [routeGeometry, primaryRouteGeometry, selectedRouteId, selectedStyleId, token, isPreviewActive, isSidebarOpen, sidebarWidth]);
+
+  // Handle route line hover and rubber-band dragging interactions
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !routeGeometry?.coordinates || isPreviewActive) {
+      routeHoverMarkerRef.current?.remove();
+      routeHoverMarkerRef.current = null;
+      return;
+    }
+
+    const routeCoords = routeGeometry.coordinates as [number, number][];
+    if (routeCoords.length < 2) return;
+
+    const handleMouseEnter = () => {
+      if (!isDraggingPolylineRef.current) {
+        map.getCanvas().style.cursor = 'grab';
+      }
+    };
+
+    const handleMouseMove = (e: mapboxgl.MapMouseEvent) => {
+      if (isDraggingPolylineRef.current) return;
+      map.getCanvas().style.cursor = 'grab';
+      const nearest = findNearestPointOnPolyline([e.lngLat.lng, e.lngLat.lat], routeCoords);
+      if (!routeHoverMarkerRef.current) {
+        const handleEl = document.createElement('div');
+        handleEl.className = 'route-hover-handle';
+        routeHoverMarkerRef.current = new mapboxgl.Marker({ element: handleEl })
+          .setLngLat(nearest.point)
+          .addTo(map);
+      } else {
+        routeHoverMarkerRef.current.setLngLat(nearest.point);
+      }
+    };
+
+    const handleMouseLeave = () => {
+      if (!isDraggingPolylineRef.current) {
+        map.getCanvas().style.cursor = '';
+        routeHoverMarkerRef.current?.remove();
+        routeHoverMarkerRef.current = null;
+      }
+    };
+
+    const handleMouseDown = (e: mapboxgl.MapMouseEvent) => {
+      if (isPreviewActive) return;
+      e.preventDefault();
+      const legIndex = findWaypointLegIndex([e.lngLat.lng, e.lngLat.lat], routeCoords, stops);
+      isDraggingPolylineRef.current = true;
+      dragLegIndexRef.current = legIndex;
+
+      const prevCoord: [number, number] = legIndex === 0
+        ? (origin ? [origin.lng, origin.lat] : routeCoords[0])
+        : [stops[legIndex - 1].lng, stops[legIndex - 1].lat];
+      const nextCoord: [number, number] = legIndex >= stops.length
+        ? (destination ? [destination.lng, destination.lat] : routeCoords[routeCoords.length - 1])
+        : [stops[legIndex].lng, stops[legIndex].lat];
+
+      dragPrevCoordRef.current = prevCoord;
+      dragNextCoordRef.current = nextCoord;
+
+      map.dragPan.disable();
+      map.getCanvas().style.cursor = 'grabbing';
+
+      const onWindowMove = (moveEvent: MouseEvent) => {
+        if (!isDraggingPolylineRef.current) return;
+        const point = map.unproject([moveEvent.clientX, moveEvent.clientY]);
+        const currentCoord: [number, number] = [point.lng, point.lat];
+        routeHoverMarkerRef.current?.setLngLat(currentCoord);
+
+        const stopsBefore = stops.slice(0, dragLegIndexRef.current).map((s) => [s.lng, s.lat] as [number, number]);
+        const stopsAfter = stops.slice(dragLegIndexRef.current).map((s) => [s.lng, s.lat] as [number, number]);
+        const fullWaypoints: [number, number][] = [
+          ...(origin ? [[origin.lng, origin.lat] as [number, number]] : []),
+          ...stopsBefore,
+          currentCoord,
+          ...stopsAfter,
+          ...(destination ? [[destination.lng, destination.lat] as [number, number]] : []),
+        ];
+        updateLiveDragRoute(fullWaypoints);
+      };
+
+      const onWindowUp = (upEvent: MouseEvent) => {
+        if (!isDraggingPolylineRef.current) return;
+        isDraggingPolylineRef.current = false;
+        window.removeEventListener('mousemove', onWindowMove);
+        window.removeEventListener('mouseup', onWindowUp);
+
+        map.dragPan.enable();
+        map.getCanvas().style.cursor = '';
+        clearGhostLine();
+        routeHoverMarkerRef.current?.remove();
+        routeHoverMarkerRef.current = null;
+
+        const point = map.unproject([upEvent.clientX, upEvent.clientY]);
+        onInsertStopAtRef.current?.(dragLegIndexRef.current, { lng: point.lng, lat: point.lat });
+      };
+
+      window.addEventListener('mousemove', onWindowMove);
+      window.addEventListener('mouseup', onWindowUp);
+    };
+
+    map.on('mouseenter', 'uk-route-hit-target', handleMouseEnter);
+    map.on('mousemove', 'uk-route-hit-target', handleMouseMove);
+    map.on('mouseleave', 'uk-route-hit-target', handleMouseLeave);
+    map.on('mousedown', 'uk-route-hit-target', handleMouseDown);
+
+    return () => {
+      map.off('mouseenter', 'uk-route-hit-target', handleMouseEnter);
+      map.off('mousemove', 'uk-route-hit-target', handleMouseMove);
+      map.off('mouseleave', 'uk-route-hit-target', handleMouseLeave);
+      map.off('mousedown', 'uk-route-hit-target', handleMouseDown);
+      routeHoverMarkerRef.current?.remove();
+      routeHoverMarkerRef.current = null;
+    };
+  }, [routeGeometry, stops, origin, destination, isPreviewActive, updateLiveDragRoute, clearGhostLine]);
 
   // Native Mapbox gestures are still available in follow mode. The first user
   // gesture changes the camera contract to manual mode so playback never snaps
@@ -958,7 +1442,7 @@ export default function Map({
       <div ref={mapContainerRef} className="h-full w-full" />
 
       {isPickingMapLocation && (
-        <div className="pointer-events-auto absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border border-amber-400/50 bg-black/90 px-4 py-2.5 shadow-2xl backdrop-blur-md">
+        <div className="pointer-events-auto absolute top-20 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 rounded-2xl border border-amber-400/50 bg-black/90 px-4 py-2.5 shadow-2xl backdrop-blur-md animate-fade-in">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-400/20 text-amber-300">
             <MapPinned className="h-4 w-4 animate-pulse" />
           </div>
@@ -969,15 +1453,37 @@ export default function Map({
           <button
             type="button"
             onClick={onCancelMapPick}
-            className="rounded-lg border border-white/10 bg-white/10 px-2.5 py-1 text-xs font-semibold text-gray-300 hover:bg-white/20 hover:text-white"
+            className="rounded-lg border border-white/10 bg-white/10 px-2.5 py-1 text-xs font-semibold text-gray-300 hover:bg-white/20 hover:text-white transition-colors"
           >
             Cancel
           </button>
         </div>
       )}
 
+      {isEditMode && !isPreviewActive && !isPickingMapLocation && (
+        <div className="pointer-events-auto absolute top-20 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 rounded-2xl border border-cyan-400/50 bg-black/90 px-4 py-2.5 shadow-2xl backdrop-blur-md animate-fade-in">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-400/20 text-cyan-300">
+            <Edit3 className="h-4 w-4 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-bold text-white">Route Editor Active</p>
+              <span className="rounded-md bg-cyan-400/20 px-1.5 py-0.5 text-[9px] font-mono font-semibold uppercase text-cyan-200">Interactive</span>
+            </div>
+            <p className="text-[10px] text-cyan-200/80">Click map to add points · Drag road lines to re-route</p>
+          </div>
+          <button
+            type="button"
+            onClick={onToggleEditMode}
+            className="rounded-xl border border-cyan-400/30 bg-cyan-500/20 px-3 py-1 text-xs font-bold text-cyan-100 hover:bg-cyan-500/30 hover:text-white transition-colors"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
       {!isPreviewActive && (
-        <div className="theme-scope liquid-glass map-control-safe absolute left-2 right-2 z-30 flex max-w-full items-center justify-center space-x-1 overflow-x-auto rounded-xl border border-white/10 p-1.5 shadow-xl sm:left-auto sm:right-4">
+        <div className="theme-scope liquid-glass map-control-safe absolute left-2 right-2 z-20 flex max-w-full items-center justify-center space-x-1 overflow-x-auto rounded-xl border border-white/10 p-1.5 shadow-xl sm:left-auto sm:right-4">
           {MAPBOX_STYLES.map((style) => (
             <button
               key={style.id}
@@ -1010,7 +1516,15 @@ export default function Map({
               {!isPreviewDataExpanded && <div className="mt-1 flex items-center justify-between gap-2 text-[9px] font-mono text-gray-500"><span>Gradient</span><span className="truncate text-cyan-300">{routeData.details.hasElevationData ? `${routeData.details.minimumElevationM.toFixed(0)}–${routeData.details.maximumElevationM.toFixed(0)} m` : 'Terrain loading'}</span></div>}
             </div>
           </div>
-          <MiniMap ref={miniMapRef} routeData={routeData} token={token} selectedStyleId={selectedStyleId} expanded={isMiniMapExpanded} onToggleExpanded={() => setIsMiniMapExpanded((expanded) => !expanded)} />
+          <MiniMap
+            ref={miniMapRef}
+            routeData={routeData}
+            token={token}
+            selectedStyleId={selectedStyleId}
+            expanded={isMiniMapExpanded}
+            onToggleExpanded={() => setIsMiniMapExpanded((expanded) => !expanded)}
+            onSeek={onSeekPreview}
+          />
           {orientationMode === 'manual' && (
             <div className={`theme-scope flighty-map-card pointer-events-none absolute left-2 top-[10rem] z-30 flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-xl border border-cyan-400/40 px-3 py-2 text-[10px] text-cyan-200 shadow-xl transition-opacity duration-700 sm:left-4 sm:top-[14.2rem] sm:max-w-[232px] ${isManualHintVisible ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!isManualHintVisible}>
               <MousePointer2 className="h-3.5 w-3.5 shrink-0 text-cyan-400" /> Drag or swipe to turn / tilt · pinch to zoom

@@ -50,24 +50,48 @@ export default function Header({
     onSelectVehicle(selectedValue);
   };
 
-  const initials = user?.username.slice(0, 1).toUpperCase() || '';
+  const initials = user?.username.slice(0, 1).toUpperCase() || 'M';
 
   return (
-    <header className="theme-scope liquid-glass-header absolute left-0 right-0 top-0 z-40 flex items-center justify-between border-b px-3 py-2 text-white sm:px-4 lg:px-6">
-      <div className="flex items-center space-x-2 sm:space-x-3">
-        <button type="button" onClick={onRecenterUK} className="header-logo-group flex cursor-pointer items-center space-x-2 rounded-xl p-1 text-left transition-opacity hover:opacity-90" title="Roadr UK Route Planner — Click to recenter map" aria-label="Recenter Mapbox Map">
+    <header className="theme-scope liquid-glass-header absolute left-0 right-0 top-0 z-40 flex items-center justify-between border-b px-2.5 py-2 text-white sm:px-4 lg:px-6">
+      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+        <button
+          type="button"
+          onClick={onRecenterUK}
+          className="header-logo-group flex cursor-pointer items-center space-x-2 rounded-xl p-1 text-left transition-opacity hover:opacity-90 shrink-0"
+          title="Roadr UK Route Planner — Click to recenter map"
+          aria-label="Recenter Mapbox Map"
+        >
           <div className="header-logo-badge flex h-8 w-8 items-center justify-center rounded-xl font-display text-lg font-black">R</div>
           <span className="header-logo-text font-display text-lg font-black tracking-tight sm:text-xl">ROADR</span>
         </button>
         <span className="hidden text-xs text-gray-400 md:inline">|</span>
-        <span className="hidden text-xs font-medium text-gray-300 md:inline">UK Scenic Route Planner</span>
+        <span className="hidden text-xs font-medium text-gray-300 md:inline truncate">UK Scenic Route Planner</span>
       </div>
 
-      <div className="flex items-center space-x-1.5 sm:space-x-2">
+      <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
+        {/* 1. CAR / GARAGE BUTTON */}
+        {/* Mobile: Condensed Car Logo Button */}
+        <button
+          type="button"
+          onClick={onOpenGarage}
+          className="header-action h-8 w-8 sm:hidden inline-flex shrink-0 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-500/10 text-cyan-200 transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20 hover:text-white"
+          title="Garage &amp; Vehicles"
+          aria-label="Open garage"
+        >
+          <CarFront className="h-4 w-4" />
+        </button>
+
+        {/* Desktop: Car Dropdown Picker */}
         {user && vehicles.length > 0 && (
-          <div className="header-car-picker relative flex h-8 sm:h-9 max-w-[140px] sm:max-w-[180px] shrink-0 items-center gap-1 sm:gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-2 text-[11px] sm:text-xs text-cyan-200 transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20 hover:text-white">
+          <div className="header-car-picker relative hidden sm:flex h-8 sm:h-9 max-w-[140px] sm:max-w-[180px] shrink-0 items-center gap-1 sm:gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-2 text-[11px] sm:text-xs text-cyan-200 transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20 hover:text-white">
             <CarFront className="h-3.5 w-3.5 shrink-0" />
-            <select aria-label="Select car from garage" value={activeVehicleId || '__none__'} onChange={handleVehicleChange} className="header-car-select min-w-0 flex-1 cursor-pointer appearance-none truncate border-0 bg-transparent p-0 pr-3.5 text-[11px] font-medium outline-none sm:text-xs">
+            <select
+              aria-label="Select car from garage"
+              value={activeVehicleId || '__none__'}
+              onChange={handleVehicleChange}
+              className="header-car-select min-w-0 flex-1 cursor-pointer appearance-none truncate border-0 bg-transparent p-0 pr-3.5 text-[11px] font-medium outline-none sm:text-xs"
+            >
               <option value="__none__">No car</option>
               {vehicles.map((item) => <option key={item.id} value={item.id}>{item.nickname}</option>)}
               <option value="__manage__">Manage garage…</option>
@@ -76,52 +100,66 @@ export default function Header({
           </div>
         )}
 
-        {user && (
-          <button
-            type="button"
-            onClick={onOpenDrives}
-            className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-teal-400/30 bg-teal-500/10 px-2 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-teal-200 transition-all hover:border-teal-400/50 hover:bg-teal-500/20 hover:text-white"
-            title="Open drives manager (Past &amp; Planned drives)"
-            aria-label="Open drives manager"
-          >
-            <RouteIcon className="h-3.5 w-3.5 text-teal-300" />
-            <span className="header-action-label hidden sm:inline font-medium">Drives</span>
-          </button>
-        )}
+        {/* 2. TRANSIT / DRIVES BUTTON */}
+        <button
+          type="button"
+          onClick={onOpenDrives}
+          className="header-action h-8 w-8 sm:w-auto sm:h-9 inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-teal-400/30 bg-teal-500/10 px-0 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-teal-200 transition-all hover:border-teal-400/50 hover:bg-teal-500/20 hover:text-white"
+          title="Open drives manager (Past &amp; Planned drives)"
+          aria-label="Open drives manager"
+        >
+          <RouteIcon className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-teal-300" />
+          <span className="header-action-label hidden sm:inline font-medium">Drives</span>
+        </button>
 
+        {/* 3. THEMES BUTTON */}
         <button
           type="button"
           onClick={onOpenTheme}
-          className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-gray-300 transition-all hover:bg-white/10 hover:text-white"
+          className="header-action h-8 w-8 sm:w-auto sm:h-9 inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-0 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-gray-300 transition-all hover:bg-white/10 hover:text-white"
           title="Open theme &amp; appearance manager"
           aria-label="Open theme manager"
         >
-          <Palette className="h-3.5 w-3.5 text-amber-300" />
+          <Palette className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-amber-300" />
           <span className="header-action-label hidden sm:inline font-medium">Theme</span>
         </button>
 
+        {/* Admin Link if authorized */}
         {user?.role === 'admin' && (
-          <Link href="/admin" className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-violet-400/30 bg-violet-500/10 px-2 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-violet-200 transition-all hover:bg-violet-500/20 hover:text-white" title="Open admin dashboard" aria-label="Open admin dashboard">
+          <Link
+            href="/admin"
+            className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-violet-400/30 bg-violet-500/10 px-2 sm:px-2.5 lg:px-3 text-[11px] sm:text-xs text-violet-200 transition-all hover:bg-violet-500/20 hover:text-white"
+            title="Open admin dashboard"
+            aria-label="Open admin dashboard"
+          >
             <ShieldCheck className="h-3.5 w-3.5" />
             <span className="header-action-label font-semibold">Admin</span>
           </Link>
         )}
 
+        {/* 4. MENU / ACCOUNT BUTTON */}
         {user ? (
           <button
             type="button"
             onClick={onOpenAccount}
-            className="header-profile h-8 sm:h-9 inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-1.5 sm:px-2 text-[11px] sm:text-xs transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20"
+            className="header-profile h-8 w-8 sm:w-auto sm:h-9 inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-0 sm:px-2 text-[11px] sm:text-xs transition-all hover:border-cyan-400/50 hover:bg-cyan-500/20"
             title={`Signed in as ${user.username} — Click to manage account & sign out`}
             aria-label={`Signed in as ${user.username}. Manage account`}
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-cyan-400/20 text-[9px] font-bold text-cyan-100">{initials}</span>
+            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-cyan-400/20 text-[10px] font-bold text-cyan-100">{initials}</span>
             <span className="header-profile-name hidden max-w-16 truncate text-[11px] font-semibold text-cyan-100 lg:inline sm:max-w-24 sm:text-xs">{user.username}</span>
           </button>
         ) : (
-          <button type="button" onClick={onOpenAuth} className="header-action h-8 sm:h-9 inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 text-[11px] sm:text-xs font-semibold text-cyan-100 transition-all hover:bg-cyan-500/25 hover:text-white" title="Sign in to Roadr" aria-label="Sign in to Roadr">
-            <LogIn className="h-3.5 w-3.5" />
-            <span className="header-action-label font-semibold">Sign in</span>
+          <button
+            type="button"
+            onClick={onOpenAuth}
+            className="header-action h-8 w-8 sm:w-auto sm:h-9 inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-0 sm:px-3 text-[11px] sm:text-xs font-semibold text-cyan-100 transition-all hover:bg-cyan-500/25 hover:text-white"
+            title="Sign in to Roadr / Menu"
+            aria-label="Sign in to Roadr"
+          >
+            <span className="sm:hidden font-mono font-black text-xs text-cyan-300">M</span>
+            <LogIn className="hidden sm:inline h-3.5 w-3.5" />
+            <span className="header-action-label hidden sm:inline font-semibold">Sign in</span>
           </button>
         )}
       </div>

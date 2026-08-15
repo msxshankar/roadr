@@ -220,15 +220,18 @@ export default function LocationSearchInput({
             <button
               type="button"
               onClick={handleMapPick}
-              className={`inline-flex items-center gap-1 rounded-lg border px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] font-bold transition-all shadow-sm ${
                 isPickingOnMap
-                  ? 'border-amber-400 bg-amber-400/20 text-amber-200 animate-pulse'
-                  : 'border-white/10 bg-white/5 text-gray-300 hover:border-cyan-400/40 hover:bg-cyan-400/15 hover:text-cyan-200'
+                  ? 'border-amber-400 bg-amber-400/25 text-amber-200 ring-2 ring-amber-400/50 animate-pulse'
+                  : badgeColor === 'cyan'
+                    ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-200 hover:border-cyan-400/70 hover:bg-cyan-400/20 hover:text-white'
+                    : 'border-amber-400/40 bg-amber-400/10 text-amber-200 hover:border-amber-400/70 hover:bg-amber-400/20 hover:text-white'
               }`}
               title={`Pick ${label} on map`}
+              aria-label={`Pick ${label} on map`}
             >
-              <MapPin className="h-3 w-3" />
-              {isPickingOnMap ? 'Click map...' : 'Pick on map'}
+              <MapPin className="h-3.5 w-3.5" />
+              <span>{isPickingOnMap ? 'Click on map…' : 'Pick on map'}</span>
             </button>
           )}
           {value && <span className="hidden font-mono text-[10px] text-gray-400 sm:inline">{value.lat.toFixed(3)}°, {value.lng.toFixed(3)}°</span>}
