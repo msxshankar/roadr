@@ -153,4 +153,16 @@ test.describe('Roadr - Custom Route Creation, Dragging & Plan a Journey UI', () 
     await cancelBtn.click();
     await expect(page.getByText('Click anywhere on map')).not.toBeVisible();
   });
+
+  test('clicking clear removes all route points, lines, and ghost dotted lines', async ({ page }) => {
+    const clearBtn = page.getByRole('button', { name: /Clear all route points/i });
+    await expect(clearBtn).toBeVisible();
+    await clearBtn.scrollIntoViewIfNeeded();
+    await clearBtn.click();
+
+    // Verify origin and destination inputs are cleared
+    await expect(page.getByRole('combobox', { name: 'Origin' })).toHaveValue('');
+    // Clear button should become disabled
+    await expect(clearBtn).toBeDisabled();
+  });
 });

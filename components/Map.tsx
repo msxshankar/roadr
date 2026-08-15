@@ -589,6 +589,9 @@ export default function Map({
         },
       });
     }
+    if (map.getLayer('uk-ghost-drag-line')) map.removeLayer('uk-ghost-drag-line');
+    if (map.getLayer('uk-ghost-drag-glow')) map.removeLayer('uk-ghost-drag-glow');
+    if (map.getSource('uk-ghost-drag-source')) map.removeSource('uk-ghost-drag-source');
   }, []);
 
   useEffect(() => {
@@ -990,13 +993,22 @@ export default function Map({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const routeLayerIds = ['uk-route-primary-glow', 'uk-route-primary-line', 'uk-route-glow', 'uk-route-line', 'uk-route-hit-target'];
-    const routeSourceIds = ['uk-route-primary-source', 'uk-route-source'];
+    const routeLayerIds = [
+      'uk-route-primary-glow',
+      'uk-route-primary-line',
+      'uk-route-glow',
+      'uk-route-line',
+      'uk-route-hit-target',
+      'uk-ghost-drag-glow',
+      'uk-ghost-drag-line',
+    ];
+    const routeSourceIds = ['uk-route-primary-source', 'uk-route-source', 'uk-ghost-drag-source'];
 
     const updateLayer = () => {
       if (!map.isStyleLoaded()) return;
       routeLayerIds.forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
       routeSourceIds.forEach((id) => { if (map.getSource(id)) map.removeSource(id); });
+      clearGhostLine();
       if (!routeGeometry) return;
 
       const showRouteComparison = Boolean(selectedRouteId && primaryRouteGeometry);
@@ -1057,7 +1069,16 @@ export default function Map({
     if (map.isStyleLoaded()) updateLayer();
     else map.once('style.load', updateLayer);
     return () => { map.off('style.load', updateLayer); };
-  }, [routeGeometry, primaryRouteGeometry, selectedRouteId, selectedStyleId, token, isPreviewActive, isSidebarOpen, sidebarWidth]);
+  }, [routeGeometry, primaryRouteGeometry, selectedRouteId, selectedStyleId, token, isPreviewActive, isSidebarOpen, sidebarWidth, clearGhostLine]);
+
+  // Clean up ghost lines, dragging preview, and hover handles whenever route is cleared
+  useEffect(() => {
+    if (!origin || !destination || !routeData) {
+      clearGhostLine();
+      routeHoverMarkerRef.current?.remove();
+      routeHoverMarkerRef.current = null;
+    }
+  }, [origin, destination, routeData, clearGhostLine]);
 
   // Handle route line hover and rubber-band dragging interactions
   useEffect(() => {
